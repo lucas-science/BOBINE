@@ -12,17 +12,15 @@ import {
   getIndexByPathname
 } from "@/src/lib/pathNavigation";
 
-export default function RootLayout({
-  children,
-}: React.PropsWithChildren<object>) {
-  const router   = useRouter();
+export default function RootLayout({ children }: React.PropsWithChildren<object>) {
+  const router = useRouter();
   const pathname = usePathname();
-  const step     = getIndexByPathname(pathname);
+  const step = getIndexByPathname(pathname);
 
   const [prevPath, nextPath] = getNavigationByIndex(step);
-  const [isPending, startTransition] = useTransition(); //true tant que la navigation est en cours
-
-  const handleNext = () => {
+  const [isPending, startTransition] = useTransition();
+  
+  const handleNext = () => { 
     if (!nextPath) return;
     startTransition(() => {
       router.push(nextPath);
@@ -49,7 +47,7 @@ export default function RootLayout({
           <Image src="/logo-bobine.svg" alt="logo" width={100} height={100} />
         </header>
 
-        <main className="flex-grow flex h-full pb-16">
+        <main className="flex-grow flex h-full pb-30"> {/* Ajout de pb-20 pour le padding */}
           <div className="flex justify-center items-center p-6">
             <MyStepper activeStep={step + 1} />
           </div>

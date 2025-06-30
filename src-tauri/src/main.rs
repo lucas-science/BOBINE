@@ -1,6 +1,11 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
+// src-tauri/src/main.rs
+
+// Empêche la console supplémentaire sous Windows (release).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod lib;
+
 fn main() {
-  app_lib::run();
+  // On délègue tout à notre fonction `run()` dans lib.rs
+  lib::run();
 }
