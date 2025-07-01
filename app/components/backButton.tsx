@@ -13,7 +13,7 @@ type BackButtonProps = {
 export default function BackButton({ onClick, disable }: BackButtonProps) {
     if(disable) return null;
     return (
-        <Button className="cursor-pointer mr-auto" onClick={onClick}>
+        <Button className="cursor-pointer" onClick={onClick}>
             <ArrowLeft /> Précedent
         </Button>
     );

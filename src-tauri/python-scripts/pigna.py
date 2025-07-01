@@ -11,8 +11,6 @@ from utils.pigna_constants import (
     GRAPHS,
 )
 
-DIR_ROOT = './data/pigna/pigna_raw.csv'
-
 
 class PignaData:
     def __init__(self, root: str):
@@ -30,18 +28,15 @@ class PignaData:
     def is_all_required_data(self) -> bool:
         return all(col in self.data_frame.columns for col in DATA_REQUIRED)
 
-    def not_available_getters(self) -> list[str]:
-        not_available = []
+    def get_available_graphs(self) -> list[dict]:
+        graphs = []
         for graph in GRAPHS:
-            if not all(col in self.columns for col in graph["columns"]):
-                not_available.append(graph["name"])
-        if len(not_available) == len(GRAPHS):
-            return {
-                "status": -1,
-                "message": "Aucune donnée n'est disponible pour l'exploitation.",
-            }
-        else:
-            return not_available
+            if all(col in self.columns for col in graph['columns']):
+                graph['available'] = True
+            else:
+                graph['available'] = False
+            graphs.append(graph)
+        return graphs
 
     # --------------------------------------------------
     #  Gestion des données manquantes

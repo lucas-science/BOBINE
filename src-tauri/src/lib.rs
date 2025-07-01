@@ -2,31 +2,13 @@ use std::{fs, path::Path};
 use tauri::command;
 use dirs::document_dir;
 
-use std::process::Command;
-use std::env;
-use serde::Serialize;
+use std::{process::Command, env};
+use serde::{Serialize, Deserialize};
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct CommandOutput {
     stdout: String,
     stderr: String,
-}
-
-#[tauri::command]
-fn run_python_script_with_action(dir_path: String, action: String) -> Result<CommandOutput, String> {
-    // Lire le chemin du script à partir d'une variable d'environnement
-    let script_path = "../python-scripts/main.py"
-    let output = Command::new("python3")
-        .arg(&script_path)
-        .arg(&dir_path)
-        .arg(&action)
-        .output()
-        .map_err(|e| format!("Failed to execute command: {}", e))?;
-
-    let stdout = String::from_utf8(output.stdout).map_err(|e| format!("Invalid UTF-8 in stdout: {}", e))?;
-    let stderr = String::from_utf8(output.stderr).map_err(|e| format!("Invalid UTF-8 in stderr: {}", e))?;
-
-    Ok(CommandOutput { stdout, stderr })
 }
 
 /// Renvoie le chemin absolu du dossier Documents de l'utilisateur.
@@ -80,15 +62,33 @@ fn copy_file(source_path: String, destination_path: String) -> Result<(), String
     Ok(())
 }
 
+
+#[command]
+fn run_python_script(dir_path: String, action: String) -> Result<CommandOutput, String> {
+    let script_path = "/home/lucaslhm/Documents/ETIC/Bobine/project/desktop_app/src-tauri/python-scripts/main.py";
+    let output = Command::new("python3")
+        .arg(&script_path)
+        .arg(dir_path)
+        .arg(action)
+        .output()
+        .map_err(|e| format!("Failed to execute command: {}", e))?;
+
+    let stdout = String::from_utf8(output.stdout).map_err(|e| format!("Invalid UTF-8 in stdout: {}", e))?;
+    let stderr = String::from_utf8(output.stderr).map_err(|e| format!("Invalid UTF-8 in stderr: {}", e))?;
+
+    Ok(CommandOutput { stdout, stderr })
+}
+
+
 pub fn run() {
     tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
-            run_python_script_with_dir,
+            run_python_script,
             get_documents_dir,
             write_file,
             copy_file,
             my_custom_command,
-            remove_dir 
+            remove_dir
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
