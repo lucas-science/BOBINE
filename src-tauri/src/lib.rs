@@ -68,8 +68,8 @@ fn run_python_script(dir_path: String, action: String) -> Result<CommandOutput, 
     let script_path = "/home/lucaslhm/Documents/ETIC/Bobine/project/desktop_app/src-tauri/python-scripts/main.py";
     let output = Command::new("python3")
         .arg(&script_path)
-        .arg(dir_path)
         .arg(action)
+        .arg(dir_path)
         .output()
         .map_err(|e| format!("Failed to execute command: {}", e))?;
 

@@ -1,3 +1,4 @@
+import os
 import pandas as pd
 from utils.pigna_constants import (
     TIME,
@@ -9,12 +10,33 @@ from utils.pigna_constants import (
     PT230,
     DATA_REQUIRED,
     GRAPHS,
+    TEMPERATURE_DEPENDING_TIME,
+    DEBIMETRIC_RESPONSE_DEPENDING_TIME,
+    PRESSURE_PYROLYSEUR_DEPENDING_TIME,
+    PRESSURE_POMPE_DEPENDING_TIME,
+    DELTA_PRESSURE_DEPENDING_TIME
 )
 
-
 class PignaData:
-    def __init__(self, root: str):
-        self.data_frame = pd.read_csv(root)
+    def __init__(self, dir_root: str):
+        self.first_file = ""
+        if os.path.exists(dir_root):
+            files = [f for f in os.listdir(dir_root) 
+                    if os.path.isfile(os.path.join(dir_root, f))
+                    and not f.startswith('.')  
+                    and not f.startswith('~')
+                    and not f.startswith('.~lock')
+                    and f.lower().endswith('.csv')]
+            
+            if not files:
+                raise FileNotFoundError(f"Aucun fichier CSV valide trouvé dans {dir_root}")
+            
+            files.sort()
+            self.first_file = os.path.join(dir_root, files[0])
+        else:
+            raise FileNotFoundError(f"Le répertoire {dir_root} n'existe pas")
+        
+        self.data_frame = pd.read_csv(self.first_file)
         self.columns = self.data_frame.columns.tolist()
         self.missing_columns = set(DATA_REQUIRED) - set(self.columns)
 
@@ -22,7 +44,7 @@ class PignaData:
         return self.data_frame[columns]
 
     # --------------------------------------------------
-    #  Export data et services manquants
+    # Export data et services manquants
     # --------------------------------------------------
 
     def is_all_required_data(self) -> bool:
@@ -39,7 +61,7 @@ class PignaData:
         return graphs
 
     # --------------------------------------------------
-    #  Gestion des données manquantes
+    # Gestion des données manquantes
     # --------------------------------------------------
 
     def report_missing_per_column(self) -> pd.Series:
@@ -55,28 +77,72 @@ class PignaData:
         }, index=df.index)
 
     # --------------------------------------------------
-    #  Extraction publiques
+    # Extraction privé
     # --------------------------------------------------
 
-    def get_temperature_over_time(self) -> pd.DataFrame:
+    def _get_temperature_over_time(self) -> pd.DataFrame:
         cols = [TIME, TT301, TT302, TT303]
         return self._select_columns(cols).copy()
 
-    def get_debimetrique_response_over_time(self) -> pd.DataFrame:
+    def _get_debimetrique_response_over_time(self) -> pd.DataFrame:
         cols = [TIME, FT240]
         return self._select_columns(cols).copy()
 
-    def get_pression_pyrolyseur_over_time(self) -> pd.DataFrame:
+    def _get_pression_pyrolyseur_over_time(self) -> pd.DataFrame:
         cols = [TIME, PI177]
         return self._select_columns(cols).copy()
 
-    def get_pression_sortie_pompe_over_time(self) -> pd.DataFrame:
+    def _get_pression_sortie_pompe_over_time(self) -> pd.DataFrame:
         cols = [TIME, PT230]
         return self._select_columns(cols).copy()
 
-    def get_delta_pression_over_time(self) -> pd.DataFrame:
+    def _get_delta_pression_over_time(self) -> pd.DataFrame:
         cols = [TIME, PI177, PT230]
         df_sel = self._select_columns(cols).copy()
         delta_name = f"Delta_Pression_{PI177}_minus_{PT230}"
         df_sel[delta_name] = df_sel[PI177] - df_sel[PT230]
         return df_sel.drop(columns=[PI177, PT230])
+
+    # --------------------------------------------------
+    # Extraction publique
+    # --------------------------------------------------
+
+    def get_json_metrics(self, metric: str):
+        if metric == TEMPERATURE_DEPENDING_TIME:
+            return {
+                "name": TEMPERATURE_DEPENDING_TIME,
+                "data": self._get_temperature_over_time(),
+                "x_axis": TIME,
+                "y_axis": [TT301, TT302, TT303]
+            }
+        elif metric == DEBIMETRIC_RESPONSE_DEPENDING_TIME:  
+            return {
+                "name": DEBIMETRIC_RESPONSE_DEPENDING_TIME,
+                "data": self._get_debimetrique_response_over_time(),
+                "x_axis": TIME,
+                "y_axis": [FT240]
+            }
+        elif metric == PRESSURE_PYROLYSEUR_DEPENDING_TIME:
+            return {
+                "name": PRESSURE_PYROLYSEUR_DEPENDING_TIME,
+                "data": self._get_pression_pyrolyseur_over_time(),
+                "x_axis": TIME,
+                "y_axis": [PI177]
+            }
+        elif metric == PRESSURE_POMPE_DEPENDING_TIME:
+            return {
+                "name": PRESSURE_POMPE_DEPENDING_TIME,
+                "data": self._get_pression_sortie_pompe_over_time(),
+                "x_axis": TIME,
+                "y_axis": [PT230]
+            }
+        elif metric == DELTA_PRESSURE_DEPENDING_TIME:
+            return {
+                "name": DELTA_PRESSURE_DEPENDING_TIME,
+                "data": self._get_delta_pression_over_time(),
+                "x_axis": TIME,
+                "y_axis": [f"Delta_Pression_{PI177}_minus_{PT230}"]
+            }
+        else:
+            raise ValueError(f"Metric '{metric}' is not recognized.")
+        

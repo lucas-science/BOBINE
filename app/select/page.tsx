@@ -8,7 +8,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getMetricsAvailable } from "@/src/lib/utils/invoke.utils";
 import MetricsSelector from "./selectMetrics";
-import { Metric, MetricsBySensor } from "@/src/lib/utils/type";
+import { MetricsBySensor, SelectedMetricsBySensor } from "@/src/lib/utils/type";
 
 
 
@@ -44,7 +44,7 @@ export default function Page() {
     setMetricsAvailable(metricsAvailable);
     console.log("Metrics available:", metricsAvailable);
   }
-  const handleSelectionChange = (selectedMetrics: Metric[]) => {
+  const handleSelectionChange = (selectedMetrics: SelectedMetricsBySensor) => {
     console.log("Selected metrics:", selectedMetrics);
   }
   return (

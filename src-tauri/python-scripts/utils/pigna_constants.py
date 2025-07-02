@@ -6,29 +6,35 @@ FT240 = 'FT240'
 PI177 = 'PI177 bar'
 PT230 = 'PT230 bar'
 
+TEMPERATURE_DEPENDING_TIME = 'Température par rapport au temps'
+DEBIMETRIC_RESPONSE_DEPENDING_TIME = 'Réponsse débimétrique par rapport au temps'
+PRESSURE_PYROLYSEUR_DEPENDING_TIME = 'Pression pyrolyseur par rapport au temps'
+PRESSURE_POMPE_DEPENDING_TIME = 'Pression sortie pompe par rapport au temps'
+DELTA_PRESSURE_DEPENDING_TIME = 'Delta de pression entre le pyrilyseur et la pompe'
+
 
 
 DATA_REQUIRED = [TIME, TT301, TT302, TT303, FT240, PI177, PT230]
 
 GRAPHS = [
     {
-        'name': 'Température par rapport au temps',
+        'name': TEMPERATURE_DEPENDING_TIME,
         'columns': [TIME, TT301, TT302, TT303]
     },
     {
-        'name': 'Réponsse débimétrique par rapport au temps',
+        'name': DEBIMETRIC_RESPONSE_DEPENDING_TIME,
         'columns': [TIME, FT240, "caca"]
     },
     {
-        'name': 'Pression pyrolyseur par rapport au temps',
+        'name': PRESSURE_PYROLYSEUR_DEPENDING_TIME,
         'columns': [TIME, PI177]
     },
     {
-        'name': 'Pression sortie pompe par rapport au temps',
+        'name': PRESSURE_POMPE_DEPENDING_TIME,
         'columns': [TIME, PT230]
     },
     {
-        'name': 'Delta de pression entre le pyrilyseur et la pompe',
+        'name': DELTA_PRESSURE_DEPENDING_TIME,
         'columns': [TIME, PI177, PT230]
     }
 ]

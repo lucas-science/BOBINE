@@ -1,14 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Checkbox } from '@/src/components/ui/checkbox';
-import { Metric, MetricsBySensor } from '@/src/lib/utils/type';
-
-
+import { Metric, MetricsBySensor, SelectedMetricsBySensor } from '@/src/lib/utils/type';
 
 interface MetricsSelectorProps {
     data: MetricsBySensor;
-    onSelectionChange: (selectedMetrics: Metric[]) => void;
-    initialSelection?: Metric[];
+    onSelectionChange: (selectedMetrics: SelectedMetricsBySensor) => void;
+    initialSelection?: string[];
     className?: string;
 }
 
@@ -22,36 +20,32 @@ const MetricsSelector: React.FC<MetricsSelectorProps> = ({
 
     useEffect(() => {
         if (initialSelection.length > 0) {
-            const initialKeys = new Set<string>();
-
-            Object.entries(data).forEach(([sensorKey, metrics]) => {
-                metrics.forEach((metric: Metric, index: number) => {
-                    if (initialSelection.some(selected =>
-                        selected.name === metric.name &&
-                        JSON.stringify(selected.columns) === JSON.stringify(metric.columns)
-                    )) {
-                        initialKeys.add(`${sensorKey}-${index}`);
-                    }
-                });
-            });
-
-            setSelectedMetrics(initialKeys);
+            setSelectedMetrics(new Set(initialSelection));
         }
-    }, [initialSelection, data]);
+    }, [initialSelection]);
 
-    const getSelectedMetricsData = (selectedKeys: Set<string>): Metric[] => {
-        const selected: Metric[] = [];
+    const getSelectedMetricsBySensor = (selectedKeys: Set<string>): SelectedMetricsBySensor => {
+        const result: SelectedMetricsBySensor = {
+            chromeleon_offline: [],
+            chromeleon_online: [],
+            pigna: []
+        };
 
         selectedKeys.forEach(key => {
             const [sensorType, indexStr] = key.split('-');
             const metricIndex = parseInt(indexStr, 10);
 
             if (data[sensorType as keyof MetricsBySensor]?.[metricIndex]) {
-                selected.push(data[sensorType as keyof MetricsBySensor][metricIndex]);
+                const metric = data[sensorType as keyof MetricsBySensor][metricIndex];
+                const sensorKey = sensorType as keyof SelectedMetricsBySensor;
+                
+                if (result[sensorKey]) {
+                    result[sensorKey].push(metric.name);
+                }
             }
         });
 
-        return selected;
+        return result;
     };
 
     const handleMetricToggle = (metricKey: string, available: boolean) => {
@@ -66,7 +60,7 @@ const MetricsSelector: React.FC<MetricsSelectorProps> = ({
 
         setSelectedMetrics(newSelected);
 
-        const selectedData = getSelectedMetricsData(newSelected);
+        const selectedData = getSelectedMetricsBySensor(newSelected);
         onSelectionChange(selectedData);
     };
 
@@ -123,7 +117,6 @@ const MetricsSelector: React.FC<MetricsSelectorProps> = ({
                                             }`}>
                                             Colonnes: {metric.columns.length > 0 ? metric.columns.join(', ') : metric.columns}
                                         </p>
-
                                     </div>
                                 </div>
                             );
