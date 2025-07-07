@@ -47,7 +47,7 @@ def get_graphs_available(dir_path):
         pass
 
     chromeleon_offline_dir = directories["chromeleon_offline"]
-    if os.path.exists(chromeleon_online_dir):
+    if os.path.exists(chromeleon_offline_dir):
         # Ajoutez ici la logique pour chromeleon_offline
         pass
 
@@ -117,11 +117,6 @@ def save_to_excel_with_charts(data, dir_root, excel_file_path):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print(json.dumps(
-            {"error": "Usage: python main.py <dir_path> <action>"}))
-        sys.exit(1)
-
     action = sys.argv[1]
     arg2 = sys.argv[2] if len(sys.argv) > 2 else None
     arg3 = sys.argv[3] if len(sys.argv) > 3 else None
@@ -133,12 +128,13 @@ if __name__ == "__main__":
         result = get_graphs_available(arg2)
         print(json.dumps(result))
     elif action == "GENERATE_EXCEL":
-        metrics_wanted = arg2
+        metrics_wanted = json.loads(arg2)
         dir_root = arg3
         directories = getDirectories(dir_root)
-        data = PignaData(directories[0]["path"])
+        data = PignaData(directories["pigna"])
         metricsData = getDataFromMetricsSensor(metrics_wanted, data)
-        save_to_excel_with_charts(data, dir_root, 'metrics_data_with_charts.xlsx')
+        save_to_excel_with_charts(metricsData, dir_root, 'metrics_data_with_charts.xlsx')
+        print(json.dumps({"result": "Excel file generated successfully"}))
     else:
         print(json.dumps({"error": "Invalid action specified."}))
         sys.exit(1)
