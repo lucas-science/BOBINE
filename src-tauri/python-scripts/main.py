@@ -1,6 +1,8 @@
+import base64
 import sys
 import os
 import json
+import io
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.chart import LineChart, Series, Reference
@@ -61,15 +63,13 @@ def getDataFromMetricsSensor(metrics_wanted: dict[str, list[str]], pignaData):
     if metrics_wanted["chromeleon_online"] != []:
         # on get les data de chromeleon online
         pass
-    print("salut")
     if metrics_wanted["pigna"] != []:
         for metric in metrics_wanted["pigna"]:
             try:
-                print("here")
                 metric_data = pignaData.get_json_metrics(metric)
                 dataFromMetricsSensor['pigna'].append(metric_data)
             except Exception as e:
-                print(f"An error occurred: {e}")
+                print(f"An error occurred: {e}",file=sys.stderr)
 
     return dataFromMetricsSensor
 
@@ -78,42 +78,29 @@ def save_to_excel_with_charts(data, dir_root, excel_file_path):
     wb = Workbook()
     if 'Sheet' in wb.sheetnames:
         wb.remove(wb['Sheet'])
-
     for category in data:
-        if data[category]: 
+        if data[category]:
             ws = wb.create_sheet(title=category)
-            col_offset = 1  # Commencer à la première colonne
-
+            col_offset = 1
             for entry in data[category]:
                 df = pd.DataFrame(entry['data'])
-
-                # Écrire les données dans la feuille à partir de la colonne col_offset
                 for row in df.itertuples(index=False):
-                    ws.append(list(row) if col_offset == 1 else [
-                              '']*col_offset + list(row))
-
-                # Créer un graphique pour chaque jeu de données
+                    ws.append(list(row) if col_offset == 1 else [''] * col_offset + list(row))
                 chart = LineChart()
                 chart.title = entry['name']
                 chart.style = 13
-                chart.y_axis.title = ', '.join(entry['y_axis']) if len(
-                    entry['y_axis']) > 1 else entry['y_axis'][0]
+                chart.y_axis.title = ', '.join(entry['y_axis']) if len(entry['y_axis']) > 1 else entry['y_axis'][0]
                 chart.x_axis.title = entry['x_axis']
-
-                data_ref = Reference(ws, min_col=col_offset + 1, min_row=1,
-                                     max_row=ws.max_row, max_col=col_offset + len(df.columns))
+                data_ref = Reference(ws, min_col=col_offset + 1, min_row=1, max_row=ws.max_row, max_col=col_offset + len(df.columns))
                 chart.add_data(data_ref, titles_from_data=True)
-
-                dates_ref = Reference(
-                    ws, min_col=col_offset, min_row=2, max_row=ws.max_row)
+                dates_ref = Reference(ws, min_col=col_offset, min_row=2, max_row=ws.max_row)
                 chart.set_categories(dates_ref)
-
                 ws.add_chart(chart, f"{chr(69 + col_offset * 3)}{1}")
-
-                # Ajuster l'offset pour le prochain tableau
                 col_offset += len(df.columns) + 1
-
-    wb.save(f"{dir_root}/{excel_file_path}")
+    excel_binary = io.BytesIO()
+    wb.save(excel_binary)
+    excel_binary.seek(0)
+    return base64.b64encode(excel_binary.getvalue()).decode('utf-8')
 
 
 if __name__ == "__main__":
@@ -121,20 +108,24 @@ if __name__ == "__main__":
     arg2 = sys.argv[2] if len(sys.argv) > 2 else None
     arg3 = sys.argv[3] if len(sys.argv) > 3 else None
 
+    response = {"error": "Invalid action specified."}
+
     if action == "CONTEXT_IS_CORRECT":
         result = context_is_correct(arg2)
-        print(json.dumps({"result": result}))
+        response = {"result": result}
     elif action == "GET_GRAPHS_AVAILABLE":
         result = get_graphs_available(arg2)
-        print(json.dumps(result))
+        response = result
     elif action == "GENERATE_EXCEL":
-        metrics_wanted = json.loads(arg2)
-        dir_root = arg3
-        directories = getDirectories(dir_root)
-        data = PignaData(directories["pigna"])
-        metricsData = getDataFromMetricsSensor(metrics_wanted, data)
-        save_to_excel_with_charts(metricsData, dir_root, 'metrics_data_with_charts.xlsx')
-        print(json.dumps({"result": "Excel file generated successfully"}))
-    else:
-        print(json.dumps({"error": "Invalid action specified."}))
-        sys.exit(1)
+        try:
+            metrics_wanted = json.loads(arg2)
+            dir_root = arg3
+            directories = getDirectories(dir_root)
+            data = PignaData(directories["pigna"])
+            metricsData = getDataFromMetricsSensor(metrics_wanted, data)
+            filecontent = save_to_excel_with_charts(metricsData, dir_root, 'metrics_data_with_charts.xlsx')
+            response = {"result": filecontent}
+        except Exception as e:
+            response = {"error": str(e)}
+
+    print(json.dumps(response))
