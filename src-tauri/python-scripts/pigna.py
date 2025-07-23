@@ -1,5 +1,6 @@
 import os
 import pandas as pd
+from openpyxl import Workbook
 from utils.pigna_constants import (
     TIME,
     TT301,
@@ -146,3 +147,25 @@ class PignaData:
         else:
             raise ValueError(f"Metric '{metric}' is not recognized.")
         
+    def generate_workbook_with_charts(self, wb: Workbook, metrics_wanted: list[str]):
+        ws = wb.create_chartsheet(title="Pignat")
+        for metric in metrics_wanted:
+            try:
+                metric_data = self.get_json_metrics(metric)
+                df = pd.DataFrame(metric_data['data'])
+                ws.append(df.columns.tolist())
+                for row in df.itertuples(index=False):
+                    ws.append(list(row))
+                
+                chart = LineChart()
+                chart.title = metric_data['name']
+                chart.style = 13
+                chart.y_axis.title = ', '.join(metric_data['y_axis']) if len(metric_data['y_axis']) > 1 else metric_data['y_axis'][0]
+                chart.x_axis.title = metric_data['x_axis']
+                
+                data_ref = Reference(ws, min_col=1, min_row=2, max_row=ws.max_row, max_col=len(df.columns))
+                chart.add_data(data_ref, titles_from_data=True)
+                
+                ws.add_chart(chart, "A1")
+            except Exception as e:
+                print(f"An error occurred while processing metric '{metric}': {e}", file=sys.stderr)

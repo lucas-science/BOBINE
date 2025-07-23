@@ -74,7 +74,7 @@ def getDataFromMetricsSensor(metrics_wanted: dict[str, list[str]], pignaData):
     return dataFromMetricsSensor
 
 
-def save_to_excel_with_charts(data, dir_root, excel_file_path):
+def save_to_excel_with_charts(data):
     wb = Workbook()
     if 'Sheet' in wb.sheetnames:
         wb.remove(wb['Sheet'])
@@ -102,6 +102,11 @@ def save_to_excel_with_charts(data, dir_root, excel_file_path):
     excel_binary.seek(0)
     return base64.b64encode(excel_binary.getvalue()).decode('utf-8')
 
+def excel_to_base64(wb):
+    excel_binary = io.BytesIO()
+    wb.save(excel_binary)
+    excel_binary.seek(0)
+    return base64.b64encode(excel_binary.getvalue()).decode('utf-8')
 
 if __name__ == "__main__":
     action = sys.argv[1]
@@ -123,7 +128,7 @@ if __name__ == "__main__":
             directories = getDirectories(dir_root)
             data = PignaData(directories["pigna"])
             metricsData = getDataFromMetricsSensor(metrics_wanted, data)
-            filecontent = save_to_excel_with_charts(metricsData, dir_root, 'metrics_data_with_charts.xlsx')
+            filecontent = save_to_excel_with_charts(metricsData)
             response = {"result": filecontent}
         except Exception as e:
             response = {"error": str(e)}
