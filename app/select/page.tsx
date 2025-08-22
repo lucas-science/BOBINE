@@ -48,8 +48,8 @@ export default function Page() {
   const getMetrics = async () => {
     try {
       const docsDir: string = await invoke("get_documents_dir");
-      const metricsAvailable = await getMetricsAvailable(docsDir);
-      setMetricsAvailable(metricsAvailable);
+      const metrics = await getMetricsAvailable(docsDir); // ← plus de parse stdout
+      setMetricsAvailable(metrics);
     } catch (error) {
       console.error("Error fetching metrics:", error);
     }

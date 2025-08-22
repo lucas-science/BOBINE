@@ -105,26 +105,24 @@ def excel_to_base64(wb):
     wb.save(excel_binary)
     excel_binary.seek(0)
     return base64.b64encode(excel_binary.getvalue()).decode('utf-8')
-
 if __name__ == "__main__":
-    action = sys.argv[1]
-    arg2 = sys.argv[2] if len(sys.argv) > 2 else None
-    arg3 = sys.argv[3] if len(sys.argv) > 3 else None
-
+    # Valeur par défaut qui sera *toujours* imprimée
     response = {"error": "Invalid action specified."}
 
     try:
+        action = sys.argv[1] if len(sys.argv) > 1 else None
+        arg2 = sys.argv[2] if len(sys.argv) > 2 else None
+        arg3 = sys.argv[3] if len(sys.argv) > 3 else None
+
         if action == "CONTEXT_IS_CORRECT":
             result = context_is_correct(arg2)
             response = {"result": result}
 
         elif action == "GET_GRAPHS_AVAILABLE":
-            # Toujours wrapper dans try/except
             try:
                 result = get_graphs_available(arg2)
                 response = {"result": result}
             except Exception as e:
-                # Ne JAMAIS print autre chose sur stdout
                 print(f"[GET_GRAPHS_AVAILABLE] {e}", file=sys.stderr)
                 response = {"error": str(e)}
 
@@ -133,18 +131,20 @@ if __name__ == "__main__":
                 metrics_wanted = json.loads(arg2)
                 dir_root = arg3
                 directories = getDirectories(dir_root)
-                data = PignaData(directories["pigna"])
+                data = PignaData(directories[PIGNA])
                 metricsData = getDataFromMetricsSensor(metrics_wanted, data)
                 filecontent = save_to_excel_with_charts(metricsData)
                 response = {"result": filecontent}
             except Exception as e:
                 print(f"[GENERATE_EXCEL] {e}", file=sys.stderr)
                 response = {"error": str(e)}
+        else:
+            # action inconnue -> on garde la response par défaut
+            pass
 
     except Exception as e:
-        # Garde un JSON même si tout part en vrille
         print(f"[MAIN] {e}", file=sys.stderr)
         response = {"error": str(e)}
-
-    # Important: default=str au cas où PignaData renvoie des types numpy, etc.
-    print(json.dumps(response, default=str), flush=True)
+    finally:
+        # Toujours imprimer un JSON valide
+        print(json.dumps(response, ensure_ascii=False, default=str), flush=True)

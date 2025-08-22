@@ -1,8 +1,8 @@
-use std::{fs, path::Path};
+use std::{fs, path::Path, process::Command};
 use tauri::command;
 use dirs::document_dir;
-use std::process::Command;
 use serde::{Serialize, Deserialize};
+use serde_json::Value as JsonValue;
 use base64::{engine::general_purpose, Engine as _};
 
 #[derive(Serialize)]
@@ -13,109 +13,103 @@ struct CommandOutput {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SelectedMetricsBySensor {
+    // Assure-toi que les clés correspondent à Python:
     chromeleon_offline: Vec<String>,
     chromeleon_online: Vec<String>,
     pigna: Vec<String>,
 }
 
-// Constante pour le chemin du script Python
+// Chemin vers le script Python
 const SCRIPT_PATH: &str = "/home/lucaslhm/Documents/ETIC/Bobine/project/desktop_app/src-tauri/python-scripts/main.py";
 
-#[tauri::command]
-fn run_python_script_with_dir(dir_path: String, action: String) -> Result<CommandOutput, String> {
-    use std::process::Command;
+/// ---------- Helper générique pour appeler Python ----------
 
+fn run_python(args: &[&str]) -> Result<CommandOutput, String> {
     let output = Command::new("python3")
+        .arg("-u") // <<< important : stdout/stderr non-bufferisés
         .arg(SCRIPT_PATH)
-        .arg(&action)
-        .arg(&dir_path)
+        .args(args)
         .output()
         .map_err(|e| format!("Failed to execute command: {}", e))?;
 
-    let stdout = String::from_utf8(output.stdout).map_err(|e| format!("Invalid UTF-8 in stdout: {}", e))?;
-    let stderr = String::from_utf8(output.stderr).map_err(|e| format!("Invalid UTF-8 in stderr: {}", e))?;
+    let stdout = String::from_utf8(output.stdout)
+        .map_err(|e| format!("Invalid UTF-8 in stdout: {}", e))?;
+    let stderr = String::from_utf8(output.stderr)
+        .map_err(|e| format!("Invalid UTF-8 in stderr: {}", e))?;
 
     if !output.status.success() {
-        // Fait remonter l'erreur Python vers le front
-        return Err(if stderr.is_empty() { "Python exited with error".into() } else { stderr });
+        return Err(if stderr.trim().is_empty() {
+            "Python exited with error".into()
+        } else {
+            stderr
+        });
+    }
+
+    // Si succès mais stdout vide, renvoyer stderr s'il existe
+    if stdout.trim().is_empty() && !stderr.trim().is_empty() {
+        return Err(stderr);
     }
 
     Ok(CommandOutput { stdout, stderr })
 }
 
-#[tauri::command]
-fn generate_excel_file(dir_path: String, metric_wanted: SelectedMetricsBySensor) -> Result<Vec<u8>, String> {
-    println!("Starting generate_excel_file with dir_path: {}", dir_path);
-    println!("Metrics wanted: {:?}", metric_wanted);
-
-    let metrics_json = serde_json::to_string(&metric_wanted)
-        .map_err(|e| {
-            let error_msg = format!("Failed to serialize metrics: {}", e);
-            println!("{}", error_msg);
-            error_msg
-        })?;
-
-    println!("Executing Python script with metrics: {}", metrics_json);
-
-    let output = Command::new("python3")
-        .arg(SCRIPT_PATH)
-        .arg("GENERATE_EXCEL")
-        .arg(&metrics_json)
-        .arg(&dir_path)
-        .output()
-        .map_err(|e| {
-            let error_msg = format!("Failed to execute command: {}", e);
-            println!("{}", error_msg);
-            error_msg
-        })?;
-
-    println!("Command executed with status: {}", output.status);
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        let error_msg = format!("Command failed with status: {} - STDERR: {}", output.status, stderr);
-        println!("{}", error_msg);
-        return Err(error_msg);
+/// Parse stdout JSON et renvoie le champ "result" si présent,
+/// sinon renvoie l’objet JSON tel quel.
+/// En cas d'erreur côté Python, on s’attend à {"error": "..."}.
+fn parse_python_json(stdout: &str) -> Result<JsonValue, String> {
+    if stdout.trim().is_empty() {
+        return Err("Empty stdout from Python".into());
     }
+    let v: JsonValue = serde_json::from_str(stdout)
+        .map_err(|e| format!("Failed to parse JSON from Python stdout: {e}\nRaw: {stdout}"))?;
 
-    let stdout = String::from_utf8(output.stdout).map_err(|e| {
-        let error_msg = format!("Invalid UTF-8 in stdout: {}", e);
-        println!("{}", error_msg);
-        error_msg
-    })?;
-
-    println!("STDOUT: {}", stdout);
-
-    let response: serde_json::Value = serde_json::from_str(&stdout).map_err(|e| {
-        let error_msg = format!("Failed to parse JSON: {}", e);
-        println!("{}", error_msg);
-        error_msg
-    })?;
-
-    println!("Response parsed: {:?}", response);
-
-    if response.get("error").is_some() {
-        let error_msg = response["error"].as_str().unwrap_or("Unknown error").to_string();
-        println!("Error in response: {}", error_msg);
-        return Err(error_msg);
+    if let Some(err) = v.get("error") {
+        return Err(err.as_str().unwrap_or("Unknown error").to_string());
     }
-
-    let file_content = response["result"].as_str().ok_or("Invalid file content")?;
-    println!("File content retrieved successfully");
-
-    let decoded_content = general_purpose::STANDARD
-        .decode(file_content)
-        .map_err(|e| {
-            let error_msg = format!("Failed to decode base64: {}", e);
-            println!("{}", error_msg);
-            error_msg
-        })?;
-
-    println!("File content decoded successfully");
-    Ok(decoded_content)
+    Ok(v.get("result").cloned().unwrap_or(v))
 }
 
-/// Renvoie le chemin absolu du dossier Documents de l'utilisateur.
+/// ---------- Commandes par action ----------
+
+#[tauri::command]
+fn context_is_correct(dir_path: String) -> Result<bool, String> {
+    let out = run_python(&["CONTEXT_IS_CORRECT", &dir_path])?;
+    let json = parse_python_json(&out.stdout)?;
+    // Python renvoie {"result": true/false}
+    json.as_bool()
+        .ok_or_else(|| "Invalid JSON: expected boolean".into())
+}
+
+#[tauri::command]
+fn get_graphs_available(dir_path: String) -> Result<JsonValue, String> {
+    let out = run_python(&["GET_GRAPHS_AVAILABLE", &dir_path])?;
+    if out.stdout.trim().is_empty() {
+        return Err(if out.stderr.trim().is_empty() {
+            "Empty stdout from Python".into()
+        } else {
+            out.stderr
+        });
+    }
+    parse_python_json(&out.stdout)
+}
+
+
+#[tauri::command]
+fn generate_excel_file(dir_path: String, metric_wanted: SelectedMetricsBySensor) -> Result<Vec<u8>, String> {
+    let metrics_json = serde_json::to_string(&metric_wanted)
+        .map_err(|e| format!("Failed to serialize metrics: {e}"))?;
+
+    let out = run_python(&["GENERATE_EXCEL", &metrics_json, &dir_path])?;
+    let json = parse_python_json(&out.stdout)?;
+
+    let file_b64 = json.as_str().ok_or("Invalid Python JSON: expected base64 string")?;
+    general_purpose::STANDARD
+        .decode(file_b64)
+        .map_err(|e| format!("Failed to decode base64: {e}"))
+}
+
+/// ---------- Utilitaires fichier / système ----------
+
 #[command]
 fn get_documents_dir() -> Result<String, String> {
     document_dir()
@@ -126,34 +120,24 @@ fn get_documents_dir() -> Result<String, String> {
 #[command]
 fn remove_dir(dir_path: String) -> Result<(), String> {
     if Path::new(&dir_path).exists() {
-        fs::remove_dir_all(&dir_path).map_err(|e| format!("Erreur suppression répertoire : {}", e))?;
+        fs::remove_dir_all(&dir_path)
+            .map_err(|e| format!("Erreur suppression répertoire : {}", e))?;
     }
     Ok(())
 }
 
 #[command]
-fn my_custom_command(invoke_message: String) {
-    println!("I was invoked from JavaScript, with this message: {}", invoke_message);
-}
-
-/// Écrit des données binaires dans un fichier à partir d'un Vec<u8>
-#[command]
 fn write_file(destination_path: String, contents: Vec<u8>) -> Result<(), String> {
-    // Créer les répertoires parents si nécessaire
     if let Some(parent) = Path::new(&destination_path).parent() {
         fs::create_dir_all(parent)
             .map_err(|e| format!("Erreur création répertoire : {}", e))?;
     }
-
-    // Écrire le fichier
     fs::write(&destination_path, contents)
         .map_err(|e| format!("Erreur lors de l'écriture : {}", e))?;
-
     println!("✅ Écriture de `{}` réussie", destination_path);
     Ok(())
 }
 
-/// Copie le fichier source vers la destination
 #[command]
 fn copy_file(source_path: String, destination_path: String) -> Result<(), String> {
     if let Some(parent) = Path::new(&destination_path).parent() {
@@ -166,18 +150,26 @@ fn copy_file(source_path: String, destination_path: String) -> Result<(), String
     Ok(())
 }
 
+#[command]
+fn my_custom_command(invoke_message: String) {
+    println!("I was invoked from JavaScript, with this message: {}", invoke_message);
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![
-            run_python_script_with_dir,
+            // Python actions exposées une par une :
+            context_is_correct,
+            get_graphs_available,
             generate_excel_file,
+            // utilitaires :
             get_documents_dir,
             write_file,
             copy_file,
             my_custom_command,
-            remove_dir 
+            remove_dir
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
