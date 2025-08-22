@@ -23,15 +23,22 @@ const SCRIPT_PATH: &str = "/home/lucaslhm/Documents/ETIC/Bobine/project/desktop_
 
 #[tauri::command]
 fn run_python_script_with_dir(dir_path: String, action: String) -> Result<CommandOutput, String> {
+    use std::process::Command;
+
     let output = Command::new("python3")
         .arg(SCRIPT_PATH)
-        .arg(action)
-        .arg(dir_path)
+        .arg(&action)
+        .arg(&dir_path)
         .output()
         .map_err(|e| format!("Failed to execute command: {}", e))?;
 
     let stdout = String::from_utf8(output.stdout).map_err(|e| format!("Invalid UTF-8 in stdout: {}", e))?;
     let stderr = String::from_utf8(output.stderr).map_err(|e| format!("Invalid UTF-8 in stderr: {}", e))?;
+
+    if !output.status.success() {
+        // Fait remonter l'erreur Python vers le front
+        return Err(if stderr.is_empty() { "Python exited with error".into() } else { stderr });
+    }
 
     Ok(CommandOutput { stdout, stderr })
 }

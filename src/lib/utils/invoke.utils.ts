@@ -22,19 +22,34 @@ export async function checkContext(dirPath: string) {
 }
 
 export async function getMetricsAvailable(dirPath: string) {
-  try {
-    const response = await invoke('run_python_script_with_dir', { 
-      dirPath: dirPath,
-      action: 'GET_GRAPHS_AVAILABLE'
-    });
-    
-    const parsedResponse = JSON.parse(response.stdout);
-    return parsedResponse;
-  } catch (error) {
-    console.error(error);
-    throw error;
+  const res = await invoke<{ stdout: string; stderr?: string }>(
+    "run_python_script_with_dir",
+    { dirPath, action: "GET_GRAPHS_AVAILABLE" }
+  ).catch((e) => {
+    // Erreur renvoyée par le Rust (stderr python)
+    throw new Error(typeof e === "string" ? e : JSON.stringify(e));
+  });
+
+  if (!res || typeof res.stdout !== "string" || res.stdout.trim().length === 0) {
+    throw new Error("Empty stdout from Python");
   }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(res.stdout);
+  } catch (e) {
+    console.error("Raw stdout:", res.stdout); // utile en dev
+    throw e;
+  }
+
+  if (parsed?.error) {
+    throw new Error(parsed.error);
+  }
+
+  // tu renvoies maintenant parsed.result (et plus l’objet brut)
+  return parsed.result;
 }
+
 
 export const generateExcelFile = async (
   dirPath: string,

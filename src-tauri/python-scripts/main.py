@@ -9,20 +9,23 @@ from openpyxl.chart import LineChart, Series, Reference
 
 from pigna import PignaData
 
+CHROMELEON_ONLINE  = "chromeleon_online"
+CHROMELEON_OFFLINE = "chromeleon_offline"
+PIGNA              = "pigna"
+
 dataFromMetricsSensor = {
-    "chromeleon_online": [],
-    "chromeleon_offline": [],
-    "pigna": []
+    CHROMELEON_ONLINE:  [],
+    CHROMELEON_OFFLINE: [],
+    PIGNA:              [],
 }
 
 
 def getDirectories(dir_path):
-    directories = {
-        "pigna": f"{dir_path}/pigna/pigna",
-        "chromelon_online": f"{dir_path}/chromeleon/online",
-        "chromeleon_offline": f"{dir_path}/chromeleon/offline"
+    return {
+        PIGNA:              f"{dir_path}/pigna/pigna",
+        CHROMELEON_ONLINE:  f"{dir_path}/chromeleon/online",
+        CHROMELEON_OFFLINE: f"{dir_path}/chromeleon/offline",
     }
-    return directories
 
 
 def context_is_correct(dir_path):
@@ -33,46 +36,41 @@ def context_is_correct(dir_path):
 
 def get_graphs_available(dir_path):
     metrics_available = {
-        "pigna": [],
-        "chromeleon_online": [],
-        "chromeleon_offline": [],
+        PIGNA:              [],
+        CHROMELEON_ONLINE:  [],
+        CHROMELEON_OFFLINE: [],
     }
     directories = getDirectories(dir_path)
-    pigna_dir = directories["pigna"]
+
+    pigna_dir = directories[PIGNA]
     if os.path.exists(pigna_dir):
         pigna_data = PignaData(pigna_dir)
-        metrics_available["pigna"] = pigna_data.get_available_graphs()
+        metrics_available[PIGNA] = pigna_data.get_available_graphs()
 
-    chromeleon_online_dir = directories["chromelon_online"]
+    chromeleon_online_dir = directories[CHROMELEON_ONLINE]
     if os.path.exists(chromeleon_online_dir):
-        # Ajoutez ici la logique pour chromeleon_online
         pass
 
-    chromeleon_offline_dir = directories["chromeleon_offline"]
+    chromeleon_offline_dir = directories[CHROMELEON_OFFLINE]
     if os.path.exists(chromeleon_offline_dir):
-        # Ajoutez ici la logique pour chromeleon_offline
         pass
 
     return metrics_available
 
 
 def getDataFromMetricsSensor(metrics_wanted: dict[str, list[str]], pignaData):
-    if metrics_wanted["chromeleon_offline"] != []:
-        # on get les data de chromeleon offline
+    if metrics_wanted.get(CHROMELEON_OFFLINE):
         pass
-    if metrics_wanted["chromeleon_online"] != []:
-        # on get les data de chromeleon online
+    if metrics_wanted.get(CHROMELEON_ONLINE):
         pass
-    if metrics_wanted["pigna"] != []:
-        for metric in metrics_wanted["pigna"]:
+    if metrics_wanted.get(PIGNA):
+        for metric in metrics_wanted[PIGNA]:
             try:
                 metric_data = pignaData.get_json_metrics(metric)
-                dataFromMetricsSensor['pigna'].append(metric_data)
+                dataFromMetricsSensor[PIGNA].append(metric_data)
             except Exception as e:
-                print(f"An error occurred: {e}",file=sys.stderr)
-
+                print(f"An error occurred: {e}", file=sys.stderr)
     return dataFromMetricsSensor
-
 
 def save_to_excel_with_charts(data):
     wb = Workbook()
@@ -115,22 +113,38 @@ if __name__ == "__main__":
 
     response = {"error": "Invalid action specified."}
 
-    if action == "CONTEXT_IS_CORRECT":
-        result = context_is_correct(arg2)
-        response = {"result": result}
-    elif action == "GET_GRAPHS_AVAILABLE":
-        result = get_graphs_available(arg2)
-        response = result
-    elif action == "GENERATE_EXCEL":
-        try:
-            metrics_wanted = json.loads(arg2)
-            dir_root = arg3
-            directories = getDirectories(dir_root)
-            data = PignaData(directories["pigna"])
-            metricsData = getDataFromMetricsSensor(metrics_wanted, data)
-            filecontent = save_to_excel_with_charts(metricsData)
-            response = {"result": filecontent}
-        except Exception as e:
-            response = {"error": str(e)}
+    try:
+        if action == "CONTEXT_IS_CORRECT":
+            result = context_is_correct(arg2)
+            response = {"result": result}
 
-    print(json.dumps(response))
+        elif action == "GET_GRAPHS_AVAILABLE":
+            # Toujours wrapper dans try/except
+            try:
+                result = get_graphs_available(arg2)
+                response = {"result": result}
+            except Exception as e:
+                # Ne JAMAIS print autre chose sur stdout
+                print(f"[GET_GRAPHS_AVAILABLE] {e}", file=sys.stderr)
+                response = {"error": str(e)}
+
+        elif action == "GENERATE_EXCEL":
+            try:
+                metrics_wanted = json.loads(arg2)
+                dir_root = arg3
+                directories = getDirectories(dir_root)
+                data = PignaData(directories["pigna"])
+                metricsData = getDataFromMetricsSensor(metrics_wanted, data)
+                filecontent = save_to_excel_with_charts(metricsData)
+                response = {"result": filecontent}
+            except Exception as e:
+                print(f"[GENERATE_EXCEL] {e}", file=sys.stderr)
+                response = {"error": str(e)}
+
+    except Exception as e:
+        # Garde un JSON même si tout part en vrille
+        print(f"[MAIN] {e}", file=sys.stderr)
+        response = {"error": str(e)}
+
+    # Important: default=str au cas où PignaData renvoie des types numpy, etc.
+    print(json.dumps(response, default=str), flush=True)

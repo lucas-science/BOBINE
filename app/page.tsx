@@ -1,8 +1,12 @@
 "use client";
-import React, { useCallback, useState, useEffect } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { FILE_ZONE } from "@/src/lib/utils/uploadFile.utils";
 import { Upload } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
+import { getIndexByPathname, getNavigationByIndex } from "@/src/lib/pathNavigation";
+import BackButton from "@/app/components/backButton";
+import NextButton from "@/app/components/nextButton";
+import { useRouter, usePathname } from "next/navigation";
 
 interface FileUploadZoneProps {
   description: string;
@@ -130,8 +134,8 @@ const FileUploadCard: React.FC<FileUploadCardProps> = ({ title, zoneKey, onFiles
     () => Array.from({ length: zonesConfig.length }, () => [])
   );
 
-  // Utiliser useEffect pour notifier le parent après le rendu
-  useEffect(() => {
+  // notifier le parent à chaque changement
+  React.useEffect(() => {
     onFilesChange(zoneKey, filesByZone);
   }, [filesByZone, zoneKey, onFilesChange]);
 
@@ -167,13 +171,26 @@ const FileUploadCard: React.FC<FileUploadCardProps> = ({ title, zoneKey, onFiles
   );
 };
 
-const UploadPage = () => {
-  const [allFilesByZoneKey, setAllFilesByZoneKey] = useState<Record<string, File[][]>>({});
+const UploadPage: React.FC = () => {
+  const router = useRouter();
+  const pathname = usePathname();
 
-  // Stabiliser la fonction avec useCallback pour éviter les re-renders inutiles
+  const step = getIndexByPathname(pathname);
+  const [prevPath, nextPath] = getNavigationByIndex(step);
+
+  const [allFilesByZoneKey, setAllFilesByZoneKey] = useState<Record<string, File[][]>>({});
+  const [isCopying, setIsCopying] = useState(false);
+
+  // Au moins un fichier a été chargé ? (pour activer le bouton Suivant)
+  const hasAnyFile = useMemo(() => {
+    const zoneKeys = Object.keys(allFilesByZoneKey);
+    if (zoneKeys.length === 0) return false;
+    return zoneKeys.some((z) => (allFilesByZoneKey[z] || []).some((arr) => (arr?.length || 0) > 0));
+  }, [allFilesByZoneKey]);
+
+  // Stabiliser la fonction pour éviter les re-renders inutiles
   const handleFilesChange = useCallback((key: string, filesByZone: File[][]) => {
     setAllFilesByZoneKey((prev) => {
-      // Vérifier si les données ont vraiment changé pour éviter les mises à jour inutiles
       const currentData = prev[key];
       if (JSON.stringify(currentData) !== JSON.stringify(filesByZone)) {
         return { ...prev, [key]: filesByZone };
@@ -182,56 +199,73 @@ const UploadPage = () => {
     });
   }, []);
 
-  const handleCopyFiles = async () => {
-  try {
-    const docsDir: string = await invoke("get_documents_dir");
+  const copyAllFilesToDocuments = async () => {
+    // reprend la logique existante, mais renvoie un booléen de succès
+    try {
+      const docsDir: string = await invoke("get_documents_dir");
 
-    // Supprimer les dossiers existants
-    for (const zoneKey of Object.keys(FILE_ZONE)) {
-      const zonePath = `${docsDir}/${zoneKey}`;
-      console.log(`🗑️ Suppression du dossier ${zonePath}...`);
-      await invoke("remove_dir", { dirPath: zonePath });
-    }
+      // Supprimer les dossiers existants pour chaque zone définie
+      for (const zoneKey of Object.keys(FILE_ZONE)) {
+        const zonePath = `${docsDir}/${zoneKey}`;
+        // Best-effort: si le dossier n'existe pas côté Rust, la commande peut gérer / ignorer.
+        await invoke("remove_dir", { dirPath: zonePath });
+      }
 
-    // Copier les fichiers dans les nouveaux dossiers
-    for (const [zoneKey, zoneFilesArray] of Object.entries(allFilesByZoneKey)) {
-      const zoneDefs = FILE_ZONE[zoneKey as keyof typeof FILE_ZONE];
+      // Copier les fichiers dans les nouveaux dossiers
+      for (const [zoneKey, zoneFilesArray] of Object.entries(allFilesByZoneKey)) {
+        const zoneDefs = FILE_ZONE[zoneKey as keyof typeof FILE_ZONE];
+        if (!zoneDefs) continue;
 
-      for (let zoneIndex = 0; zoneIndex < zoneDefs.length; zoneIndex++) {
-        const files = zoneFilesArray[zoneIndex] || [];
-        const zoneName = zoneDefs[zoneIndex].zone;
-        const zonePath = `${docsDir}/${zoneKey}/${zoneName}`;
+        for (let zoneIndex = 0; zoneIndex < zoneDefs.length; zoneIndex++) {
+          const files = zoneFilesArray[zoneIndex] || [];
+          const zoneName = zoneDefs[zoneIndex].zone;
+          const zonePath = `${docsDir}/${zoneKey}/${zoneName}`;
 
-        for (const file of files) {
-          const destName = `${zoneKey}_${zoneName}_${Date.now()}_${file.name}`;
-          const destPath = `${zonePath}/${destName}`;
+          for (const file of files) {
+            const destName = `${zoneKey}_${zoneName}_${Date.now()}_${file.name}`;
+            const destPath = `${zonePath}/${destName}`;
 
-          console.log(`📋 Copie de ${file.name} → ${destPath}...`);
+            const buffer = await file.arrayBuffer();
+            const arr = Array.from(new Uint8Array(buffer));
 
-          const buffer = await file.arrayBuffer();
-          const arr = Array.from(new Uint8Array(buffer));
-
-          await invoke("write_file", {
-            destinationPath: destPath,
-            contents: arr,
-          });
-
-          console.log(`✅ ${file.name} copié sous ${destName}`);
+            await invoke("write_file", {
+              destinationPath: destPath,
+              contents: arr,
+            });
+          }
         }
       }
+
+      // reset local state après copie
+      setAllFilesByZoneKey({});
+      return true;
+    } catch (err) {
+      console.error("❌ Erreur de copie :", err);
+      return false;
     }
+  };
 
-    console.log("🎉 Copie terminée !");
-    setAllFilesByZoneKey({});
-  } catch (err) {
-    console.error("❌ Erreur de copie :", err);
-  }
-};
+  const handleNext = async () => {
+    if (!nextPath) return;
+    setIsCopying(true);
+    const ok = await copyAllFilesToDocuments();
+    setIsCopying(false);
 
+    if (ok) {
+      router.push(nextPath);
+    } else {
+      // Rester sur place si la copie échoue (l'utilisateur verra l'erreur console / à vous d'ajouter un toast).
+    }
+  };
+
+  const handleBack = async () => {
+    if (!prevPath) return;
+    router.push(prevPath);
+  };
 
   return (
     <div className="min-h-screen">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto pb-24">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">File Upload Center</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -244,13 +278,14 @@ const UploadPage = () => {
             />
           ))}
         </div>
+      </div>
 
-        <button
-          className="mt-8 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
-          onClick={handleCopyFiles}
-        >
-          📁 Copier tous les fichiers
-        </button>
+      {/* Barre de navigation calquée sur la page Select */}
+      <div className="fixed bottom-0 left-0 right-0 bg-amber-300 p-4">
+        <div className="flex justify-between items-center w-full mx-auto">
+          <BackButton onClick={handleBack} disable={!prevPath} />
+          <NextButton onClick={handleNext} disable={!nextPath || !hasAnyFile || isCopying} />
+        </div>
       </div>
     </div>
   );

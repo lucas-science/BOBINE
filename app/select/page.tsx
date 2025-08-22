@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { getMetricsAvailable } from "@/src/lib/utils/invoke.utils";
 import MetricsSelector from "./selectMetrics";
 import { MetricsBySensor, SelectedMetricsBySensor } from "@/src/lib/utils/type";
+import { invoke } from "@tauri-apps/api/core";
 
 export default function Page() {
   const router = useRouter();
@@ -46,13 +47,14 @@ export default function Page() {
 
   const getMetrics = async () => {
     try {
-      const metricsAvailable: MetricsBySensor = await getMetricsAvailable("/home/lucaslhm/Documents");
+      const docsDir: string = await invoke("get_documents_dir");
+      const metricsAvailable = await getMetricsAvailable(docsDir);
       setMetricsAvailable(metricsAvailable);
-      console.log("Metrics available:", metricsAvailable);
     } catch (error) {
       console.error("Error fetching metrics:", error);
     }
   };
+
 
   const handleSelectionChange = (selectedMetrics: SelectedMetricsBySensor) => {
     console.log("Selected metrics:", selectedMetrics);
