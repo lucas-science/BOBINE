@@ -72,39 +72,40 @@ def getDataFromMetricsSensor(metrics_wanted: dict[str, list[str]], pignaData):
                 print(f"An error occurred: {e}", file=sys.stderr)
     return dataFromMetricsSensor
 
-def save_to_excel_with_charts(data):
+def save_to_excel_with_charts(dir_root, metrics_wanted):
     wb = Workbook()
+    # Supprime le sheet vide par défaut
     if 'Sheet' in wb.sheetnames:
         wb.remove(wb['Sheet'])
-    for category in data:
-        if data[category]:
-            ws = wb.create_sheet(title=category)
-            col_offset = 1
-            for entry in data[category]:
-                df = pd.DataFrame(entry['data'])
-                for row in df.itertuples(index=False):
-                    ws.append(list(row) if col_offset == 1 else [''] * col_offset + list(row))
-                chart = LineChart()
-                chart.title = entry['name']
-                chart.style = 13
-                chart.y_axis.title = ', '.join(entry['y_axis']) if len(entry['y_axis']) > 1 else entry['y_axis'][0]
-                chart.x_axis.title = entry['x_axis']
-                data_ref = Reference(ws, min_col=col_offset + 1, min_row=1, max_row=ws.max_row, max_col=col_offset + len(df.columns))
-                chart.add_data(data_ref, titles_from_data=True)
-                dates_ref = Reference(ws, min_col=col_offset, min_row=2, max_row=ws.max_row)
-                chart.set_categories(dates_ref)
-                ws.add_chart(chart, f"{chr(69 + col_offset * 3)}{1}")
-                col_offset += len(df.columns) + 1
-    excel_binary = io.BytesIO()
-    wb.save(excel_binary)
-    excel_binary.seek(0)
-    return base64.b64encode(excel_binary.getvalue()).decode('utf-8')
+
+    # --- Pigna ---
+    if metrics_wanted.get("pigna"):
+        pigna_dir = getDirectories(dir_root)["pigna"]
+        wb = PignaData(pigna_dir) \
+                 .generate_workbook_with_charts(wb, metrics_wanted["pigna"])
+
+    # --- Chromeleon Online ---
+    if metrics_wanted.get("chromeleon_online"):
+        chromo_online_dir = getDirectories(dir_root)["chromeleon_online"]
+        # À terme, remplacer par votre classe ChromeleonOnlineData
+        # wb = ChromeleonOnlineData(chromo_online_dir) \
+        #         .generate_workbook_with_charts(wb, metrics_wanted["chromeleon_online"])
+
+    # --- Chromeleon Offline ---
+    if metrics_wanted.get("chromeleon_offline"):
+        chromo_offline_dir = getDirectories(dir_root)["chromeleon_offline"]
+        # À terme, remplacer par votre classe ChromeleonOfflineData
+        # wb = ChromeleonOfflineData(chromo_offline_dir) \
+        #         .generate_workbook_with_charts(wb, metrics_wanted["chromeleon_offline"])
+
+    return wb
 
 def excel_to_base64(wb):
     excel_binary = io.BytesIO()
     wb.save(excel_binary)
     excel_binary.seek(0)
     return base64.b64encode(excel_binary.getvalue()).decode('utf-8')
+
 if __name__ == "__main__":
     # Valeur par défaut qui sera *toujours* imprimée
     response = {"error": "Invalid action specified."}
@@ -130,13 +131,10 @@ if __name__ == "__main__":
             try:
                 metrics_wanted = json.loads(arg2)
                 dir_root = arg3
-                directories = getDirectories(dir_root)
-                data = PignaData(directories[PIGNA])
-                metricsData = getDataFromMetricsSensor(metrics_wanted, data)
-                filecontent = save_to_excel_with_charts(metricsData)
-                response = {"result": filecontent}
+                wb = save_to_excel_with_charts(dir_root, metrics_wanted)
+                base64_filecontent = excel_to_base64(wb)
+                response = {"result": base64_filecontent}
             except Exception as e:
-                print(f"[GENERATE_EXCEL] {e}", file=sys.stderr)
                 response = {"error": str(e)}
         else:
             # action inconnue -> on garde la response par défaut

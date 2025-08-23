@@ -2,8 +2,12 @@ from typing import Tuple
 import os
 import pandas as pd
 import numpy as np
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
+from typing import Optional, Dict, Any, Tuple
 
-import os
 
 
 class ChromeleonOffline:
@@ -222,22 +226,302 @@ class ChromeleonOffline:
             'R2': df_R2,
             'Moyenne': df_Moyenne
         }
+    
+    def _write_df_block(
+        self,
+        ws: Worksheet,
+        title: str,
+        df,
+        start_col: int,
+        start_row: int
+    ) -> Tuple[int, int]:
+        """
+        Écrit un bloc de tableau (titre + double header + data) et renvoie (last_row, last_col).
+        Header attendu: No. | Peakname | RetentionTime | Relative Area
+                        ''  |   ''     | min           | %
+        """
+        # Styles
+        title_font = Font(bold=True, size=12)
+        header_font = Font(bold=True)
+        gray_fill = PatternFill("solid", fgColor="DDDDDD")
+        center = Alignment(horizontal="center", vertical="center")
+        right = Alignment(horizontal="right", vertical="center")
+        thin = Side(style="thin", color="999999")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+        # Colonnes du bloc
+        headers = ["No.", "Peakname", "RetentionTime", "Relative Area"]
+        subheaders = ["", "", "min", "%"]
+        ncols = len(headers)
+
+        # Titre
+        ws.merge_cells(
+            start_row=start_row, start_column=start_col,
+            end_row=start_row, end_column=start_col + ncols - 1
+        )
+        c = ws.cell(row=start_row, column=start_col, value=title)
+        c.font = title_font
+        c.alignment = Alignment(horizontal="left", vertical="center")
+
+        # Ligne d’entêtes
+        hr = start_row + 1
+        sr = start_row + 2
+        for i, h in enumerate(headers):
+            col = start_col + i
+            ws.cell(row=hr, column=col, value=h).font = header_font
+            ws.cell(row=hr, column=col).fill = gray_fill
+            ws.cell(row=hr, column=col).alignment = center
+            ws.cell(row=hr, column=col).border = border
+
+            ws.cell(row=sr, column=col, value=subheaders[i]).font = header_font if subheaders[i] else Font()
+            ws.cell(row=sr, column=col).fill = gray_fill if subheaders[i] else PatternFill()
+            ws.cell(row=sr, column=col).alignment = center if subheaders[i] else Alignment(horizontal="left", vertical="center")
+            ws.cell(row=sr, column=col).border = border
+
+        # Données
+        r = sr + 1
+        for _, row in df.iterrows():
+            ws.cell(row=r, column=start_col + 0, value=row["No."]).alignment = right
+            ws.cell(row=r, column=start_col + 1, value=row["Peakname"])
+            # RetentionTime -> nombre (remplace virgule éventuelle)
+            try:
+                rt = float(str(row["Retention Time"]).replace(",", "."))
+            except Exception:
+                rt = None
+            ws.cell(row=r, column=start_col + 2, value=rt).number_format = "0.000"
+            # Relative Area -> % (valeur déjà en % “plein”, pas 0-1)
+            try:
+                ra = float(str(row["Relative Area"]).replace(",", "."))
+            except Exception:
+                ra = None
+            ws.cell(row=r, column=start_col + 3, value=ra).number_format = "0.00"
+            # Bordures
+            for i in range(ncols):
+                ws.cell(row=r, column=start_col + i).border = border
+            r += 1
+
+        # Ajuste les largeurs
+        widths = [5, 22, 10, 12]
+        for i, w in enumerate(widths):
+            ws.column_dimensions[get_column_letter(start_col + i)].width = w
+
+        return r - 1, start_col + ncols - 1  # (last_row, last_col)
+
+    def _write_bilan_matiere(
+        self,
+        ws: Worksheet,
+        start_col: int,
+        start_row: int,
+        data: Optional[Dict[str, Any]] = None
+    ) -> Tuple[int, int]:
+        """
+        Écrit le bloc 'Bilan matière' (si data est fournie).
+        data attendu (clé libres, on formate simplement) :
+          {
+            "Masse recette 1 (kg)": 1.21,
+            "Masse recette 2 (kg)": 1.04,
+            "Masse cendrier (kg)": 0.59,
+            "Masse injectée (kg)": 8,
+            "wt% R1/R2": [0.54, 0.46],
+            "Rendement (massique)": {"Liquide (%)": 28.13, "Gaz (%)": 64.50, "Residue (%)": 7.38}
+          }
+        """
+        title_font = Font(bold=True, size=12)
+        header_font = Font(bold=True)
+        gray_fill = PatternFill("solid", fgColor="DDDDDD")
+        center = Alignment(horizontal="center", vertical="center")
+        right = Alignment(horizontal="right", vertical="center")
+        left = Alignment(horizontal="left", vertical="center")
+        thin = Side(style="thin", color="999999")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+        if not data:
+            # Écrire seulement un titre placeholder pour réserver l’espace
+            ws.cell(row=start_row, column=start_col, value="Bilan matière").font = title_font
+            return start_row, start_col + 3
+
+        # Titre
+        ws.cell(row=start_row, column=start_col, value="Bilan matière").font = title_font
+
+        r = start_row + 2
+        # Ligne “wt% R1/R2”
+        ws.cell(row=r, column=start_col, value="wt% R1/R2").font = header_font
+        vals = data.get("wt% R1/R2")
+        if isinstance(vals, (list, tuple)) and len(vals) >= 2:
+            ws.cell(row=r, column=start_col + 1, value=float(vals[0])).number_format = "0.00"
+            ws.cell(row=r, column=start_col + 2, value=float(vals[1])).number_format = "0.00"
+        r += 2
+
+        # Masses
+        for label in ["Masse recette 1 (kg)", "Masse recette 2 (kg)", "Masse cendrier (kg)", "Masse injectée (kg)"]:
+            if label in data:
+                ws.cell(row=r, column=start_col, value=label).fill = gray_fill
+                ws.cell(row=r, column=start_col).font = header_font
+                ws.cell(row=r, column=start_col + 1, value=float(data[label])).number_format = "0.00"
+                r += 1
+
+        r += 1
+        # Rendement massique
+        rend = data.get("Rendement (massique)", {})
+        if isinstance(rend, dict):
+            ws.cell(row=r, column=start_col + 1, value="Rendement (massique)").font = header_font
+            r += 1
+            for k in ["Liquide (%)", "Gaz (%)", "Residue (%)"]:
+                if k in rend:
+                    ws.cell(row=r, column=start_col + 1, value=k).alignment = left
+                    ws.cell(row=r, column=start_col + 2, value=float(rend[k])).number_format = "0.00"
+                    r += 1
+
+        # Bordures “light” autour de la zone
+        max_c = start_col + 3
+        for rr in range(start_row, r):
+            for cc in range(start_col, max_c + 1):
+                ws.cell(row=rr, column=cc).border = border
+
+        # Largeurs
+        ws.column_dimensions[get_column_letter(start_col)].width = 20
+        ws.column_dimensions[get_column_letter(start_col + 1)].width = 10
+        ws.column_dimensions[get_column_letter(start_col + 2)].width = 10
+        return r - 1, max_c
+
+
+    @staticmethod
+    def compute_bilan(
+        masse_injectee: float,
+        masse_recette_1: float,
+        masse_recette_2: float,
+        masse_cendrier: float,
+    ) -> Dict[str, Any]:
+        """Calcule automatiquement le bilan matière et les rendements."""
+        if masse_injectee <= 0:
+            raise ValueError("masse_injectee doit être > 0")
+
+        m_liquide = masse_recette_1 + masse_recette_2
+        m_residu  = masse_cendrier
+        m_gaz     = masse_injectee - (m_liquide + m_residu)
+
+        # protections simples
+        if m_gaz < 0:
+            m_gaz = 0.0
+
+        # pourcentages
+        p_liquide = round(100.0 * m_liquide / masse_injectee, 2)
+        p_gaz     = round(100.0 * m_gaz     / masse_injectee, 2)
+        p_residu  = round(100.0 * m_residu  / masse_injectee, 2)
+
+        # wt% R1/R2 sur la fraction liquide uniquement
+        wt_r1 = round(masse_recette_1 / m_liquide, 2) if m_liquide > 0 else 0.0
+        wt_r2 = round(masse_recette_2 / m_liquide, 2) if m_liquide > 0 else 0.0
+
+        return {
+            "wt% R1/R2": [wt_r1, wt_r2],
+            "Masse recette 1 (kg)": masse_recette_1,
+            "Masse recette 2 (kg)": masse_recette_2,
+            "Masse cendrier (kg)": masse_cendrier,
+            "Masse injectée (kg)": masse_injectee,
+            "Rendement (massique)": {
+                "Liquide (%)": p_liquide,
+                "Gaz (%)": p_gaz,
+                "Residue (%)": p_residu,
+            },
+        }
+
+    def generate_offline_sheet(
+        self,
+        wb: Workbook,
+        sheet_name: str = "Chromeleon Offline",
+        bilan_matiere: Optional[Dict[str, Any]] = None,
+        # si bilan_matiere n’est pas fourni, on peut passer les masses pour calcul auto :
+        masse_injectee: Optional[float] = None,
+        masse_recette_1: Optional[float] = None,
+        masse_recette_2: Optional[float] = None,
+        masse_cendrier: Optional[float] = None,
+    ) -> Workbook:
+        """
+        Construit la feuille: R1/R2 + Bilan matière (fourni ou calculé) + tableaux de synthèse.
+        - Si `bilan_matiere` est None et que les 4 masses sont fournies, on calcule le bilan automatiquement.
+        """
+        # si pas de dict bilan mais masses dispo -> calcul
+        if bilan_matiere is None and None not in (masse_injectee, masse_recette_1, masse_recette_2, masse_cendrier):
+            bilan_matiere = self.compute_bilan(
+                masse_injectee=masse_injectee, 
+                masse_recette_1=masse_recette_1, 
+                masse_recette_2=masse_recette_2, 
+                masse_cendrier=masse_cendrier
+            )
+
+        # --- le reste est identique à ta version précédente ---
+        ws = wb.create_sheet(title=sheet_name[:31])
+
+        df_r1, df_r2 = self.get_R1_R2_data()
+
+        r1_title = "Liquid Phase Integration Results R1"
+        r1_last_row, _ = self._write_df_block(ws, r1_title, df_r1, start_col=1, start_row=1)
+
+        r2_title = "Liquid Phase Integration Results R2"
+        r2_last_row, _ = self._write_df_block(ws, r2_title, df_r2, start_col=9, start_row=1)
+
+        # Bloc bilan (utilise le dict calculé si besoin)
+        _ = self._write_bilan_matiere(ws, start_col=18, start_row=1, data=bilan_matiere)
+
+        start_row = max(r1_last_row, r2_last_row) + 4
+        tables = self.create_summary_tables()
+
+        def write_summary(df, anchor_col, title):
+            title_font = Font(bold=True, size=12)
+            header_font = Font(bold=True)
+            gray_fill = PatternFill("solid", fgColor="DDDDDD")
+            center = Alignment(horizontal="center", vertical="center")
+            thin = Side(style="thin", color="999999")
+            border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+            ws.cell(row=start_row, column=anchor_col, value=title).font = title_font
+
+            headers = ["Carbon", "Linear", "Isomers", "BTX", "Total"]
+            for i, h in enumerate(headers):
+                rr, cc = start_row + 1, anchor_col + i
+                ws.cell(row=rr, column=cc, value=h).font = header_font
+                ws.cell(row=rr, column=cc).fill = gray_fill
+                ws.cell(row=rr, column=cc).alignment = center
+                ws.cell(row=rr, column=cc).border = border
+
+            r = start_row + 2
+            for _, row in df.iterrows():
+                ws.cell(row=r, column=anchor_col + 0, value=row["Carbon"])
+                for j, key in enumerate(["Linear", "Isomers", "BTX", "Total"], start=1):
+                    val = float(row[key]) if pd.notna(row[key]) else None
+                    c = ws.cell(row=r, column=anchor_col + j, value=val)
+                    c.number_format = "0.00"
+                    c.border = border
+                r += 1
+
+            widths = [6, 8, 8, 8, 10]
+            for i, w in enumerate(widths):
+                ws.column_dimensions[get_column_letter(anchor_col + i)].width = w
+            return r
+
+        _ = write_summary(tables["R1"], anchor_col=1,  title="R1")
+        _ = write_summary(tables["R2"], anchor_col=8,  title="R2")
+        _ = write_summary(tables["Moyenne"], anchor_col=15, title="Moyenne")
+
+        ws.freeze_panes = "A4"
+        return wb
+
 
 
 # Exemple d'utilisation
 if __name__ == "__main__":
-    data = ChromeleonOffline("/home/lucaslhm/Bureau/Données_du_test_240625")
-    
-    # Obtenir les données brutes
-    R1, R2 = data.get_R1_R2_data()
-    print("R1 Data:")
-    print(R1.to_string())             
-    print("R2 Data:")
-    print(R2.to_string())
-    
-    # Créer les tableaux de résumé
-    tables = data.create_summary_tables()
-    
-    print(tables['R1'].to_string())
-    print(tables['R2'].to_string())
-    print(tables['Moyenne'].to_string())
+
+    off = ChromeleonOffline("/home/lucaslhm/Bureau/Données_du_test_240625")
+    wb = Workbook()
+    if 'Sheet' in wb.sheetnames: wb.remove(wb['Sheet'])
+
+    off.generate_offline_sheet(
+        wb,
+        sheet_name="GC Off-line",
+        masse_injectee=8.0,
+        masse_recette_1=1.21,
+        masse_recette_2=1.04,
+        masse_cendrier=0.59,
+    )
+    wb.save("/home/lucaslhm/Bureau/chromeleon_offline2.xlsx")
