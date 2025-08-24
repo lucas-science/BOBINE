@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Checkbox } from '@/src/components/ui/checkbox';
-import { Metric, MetricsBySensor, SelectedMetricsBySensor } from '@/src/lib/utils/type';
+import { Metric, MetricsBySensor, SelectedMetricsBySensor } from '@/src/lib/type/type';
 
 interface MetricsSelectorProps {
   data: MetricsBySensor;

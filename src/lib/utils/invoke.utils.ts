@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { SelectedMetricsBySensor } from "./type";
+import { MetricsBySensor } from "./type";
 
 export async function getDocumentsDir(): Promise<string> {
   return await invoke<string>("get_documents_dir");
