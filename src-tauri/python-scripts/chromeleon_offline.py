@@ -54,6 +54,8 @@ class ChromeleonOffline:
             dtype=str
         )
 
+
+
     def show(self):
         print("Data from R1.xlsx:")
         print(self.df_r1.head())
@@ -506,7 +508,6 @@ class ChromeleonOffline:
 
         ws.freeze_panes = "A4"
         return wb
-
 
 
 # Exemple d'utilisation

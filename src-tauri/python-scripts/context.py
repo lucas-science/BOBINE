@@ -1,5 +1,6 @@
 import base64
 import io
+import os
 from typing import Union, Optional
 from copy import copy  # <<< pour cloner les styles sans DeprecationWarning
 import pandas as pd
@@ -9,13 +10,32 @@ from openpyxl.utils import get_column_letter
 
 
 class ExcelContextData:
-    def __init__(self, file_path: str):
-        self.file_path = file_path
-        self.workbook = load_workbook(file_path, data_only=False)
-        # première sheet
+    def __init__(self, dir_root: str):
+        self.first_file = ""
+        if os.path.exists(dir_root):
+            files = [
+                f for f in os.listdir(dir_root)
+                if os.path.isfile(os.path.join(dir_root, f))
+                and not f.startswith('.')  
+                and not f.startswith('~')
+                and not f.startswith('.~lock')
+                and f.lower().endswith('.xlsx')
+            ]
+
+            if not files:
+                raise FileNotFoundError(f"Aucun fichier Excel (.xlsx) valide trouvé dans {dir_root}")
+
+            files.sort()
+            self.first_file = os.path.join(dir_root, files[0])
+        else:
+            raise FileNotFoundError(f"Le répertoire {dir_root} n'existe pas")
+
+        # ouverture du premier fichier Excel
+        self.file_path = self.first_file
+        self.workbook = load_workbook(self.file_path, data_only=False)
+        # première feuille
         self.sheet_name = self.workbook.sheetnames[0]
         self.sheet: Worksheet = self.workbook[self.sheet_name]
-
     
     def get_masses(self) -> pd.DataFrame:
         target_labels = {
@@ -171,27 +191,3 @@ class ExcelContextData:
             for c in range(1, source_ws.max_column + 1):
                 target_ws.column_dimensions[get_column_letter(c)].width = 10
 
-
-
-path = "/home/lucaslhm/Bureau/Données_du_test_240625/Modèle rapport ETIC-240625 8h déchet.xlsx"
-ex = ExcelContextData(path)
-masses = ex.get_masses()
-
-print(ex.is_valid())
-
-"""
-b64 = ex.get_as_base64()
-# -> envoyer ce b64 au front et le mettre dans localStorage
-
-wb_final = Workbook()
-if "Sheet" in wb_final.sheetnames: wb_final.remove(wb_final["Sheet"])
-
-# injecter la feuille “Context” depuis le base64 (nom auto-uniquifié si collision)
-ExcelContextData.inject_base64_sheet(
-    b64,                     # code base64
-    wb_final,                # Workbook cible (objet)
-    new_sheet_name="Context" # nom souhaité
-)
-
-wb_final.save("/home/lucaslhm/Bureau/Données_du_test_240625/test_injection.xlsx")
-"""

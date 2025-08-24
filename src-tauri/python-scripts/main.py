@@ -8,10 +8,12 @@ from openpyxl import Workbook
 from openpyxl.chart import LineChart, Series, Reference
 
 from pigna import PignaData
+from context import ExcelContextData
 
-CHROMELEON_ONLINE  = "chromeleon_online"
-CHROMELEON_OFFLINE = "chromeleon_offline"
-PIGNA              = "pigna"
+CHROMELEON_ONLINE =         "chromeleon_online"
+CHROMELEON_OFFLINE =        "chromeleon_offline"
+PIGNA =                     "pigna"
+CONTEXT =                   "context"
 
 dataFromMetricsSensor = {
     CHROMELEON_ONLINE:  [],
@@ -22,6 +24,7 @@ dataFromMetricsSensor = {
 
 def getDirectories(dir_path):
     return {
+        CONTEXT:            f"{dir_path}/context/context",
         PIGNA:              f"{dir_path}/pigna/pigna",
         CHROMELEON_ONLINE:  f"{dir_path}/chromeleon/online",
         CHROMELEON_OFFLINE: f"{dir_path}/chromeleon/offline",
@@ -29,10 +32,22 @@ def getDirectories(dir_path):
 
 
 def context_is_correct(dir_path):
-    DIR_ROOT = f'{dir_path}/context/context'
-    # Ajoutez ici la logique pour vérifier le contexte
-    return True
+    DIR = getDirectories(dir_path)[CONTEXT]
 
+    if not os.path.exists(DIR):
+        return False
+    contextData = ExcelContextData(DIR)
+
+    return contextData.is_valid()
+
+def get_context_b64(dir_path):
+    DIR = getDirectories(dir_path)[CONTEXT]
+
+    if not os.path.exists(DIR):
+        raise FileNotFoundError(f"Le fichier de contexte n'existe pas dans {DIR}")
+    contextData = ExcelContextData(DIR)
+
+    return contextData.get_as_base64()
 
 def get_graphs_available(dir_path):
     metrics_available = {
@@ -72,6 +87,7 @@ def getDataFromMetricsSensor(metrics_wanted: dict[str, list[str]], pignaData):
                 print(f"An error occurred: {e}", file=sys.stderr)
     return dataFromMetricsSensor
 
+
 def save_to_excel_with_charts(dir_root, metrics_wanted):
     wb = Workbook()
     # Supprime le sheet vide par défaut
@@ -82,7 +98,7 @@ def save_to_excel_with_charts(dir_root, metrics_wanted):
     if metrics_wanted.get("pigna"):
         pigna_dir = getDirectories(dir_root)["pigna"]
         wb = PignaData(pigna_dir) \
-                 .generate_workbook_with_charts(wb, metrics_wanted["pigna"])
+            .generate_workbook_with_charts(wb, metrics_wanted["pigna"])
 
     # --- Chromeleon Online ---
     if metrics_wanted.get("chromeleon_online"):
@@ -100,11 +116,13 @@ def save_to_excel_with_charts(dir_root, metrics_wanted):
 
     return wb
 
+
 def excel_to_base64(wb):
     excel_binary = io.BytesIO()
     wb.save(excel_binary)
     excel_binary.seek(0)
     return base64.b64encode(excel_binary.getvalue()).decode('utf-8')
+
 
 if __name__ == "__main__":
     # Valeur par défaut qui sera *toujours* imprimée
@@ -116,8 +134,16 @@ if __name__ == "__main__":
         arg3 = sys.argv[3] if len(sys.argv) > 3 else None
 
         if action == "CONTEXT_IS_CORRECT":
-            result = context_is_correct(arg2)
+            result = context_is_correct(dir_path=arg2)
             response = {"result": result}
+        
+        elif action == "GET_CONTEXT_B64":
+            try:
+                result = get_context_b64(arg2)
+                response = {"result": result}
+            except Exception as e:
+                print(f"[GET_CONTEXT_B64] {e}", file=sys.stderr)
+                response = {"error": str(e)}
 
         elif action == "GET_GRAPHS_AVAILABLE":
             try:
