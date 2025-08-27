@@ -21,25 +21,27 @@ from utils.pigna_constants import (
     DELTA_PRESSURE_DEPENDING_TIME
 )
 
+
 class PignaData:
     def __init__(self, dir_root: str):
         self.first_file = ""
         if os.path.exists(dir_root):
-            files = [f for f in os.listdir(dir_root) 
-                    if os.path.isfile(os.path.join(dir_root, f))
-                    and not f.startswith('.')  
-                    and not f.startswith('~')
-                    and not f.startswith('.~lock')
-                    and f.lower().endswith('.csv')]
-            
+            files = [f for f in os.listdir(dir_root)
+                     if os.path.isfile(os.path.join(dir_root, f))
+                     and not f.startswith('.')
+                     and not f.startswith('~')
+                     and not f.startswith('.~lock')
+                     and f.lower().endswith('.csv')]
+
             if not files:
-                raise FileNotFoundError(f"Aucun fichier CSV valide trouvé dans {dir_root}")
-            
+                raise FileNotFoundError(
+                    f"Aucun fichier CSV valide trouvé dans {dir_root}")
+
             files.sort()
             self.first_file = os.path.join(dir_root, files[0])
         else:
             raise FileNotFoundError(f"Le répertoire {dir_root} n'existe pas")
-        
+
         self.data_frame = pd.read_csv(self.first_file)
         self.columns = self.data_frame.columns.tolist()
         self.missing_columns = set(DATA_REQUIRED) - set(self.columns)
@@ -119,7 +121,7 @@ class PignaData:
                 "x_axis": TIME,
                 "y_axis": [TT301, TT302, TT303]
             }
-        elif metric == DEBIMETRIC_RESPONSE_DEPENDING_TIME:  
+        elif metric == DEBIMETRIC_RESPONSE_DEPENDING_TIME:
             return {
                 "name": DEBIMETRIC_RESPONSE_DEPENDING_TIME,
                 "data": self._get_debimetrique_response_over_time(),
@@ -149,15 +151,18 @@ class PignaData:
             }
         else:
             raise ValueError(f"Metric '{metric}' is not recognized.")
-        
 
-    def generate_workbook_with_charts(self, wb: Workbook, metrics_wanted: list[str]):
+    def generate_workbook_with_charts(self,
+        wb: Workbook,
+        metrics_wanted: list[str],
+        sheet_name="Pignat"
+    ) -> Workbook:
         for metric in metrics_wanted:
             try:
                 metric_data = self.get_json_metrics(metric)
                 df = metric_data['data']
                 # Création d'une feuille de données
-                ws = wb.create_sheet(title=metric_data['name'][:31])
+                ws = wb.create_sheet(title=sheet_name)
                 ws.append(df.columns.tolist())
                 for row in df.itertuples(index=False):
                     ws.append(list(row))
@@ -190,6 +195,7 @@ class PignaData:
                 ws.add_chart(chart, f"{insert_col}2")
 
             except Exception as e:
-                print(f"Erreur traitement métrique '{metric}': {e}", file=sys.stderr)
+                print(
+                    f"Erreur traitement métrique '{metric}': {e}", file=sys.stderr)
 
         return wb

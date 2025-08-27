@@ -23,7 +23,7 @@ GRAPHS = [
     },
     {
         'name': DEBIMETRIC_RESPONSE_DEPENDING_TIME,
-        'columns': [TIME, FT240, "caca"]
+        'columns': [TIME, FT240]
     },
     {
         'name': PRESSURE_PYROLYSEUR_DEPENDING_TIME,

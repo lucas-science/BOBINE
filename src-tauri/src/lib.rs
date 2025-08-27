@@ -13,13 +13,12 @@ struct CommandOutput {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SelectedMetricsBySensor {
-    // Assure-toi que les clés correspondent à Python:
     chromeleon_offline: Vec<String>,
     chromeleon_online: Vec<String>,
     pigna: Vec<String>,
 }
 
-// Chemin vers le script Python
+
 const SCRIPT_PATH: &str = "/home/lucaslhm/Documents/ETIC/Bobine/project/desktop_app/src-tauri/python-scripts/main.py";
 
 /// ---------- Helper générique pour appeler Python ----------
@@ -45,7 +44,6 @@ fn run_python(args: &[&str]) -> Result<CommandOutput, String> {
         });
     }
 
-    // Si succès mais stdout vide, renvoyer stderr s'il existe
     if stdout.trim().is_empty() && !stderr.trim().is_empty() {
         return Err(stderr);
     }
@@ -53,9 +51,6 @@ fn run_python(args: &[&str]) -> Result<CommandOutput, String> {
     Ok(CommandOutput { stdout, stderr })
 }
 
-/// Parse stdout JSON et renvoie le champ "result" si présent,
-/// sinon renvoie l’objet JSON tel quel.
-/// En cas d'erreur côté Python, on s’attend à {"error": "..."}.
 fn parse_python_json(stdout: &str) -> Result<JsonValue, String> {
     if stdout.trim().is_empty() {
         return Err("Empty stdout from Python".into());
@@ -78,6 +73,39 @@ fn context_is_correct(dir_path: String) -> Result<bool, String> {
     // Python renvoie {"result": true/false}
     json.as_bool()
         .ok_or_else(|| "Invalid JSON: expected boolean".into())
+}
+
+#[tauri::command]
+fn get_context_masses(dir_path: String) -> Result<JsonValue, String> {
+    let out = run_python(&["GET_CONTEXT_MASSES", &dir_path])?;
+    if out.stdout.trim().is_empty() {
+        return Err(if out.stderr.trim().is_empty() {
+            "Empty stdout from Python".into()
+        } else {
+            out.stderr
+        });
+    }
+    let json = parse_python_json(&out.stdout)?;
+    json.as_object()
+        .map(|obj| {serde_json::to_value(obj).unwrap()})
+        .ok_or_else(|| "Invalid JSON: expected object".into())
+    
+}
+
+#[tauri::command]
+fn get_context_b64(dir_path: String) -> Result<String, String> {
+    let out = run_python(&["GET_CONTEXT_B64", &dir_path])?;
+    if out.stdout.trim().is_empty() {
+        return Err(if out.stderr.trim().is_empty() {
+            "Empty stdout from Python".into()
+        } else {
+            out.stderr
+        });
+    }
+    let json = parse_python_json(&out.stdout)?;
+    json.as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Invalid JSON: expected string".into())
 }
 
 #[tauri::command]
@@ -162,6 +190,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // Python actions exposées une par une :
             context_is_correct,
+            get_context_masses,
+            get_context_b64,
             get_graphs_available,
             generate_excel_file,
             // utilitaires :

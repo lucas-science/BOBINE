@@ -6,29 +6,92 @@ import { useUploadState } from "@/src/hooks/useUploadState";
 import { copyAllFilesToDocuments } from "@/src/lib/copyAllFilesToDocuments";
 import { getIndexByPathname, getNavigationByIndex } from "@/src/lib/pathNavigation";
 import { usePathname, useRouter } from "next/navigation";
+import {
+  checkContext,
+  getContextB64,
+  getContextMasses,
+  getDocumentsDir,
+} from "@/src/lib/utils/invoke.utils";
+import BackButton from "./components/backButton";
+import NextButton from "./components/nextButton";
+
+// ⬇️ ajoute ce composant (créé précédemment)
+import LoaderOverlay from "@/app/components/LoaderOverlay";
 
 export default function UploadPage() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const step = getIndexByPathname(pathname);
-  const [prevPath, nextPath] = getNavigationByIndex(step);
+  const stepIndex = getIndexByPathname(pathname);
+  const [prevPath, nextPath] = getNavigationByIndex(stepIndex);
 
-  const { allFilesByZoneKey, handleFilesChange, hasAnyFile, setAllFilesByZoneKey } = useUploadState();
-  const [isCopying, setIsCopying] = React.useState(false);
+  const { allFilesByZoneKey, handleFilesChange, setAllFilesByZoneKey } = useUploadState();
+
+  // ----- Loader overlay state -----
+  const [overlayOpen, setOverlayOpen] = React.useState(false);
+  const TOTAL_STEPS = 4; // 1) copie 2) préparation 3) vérification 4) lecture contexte si besoin
+  const [currentStep, setCurrentStep] = React.useState(0);
+  const [currentTask, setCurrentTask] = React.useState("Préparation…");
+
+  const runStep = async (n: number, label: string, fn: () => Promise<any>) => {
+    setCurrentStep(n);
+    setCurrentTask(label);
+    return await fn();
+  };
 
   const handleNext = async () => {
     if (!nextPath) return;
-    setIsCopying(true);
-    const ok = await copyAllFilesToDocuments(allFilesByZoneKey);
-    setIsCopying(false);
-    if (ok) {
+
+    setOverlayOpen(true);
+    setCurrentStep(0);
+    setCurrentTask("Préparation…");
+
+    try {
+      // 1) Copie des fichiers
+      const ok = await runStep(1, "Copie des fichiers…", async () =>
+        copyAllFilesToDocuments(allFilesByZoneKey)
+      );
+
+      if (!ok) {
+        // copie échouée → on ferme l’overlay et on sort
+        setOverlayOpen(false);
+        return;
+      }
+
+      // 2) Préparation du dossier Documents de l’app
+      const docsDir: string = await runStep(2, "Préparation du dossier…", async () =>
+        getDocumentsDir()
+      );
+
+      // 3) Vérification du contexte
+      const is_context_ok: boolean = await runStep(3, "Vérification du contexte…", async () =>
+        checkContext(docsDir)
+      );
+
+      // 4) Si nécessaire : lecture/stockage du contexte
+      if (is_context_ok) {
+        await runStep(4, "Chargement du contexte…", async () => {
+          const masses = await getContextMasses(docsDir);
+          localStorage.setItem("app_context_masses", JSON.stringify(masses));
+          const context_b64 = await getContextB64(docsDir);
+          localStorage.setItem("app_context_b64", context_b64);
+        });
+      }
+
+      // terminé
+      setOverlayOpen(false);
       setAllFilesByZoneKey({});
       router.push(nextPath);
+    } catch (e) {
+      // en cas d’erreur, on ferme proprement
+      setOverlayOpen(false);
+      console.error(e);
     }
   };
 
-  const handleBack = () => { if (prevPath) router.push(prevPath); };
+  const handleBack = () => {
+    if (prevPath) router.push(prevPath);
+  };
 
   return (
     <div className="min-h-screen">
@@ -47,25 +110,20 @@ export default function UploadPage() {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 bg-amber-300 p-4 z-50">
+      <div className="fixed bottom-0 left-0 right-0 p-4 z-50">
         <div className="flex justify-between items-center w-full mx-auto">
-          <button
-            onClick={handleBack}
-            disabled={!prevPath}
-            className={`px-4 py-2 rounded-lg border border-gray-800 text-gray-900 bg-white shadow-sm transition
-              ${!prevPath ? "opacity-50 cursor-not-allowed" : "hover:bg-gray-50"}`}>
-            ◀️ Retour
-          </button>
-
-          <button
-            onClick={handleNext}
-            disabled={!nextPath || !hasAnyFile || isCopying}
-            className={`px-4 py-2 rounded-lg text-white bg-blue-600 shadow-sm transition
-              ${(!nextPath || !hasAnyFile || isCopying) ? "opacity-50 cursor-not-allowed" : "hover:bg-blue-700"}`}>
-            {isCopying ? "Copie en cours…" : "Suivant ▶️"}
-          </button>
+          <BackButton onClick={handleBack} disable={!prevPath} />
+          <NextButton onClick={handleNext} disable={!nextPath} />
         </div>
       </div>
+
+      {/* ----- Overlay au premier plan ----- */}
+      <LoaderOverlay
+        open={overlayOpen}
+        currentStep={Math.min(currentStep, TOTAL_STEPS)}
+        totalSteps={TOTAL_STEPS}
+        currentTask={currentTask}
+      />
     </div>
   );
 }

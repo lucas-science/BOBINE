@@ -1,5 +1,6 @@
 "use client";
 
+import { flushSync } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { save } from "@tauri-apps/plugin-dialog";
 import { BaseDirectory, writeFile } from "@tauri-apps/plugin-fs";
@@ -40,38 +41,45 @@ export default function Page() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [savedPath, setSavedPath] = useState("");
 
-  const handleGenerateExcel = async () => {
-    setLoading(true);
-    try {
-      const sel = localStorage.getItem("selectedMetrics");
-      if (!sel) throw new Error("Aucune métrique sélectionnée");
-      const metrics = JSON.parse(sel);
+  function sleep(ms: number) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
-      const docsDir = await getDocumentsDir();
-      const fileContent = await generateExcelFile(docsDir, metrics);
+const handleGenerateExcel = async () => {
+  setLoading(true);
+  console.log("Génération du fichier Excel…");
+  await sleep(100); // petit délai pour laisser le temps au spinner de s’afficher
+  //flushSync(() => {}); // force le re-render avant de lancer le traitement
+  
 
-      const absPath = await save({
-        defaultPath: "metrics_data.xlsx",
-        filters: [{ name: "Excel", extensions: ["xlsx"] }],
-      });
-      if (!absPath) throw new Error("Enregistrement annulé");
+  try {
+    const sel = localStorage.getItem("selectedMetrics");
+    if (!sel) throw new Error("Aucune métrique sélectionnée");
+    const metrics = JSON.parse(sel);
 
-      const relPath = absPath.replace(docsDir + "/", "");
-      await writeFile(relPath, fileContent, { baseDir: BaseDirectory.Document });
+    const docsDir = await getDocumentsDir();
+    const fileContent = await generateExcelFile(docsDir, metrics);
 
-      setSavedPath(absPath);
-      setDialogOpen(true);
-    } catch (e) {
-      console.error(e);
-      const message =
-        typeof e === "object" && e !== null && "message" in e
-          ? e.message
-          : "Une erreur est survenue lors de l’export";
-      toast.error(String(message));
-    } finally {
-      setLoading(false);
-    }
-  };
+    const absPath = await save({
+      defaultPath: "metrics_data.xlsx",
+      filters: [{ name: "Excel", extensions: ["xlsx"] }],
+    });
+    if (!absPath) throw new Error("Enregistrement annulé");
+
+    const relPath = absPath.replace(docsDir + "/", "");
+    await writeFile(relPath, fileContent, { baseDir: BaseDirectory.Document });
+
+    setSavedPath(absPath);
+    setDialogOpen(true);
+  } catch (e: any) {
+    console.error(e);
+    toast.error(e?.message ?? "Une erreur est survenue lors de l’export");
+  } finally {
+    setLoading(false);
+  }
+};
+
+
 
   const handleBack = () => prevPath && router.push(prevPath);
 

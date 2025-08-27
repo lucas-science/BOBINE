@@ -37,7 +37,7 @@ class ExcelContextData:
         self.sheet_name = self.workbook.sheetnames[0]
         self.sheet: Worksheet = self.workbook[self.sheet_name]
     
-    def get_masses(self) -> pd.DataFrame:
+    def get_masses(self) -> dict[str, Optional[float]]:
         target_labels = {
             "masse recette 1 (kg)": None,
             "masse recette 2 (kg)" : None,
@@ -53,16 +53,16 @@ class ExcelContextData:
                 if isinstance(val, str) and val.lower() in target_labels.keys():
                     target_labels[val.lower()] = df.iat[i, j+1] 
         
-        out_df = pd.DataFrame(
-            list(target_labels.items()), 
-            columns=["Label", "Valeur (kg)"]
-        )
-        return out_df
+        return target_labels
 
     def is_valid(self) -> bool:
-        if map(lambda x: x is not None, self.get_masses()["Valeur (kg)"]):
-            return True
-        return False
+        return not any(v is None for v in self.get_masses().values())
+    
+    def add_self_sheet_to(self, target_wb: Workbook, new_sheet_name: Optional[str] = None) -> Workbook:
+        dst_ws = target_wb.create_sheet(title=self.sheet_name)
+        self._copy_sheet(self.sheet, dst_ws)
+        return target_wb
+
     # ---------- export ----------
     def get_as_dataframe(self) -> pd.DataFrame:
         return pd.DataFrame(self.sheet.values)

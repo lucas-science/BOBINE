@@ -8,7 +8,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getMetricsAvailable } from "@/src/lib/utils/invoke.utils";
 import MetricsSelector from "./selectMetrics";
-import { MetricsBySensor, SelectedMetricsBySensor } from "@/src/lib/type/type";
+import { MetricsBySensor, SelectedMetricsBySensor } from "@/src/lib/utils/type";
 import { invoke } from "@tauri-apps/api/core";
 
 export default function Page() {

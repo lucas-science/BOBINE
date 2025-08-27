@@ -1,6 +1,6 @@
 export type Metric = {
   name: string;
-  columns: string[];
+  columns?: string[];
   available: boolean;
 }
 

@@ -1,7 +1,7 @@
 import React, { useCallback, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
 import { Checkbox } from '@/src/components/ui/checkbox';
-import { Metric, MetricsBySensor, SelectedMetricsBySensor } from '@/src/lib/type/type';
+import { Metric, MetricsBySensor, SelectedMetricsBySensor } from '@/src/lib/utils/type';
 
 interface MetricsSelectorProps {
   data: MetricsBySensor;
@@ -75,13 +75,12 @@ const MetricsSelector: React.FC<MetricsSelectorProps> = ({
               return (
                 <div
                   key={metricKey}
-                  className={`flex items-start space-x-3 p-3 rounded-lg border transition-colors ${
-                    metric.available
+                  className={`flex items-start space-x-3 p-3 rounded-lg border transition-colors ${metric.available
                       ? isSelected
                         ? 'bg-blue-50 border-blue-200'
                         : 'bg-white border-gray-200 hover:bg-gray-50'
                       : 'bg-gray-50 border-gray-200'
-                  } ${metric.available ? 'cursor-pointer' : 'cursor-not-allowed'}`}
+                    } ${metric.available ? 'cursor-pointer' : 'cursor-not-allowed'}`}
                   onClick={() => handleMetricToggle(metricKey, metric.available)}
                 >
                   <Checkbox
@@ -94,9 +93,11 @@ const MetricsSelector: React.FC<MetricsSelectorProps> = ({
                     <p className={`text-sm leading-5 ${metric.available ? 'text-gray-900' : 'text-gray-400'}`}>
                       {metric.name}
                     </p>
-                    <p className={`text-xs mt-1 ${metric.available ? 'text-gray-500' : 'text-gray-300'}`}>
-                      Colonnes: {metric.columns.length > 0 ? metric.columns.join(', ') : metric.columns}
-                    </p>
+                    {metric.columns && (
+                      <p className={`text-xs mt-1 ${metric.available ? 'text-gray-500' : 'text-gray-300'}`}>
+                        Colonnes: {metric.columns.length > 0 ? metric.columns.join(', ') : metric.columns}
+                      </p>
+                    )}
                   </div>
                 </div>
               );

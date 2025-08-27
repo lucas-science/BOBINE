@@ -8,12 +8,13 @@ from openpyxl import Workbook
 from openpyxl.chart import LineChart, Series, Reference
 
 from pigna import PignaData
+from chromeleon_offline import ChromeleonOffline
 from context import ExcelContextData
 
-CHROMELEON_ONLINE =         "chromeleon_online"
-CHROMELEON_OFFLINE =        "chromeleon_offline"
-PIGNA =                     "pigna"
-CONTEXT =                   "context"
+CHROMELEON_ONLINE = "chromeleon_online"
+CHROMELEON_OFFLINE = "chromeleon_offline"
+PIGNA = "pigna"
+CONTEXT = "context"
 
 dataFromMetricsSensor = {
     CHROMELEON_ONLINE:  [],
@@ -30,7 +31,6 @@ def getDirectories(dir_path):
         CHROMELEON_OFFLINE: f"{dir_path}/chromeleon/offline",
     }
 
-
 def context_is_correct(dir_path):
     DIR = getDirectories(dir_path)[CONTEXT]
 
@@ -40,14 +40,38 @@ def context_is_correct(dir_path):
 
     return contextData.is_valid()
 
+def get_context_masses(dir_path):
+    DIR = getDirectories(dir_path)[CONTEXT]
+
+    if not os.path.exists(DIR):
+        raise FileNotFoundError(
+            f"Le fichier de contexte n'existe pas dans {DIR}")
+    contextData = ExcelContextData(DIR)
+
+    return contextData.get_masses()
+
+def get_context_workbook(dir_path: str, wb: Workbook):
+    DIR = getDirectories(dir_path)[CONTEXT]
+
+    if not os.path.exists(DIR):
+        raise FileNotFoundError(
+            f"Le fichier de contexte n'existe pas dans {DIR}")
+    contextData = ExcelContextData(DIR)
+
+    return contextData.add_self_sheet_to(wb)
+    
+
+
 def get_context_b64(dir_path):
     DIR = getDirectories(dir_path)[CONTEXT]
 
     if not os.path.exists(DIR):
-        raise FileNotFoundError(f"Le fichier de contexte n'existe pas dans {DIR}")
+        raise FileNotFoundError(
+            f"Le fichier de contexte n'existe pas dans {DIR}")
     contextData = ExcelContextData(DIR)
 
     return contextData.get_as_base64()
+
 
 def get_graphs_available(dir_path):
     metrics_available = {
@@ -68,52 +92,39 @@ def get_graphs_available(dir_path):
 
     chromeleon_offline_dir = directories[CHROMELEON_OFFLINE]
     if os.path.exists(chromeleon_offline_dir):
-        pass
+        chromeleon_online_data = ChromeleonOffline(chromeleon_offline_dir)
+        metrics_available[CHROMELEON_OFFLINE] = chromeleon_online_data.get_graphs_available(
+        )
 
     return metrics_available
 
 
-def getDataFromMetricsSensor(metrics_wanted: dict[str, list[str]], pignaData):
-    if metrics_wanted.get(CHROMELEON_OFFLINE):
-        pass
-    if metrics_wanted.get(CHROMELEON_ONLINE):
-        pass
-    if metrics_wanted.get(PIGNA):
-        for metric in metrics_wanted[PIGNA]:
-            try:
-                metric_data = pignaData.get_json_metrics(metric)
-                dataFromMetricsSensor[PIGNA].append(metric_data)
-            except Exception as e:
-                print(f"An error occurred: {e}", file=sys.stderr)
-    return dataFromMetricsSensor
-
-
-def save_to_excel_with_charts(dir_root, metrics_wanted):
+def save_to_excel_with_charts(dir_root: str, metrics_wanted: dict[str, list[str]], masses: dict[str, float]) -> Workbook:
     wb = Workbook()
-    # Supprime le sheet vide par défaut
     if 'Sheet' in wb.sheetnames:
         wb.remove(wb['Sheet'])
 
-    # --- Pigna ---
-    if metrics_wanted.get("pigna"):
-        pigna_dir = getDirectories(dir_root)["pigna"]
+    wb = get_context_workbook(dir_root, wb)
+
+    if metrics_wanted.get(PIGNA):
+        pigna_dir = getDirectories(dir_root)[PIGNA]
         wb = PignaData(pigna_dir) \
             .generate_workbook_with_charts(wb, metrics_wanted["pigna"])
 
-    # --- Chromeleon Online ---
-    if metrics_wanted.get("chromeleon_online"):
-        chromo_online_dir = getDirectories(dir_root)["chromeleon_online"]
+    if metrics_wanted.get(CHROMELEON_ONLINE):
+        chromo_online_dir = getDirectories(dir_root)[CHROMELEON_ONLINE]
         # À terme, remplacer par votre classe ChromeleonOnlineData
         # wb = ChromeleonOnlineData(chromo_online_dir) \
         #         .generate_workbook_with_charts(wb, metrics_wanted["chromeleon_online"])
 
-    # --- Chromeleon Offline ---
-    if metrics_wanted.get("chromeleon_offline"):
-        chromo_offline_dir = getDirectories(dir_root)["chromeleon_offline"]
-        # À terme, remplacer par votre classe ChromeleonOfflineData
-        # wb = ChromeleonOfflineData(chromo_offline_dir) \
-        #         .generate_workbook_with_charts(wb, metrics_wanted["chromeleon_offline"])
-
+    if metrics_wanted.get(CHROMELEON_OFFLINE):
+        chromo_offline_dir = getDirectories(dir_root)[CHROMELEON_OFFLINE]
+        wb = ChromeleonOffline(chromo_offline_dir) \
+            .generate_workbook_with_charts(
+            wb,
+            metrics_wanted[CHROMELEON_OFFLINE],
+            masses
+        )
     return wb
 
 
@@ -136,7 +147,15 @@ if __name__ == "__main__":
         if action == "CONTEXT_IS_CORRECT":
             result = context_is_correct(dir_path=arg2)
             response = {"result": result}
-        
+            
+        elif action == "GET_CONTEXT_MASSES":
+            try:
+                result = get_context_masses(arg2)
+                response = {"result": result}
+            except Exception as e:
+                print(f"[GET_CONTEXT_MASSES] {e}", file=sys.stderr)
+                response = {"error": str(e)}
+
         elif action == "GET_CONTEXT_B64":
             try:
                 result = get_context_b64(arg2)
@@ -157,7 +176,8 @@ if __name__ == "__main__":
             try:
                 metrics_wanted = json.loads(arg2)
                 dir_root = arg3
-                wb = save_to_excel_with_charts(dir_root, metrics_wanted)
+                masses = get_context_masses(dir_root)
+                wb = save_to_excel_with_charts(dir_root, metrics_wanted, masses)
                 base64_filecontent = excel_to_base64(wb)
                 response = {"result": base64_filecontent}
             except Exception as e:
