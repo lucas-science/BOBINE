@@ -143,6 +143,7 @@ if __name__ == "__main__":
         action = sys.argv[1] if len(sys.argv) > 1 else None
         arg2 = sys.argv[2] if len(sys.argv) > 2 else None
         arg3 = sys.argv[3] if len(sys.argv) > 3 else None
+        arg4 = sys.argv[4] if len(sys.argv) > 4 else None
 
         if action == "CONTEXT_IS_CORRECT":
             result = context_is_correct(dir_path=arg2)
@@ -172,19 +173,20 @@ if __name__ == "__main__":
                 print(f"[GET_GRAPHS_AVAILABLE] {e}", file=sys.stderr)
                 response = {"error": str(e)}
 
-        elif action == "GENERATE_EXCEL":
+        elif action == "GENERATE_EXCEL_TO_FILE":
             try:
                 metrics_wanted = json.loads(arg2)
                 dir_root = arg3
+                out_path = arg4
+                if not out_path:
+                    raise ValueError("Output path is required")
+
                 masses = get_context_masses(dir_root)
                 wb = save_to_excel_with_charts(dir_root, metrics_wanted, masses)
-                base64_filecontent = excel_to_base64(wb)
-                response = {"result": base64_filecontent}
+                wb.save(out_path)
+                response = {"result": out_path}
             except Exception as e:
                 response = {"error": str(e)}
-        else:
-            # action inconnue -> on garde la response par défaut
-            pass
 
     except Exception as e:
         print(f"[MAIN] {e}", file=sys.stderr)

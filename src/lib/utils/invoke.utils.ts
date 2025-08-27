@@ -21,14 +21,18 @@ export async function getMetricsAvailable(dirPath: string): Promise<MetricsBySen
   return await invoke<MetricsBySensor>("get_graphs_available", { dirPath });
 }
 
-
-export const generateExcelFile = async (
+export async function generateAndSaveExcel(
   dirPath: string,
-  metrics: SelectedMetricsBySensor
-): Promise<Uint8Array> => {
-  const bytesArray = await invoke<number[]>("generate_excel_file", {
+  metrics: SelectedMetricsBySensor,
+  destinationPath: string
+): Promise<void> {
+  await invoke("generate_and_save_excel", {
     dirPath,
     metricWanted: metrics,
+    destinationPath,
   });
-  return new Uint8Array(bytesArray);
-};
+}
+
+export async function copyFile(sourcePath: string, destinationPath: string): Promise<void> {
+  return await invoke("copy_file", { sourcePath, destinationPath });
+}

@@ -1,9 +1,11 @@
-use std::{fs, path::Path, process::Command};
 use tauri::command;
 use dirs::document_dir;
 use serde::{Serialize, Deserialize};
 use serde_json::Value as JsonValue;
+use tempfile::NamedTempFile;
+use std::{fs, path::{Path, PathBuf}, process::Command, time::{SystemTime, UNIX_EPOCH}};
 use base64::{engine::general_purpose, Engine as _};
+
 
 #[derive(Serialize)]
 struct CommandOutput {
@@ -123,18 +125,23 @@ fn get_graphs_available(dir_path: String) -> Result<JsonValue, String> {
 
 
 #[tauri::command]
-fn generate_excel_file(dir_path: String, metric_wanted: SelectedMetricsBySensor) -> Result<Vec<u8>, String> {
-    let metrics_json = serde_json::to_string(&metric_wanted)
-        .map_err(|e| format!("Failed to serialize metrics: {e}"))?;
-
-    let out = run_python(&["GENERATE_EXCEL", &metrics_json, &dir_path])?;
-    let json = parse_python_json(&out.stdout)?;
-
-    let file_b64 = json.as_str().ok_or("Invalid Python JSON: expected base64 string")?;
-    general_purpose::STANDARD
-        .decode(file_b64)
-        .map_err(|e| format!("Failed to decode base64: {e}"))
+async fn generate_and_save_excel(
+    dir_path: String,
+    metric_wanted: SelectedMetricsBySensor,
+    destination_path: String,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let metrics_json = serde_json::to_string(&metric_wanted)
+            .map_err(|e| format!("Failed to serialize metrics: {e}"))?;
+        let out = run_python(&["GENERATE_EXCEL_TO_FILE", &metrics_json, &dir_path, &destination_path])?;
+        // on peut parser/valider si besoin
+        Ok::<(), String>(())
+    })
+    .await
+    .map_err(|e| format!("Join error: {e}"))??;
+    Ok(())
 }
+
 
 /// ---------- Utilitaires fichier / système ----------
 
@@ -193,7 +200,7 @@ pub fn run() {
             get_context_masses,
             get_context_b64,
             get_graphs_available,
-            generate_excel_file,
+            generate_and_save_excel,
             // utilitaires :
             get_documents_dir,
             write_file,

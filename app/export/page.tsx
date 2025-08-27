@@ -1,13 +1,12 @@
 "use client";
 
-import { flushSync } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { save } from "@tauri-apps/plugin-dialog";
 import { BaseDirectory, writeFile } from "@tauri-apps/plugin-fs";
 import BackButton from "../components/backButton";
 import { getIndexByPathname, getNavigationByIndex } from "@/src/lib/pathNavigation";
 import { useState } from "react";
-import { generateExcelFile, getDocumentsDir } from "@/src/lib/utils/invoke.utils";
+import { copyFile, generateAndSaveExcel, getDocumentsDir } from "@/src/lib/utils/invoke.utils";
 import { toast } from "sonner";
 import { Loader2Icon, CheckCircle2Icon } from "lucide-react";
 import { Button } from "@/src/ui/button";
@@ -21,6 +20,7 @@ import {
 } from "@/src/components/ui/dialog";
 import RestartButton from "../components/restartButton";
 import { HOME } from "@/src/lib/utils/navigation.utils";
+
 
 export function ButtonLoading() {
   return (
@@ -41,16 +41,10 @@ export default function Page() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [savedPath, setSavedPath] = useState("");
 
-  function sleep(ms: number) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
 const handleGenerateExcel = async () => {
+  // 1) afficher le loader tout de suite
   setLoading(true);
-  console.log("Génération du fichier Excel…");
-  await sleep(100); // petit délai pour laisser le temps au spinner de s’afficher
-  //flushSync(() => {}); // force le re-render avant de lancer le traitement
-  
+  await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
   try {
     const sel = localStorage.getItem("selectedMetrics");
@@ -58,7 +52,6 @@ const handleGenerateExcel = async () => {
     const metrics = JSON.parse(sel);
 
     const docsDir = await getDocumentsDir();
-    const fileContent = await generateExcelFile(docsDir, metrics);
 
     const absPath = await save({
       defaultPath: "metrics_data.xlsx",
@@ -66,20 +59,17 @@ const handleGenerateExcel = async () => {
     });
     if (!absPath) throw new Error("Enregistrement annulé");
 
-    const relPath = absPath.replace(docsDir + "/", "");
-    await writeFile(relPath, fileContent, { baseDir: BaseDirectory.Document });
+    await generateAndSaveExcel(docsDir, metrics, absPath);
 
     setSavedPath(absPath);
     setDialogOpen(true);
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error(e);
-    toast.error(e?.message ?? "Une erreur est survenue lors de l’export");
+    toast.error(e instanceof Error ? e.message : "Une erreur est survenue lors de l’export");
   } finally {
     setLoading(false);
   }
 };
-
-
 
   const handleBack = () => prevPath && router.push(prevPath);
 
