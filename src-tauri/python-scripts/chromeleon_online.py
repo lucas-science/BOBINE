@@ -2,6 +2,12 @@ import os
 import pandas as pd
 import numpy as np
 
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
+from openpyxl.chart import LineChart, BarChart, Reference, Series
+
+
 class ChromeleonOnline:
     def __init__(self, dir_root: str):
         self.first_file = ""
@@ -284,6 +290,252 @@ class ChromeleonOnline:
         table2.loc['Total'] = table2.sum()
 
         return table1, table2
+
+    def generate_workbook_with_charts(
+        self,
+        wb: Workbook,
+        metrics_wanted: list[str],
+        sheet_name: str = "GC-Online",
+    ) -> Workbook:
+        """
+        Crée une feuille structurée comme le screenshot (tableau principal des %RelArea par injection,
+        tables de synthèse + 2 graphiques). N'utilise que les méthodes de la classe actuelle.
+        """
+        # ------------- Récupération des données -------------
+        rel_df = self.get_relative_area_by_injection()     # grand tableau (inclut ligne "Moyennes")
+        table1, table2 = self.make_summary_tables()        # table détail pics + pivot Carbon×Family
+
+        # ------------- Création de la feuille -------------
+        ws = wb.create_sheet(title=sheet_name[:31])
+
+        # Styles de base
+        title_font = Font(bold=True, size=12)
+        header_font = Font(bold=True)
+        gray_fill = PatternFill("solid", fgColor="DDDDDD")
+        center = Alignment(horizontal="center", vertical="center")
+        right = Alignment(horizontal="right", vertical="center")
+        left  = Alignment(horizontal="left",  vertical="center")
+        thin = Side(style="thin", color="999999")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+        # ------------- (A) Grand tableau : %Rel Area vs injections -------------
+        # Titre
+        ws.cell(row=1, column=1, value="%Rel Area par injection (Online)").font = title_font
+
+        # Ecrit l'entête
+        headers = list(rel_df.columns)  # ['Injection Name', 'Injection Time', 'Rel. Area (%) : ...', ...]
+        start_row = 2
+        for j, h in enumerate(headers, start=1):
+            c = ws.cell(row=start_row, column=j, value=h)
+            c.font = header_font
+            c.fill = gray_fill
+            c.alignment = center
+            c.border = border
+
+        # Ecrit les données
+        for i, row in rel_df.iterrows():
+            r = start_row + 1 + i
+            for j, h in enumerate(headers, start=1):
+                val = row[h]
+                cell = ws.cell(row=r, column=j, value=val)
+                cell.border = border
+                if j == 2:  # Injection Time
+                    cell.alignment = center
+
+        # Ajuste largeur colonnes (un peu “Excel-like”)
+        for j, h in enumerate(headers, start=1):
+            width = 12 if j <= 2 else 11
+            ws.column_dimensions[get_column_letter(j)].width = width
+
+        rel_table_last_row = start_row + 1 + len(rel_df)
+
+        # ------------- (B) Bloc “Gas phase Integration Results test average” (table1) -------------
+        # On se base sur la ligne “Moyennes” déjà intégrée dans table1/table2 via make_summary_tables()
+        block1_row = rel_table_last_row + 3
+        block1_col = 1
+        ws.cell(row=block1_row, column=block1_col, value="Gas phase Integration Results test average").font = title_font
+
+        # En-têtes
+        headers1 = ["Peakname", "RetentionTime", "Relative Area"]
+        for j, h in enumerate(headers1, start=block1_col):
+            c = ws.cell(row=block1_row + 1, column=j, value=h)
+            c.font = header_font
+            c.fill = gray_fill
+            c.alignment = center
+            c.border = border
+
+        # Lignes (on ne reprend pas la ligne 'Total:' ici — comme dans ton visuel on liste les pics)
+        t1 = table1.copy()
+        # garde l'ordre tel qu'il vient de make_summary_tables (déjà aligné sur les colonnes Online)
+        for i, (_, row) in enumerate(t1.iterrows(), start=0):
+            r = block1_row + 2 + i
+            ws.cell(row=r, column=block1_col + 0, value=row["Peakname"]).border = border
+            ws.cell(row=r, column=block1_col + 1, value=row["RetentionTime"]).border = border
+            c = ws.cell(row=r, column=block1_col + 2, value=float(row["Relative Area"]))
+            c.number_format = "0.00"
+            c.border = border
+
+        ws.column_dimensions[get_column_letter(block1_col + 0)].width = 20
+        ws.column_dimensions[get_column_letter(block1_col + 1)].width = 10
+        ws.column_dimensions[get_column_letter(block1_col + 2)].width = 12
+
+        block1_last_row = block1_row + 1 + len(t1) + 1
+
+        # ------------- (C) Bloc pivot Carbon × Family (table2) -------------
+        block2_col = 6
+        ws.cell(row=block1_row, column=block2_col, value="Regroupement par carbone / famille").font = title_font
+
+        # en-têtes (index en lignes, colonnes: Linear, Olefin, BTX gas, Total)
+        t2 = table2.copy()
+        headers2 = ["Carbon"] + list(t2.columns)
+        for j, h in enumerate(headers2, start=block2_col):
+            c = ws.cell(row=block1_row + 1, column=j, value=h)
+            c.font = header_font
+            c.fill = gray_fill
+            c.alignment = center
+            c.border = border
+
+        # lignes
+        r = block1_row + 2
+        for idx, row in t2.reset_index().iterrows():
+            ws.cell(row=r, column=block2_col + 0, value=row["Carbon"]).border = border
+            for j, col in enumerate(list(t2.columns), start=1):
+                v = float(row[col])
+                c = ws.cell(row=r, column=block2_col + j, value=v)
+                c.number_format = "0.00"
+                c.border = border
+            r += 1
+
+        for j in range(len(headers2)):
+            ws.column_dimensions[get_column_letter(block2_col + j)].width = 10
+
+        block2_last_row = r
+
+        # ------------- (D) Petit tableau “composition moyenne principaux HXL (%)” -------------
+        # Prend la ligne "Moyennes" de rel_df, si certaines colonnes existent
+        try:
+            avg_row = rel_df.loc[rel_df['Injection Name'] == 'Moyennes'].iloc[0]
+        except Exception:
+            avg_row = None
+
+        small_col = 12
+        ws.cell(row=block1_row, column=small_col, value="composition moyenne principaux HXL (%)").font = title_font
+        small_headers = ["Molécule", "Moyenne (%)"]
+        for j, h in enumerate(small_headers, start=small_col):
+            c = ws.cell(row=block1_row + 1, column=j, value=h)
+            c.font = header_font
+            c.fill = gray_fill
+            c.alignment = center
+            c.border = border
+
+        hl = ["Ethylene", "Benzene", "Propylene", "Toluene"]
+        base = block1_row + 2
+        for i, mol in enumerate(hl):
+            label = f"Rel. Area (%) : {mol}"
+            ws.cell(row=base + i, column=small_col + 0, value=mol).border = border
+            if avg_row is not None and label in rel_df.columns:
+                val = float(avg_row.get(label, 0) or 0)
+            else:
+                val = 0.0
+            c = ws.cell(row=base + i, column=small_col + 1, value=val)
+            c.number_format = "0.00"
+            c.border = border
+
+        ws.column_dimensions[get_column_letter(small_col + 0)].width = 18
+        ws.column_dimensions[get_column_letter(small_col + 1)].width = 10
+
+        # ------------- (E) Graphique 1 : %mass gaz en fonction du temps (LineChart) -------------
+        # On trace les 4 molécules si présentes, hors ligne "Moyennes"
+        chart1_row = block1_last_row + 2
+        chart1_col = 9
+        data_rows = rel_df[rel_df["Injection Name"] != "Moyennes"].reset_index(drop=True)
+
+        # On ajoute une colonne "X" = libellé (heure si dispo, sinon index/injection)
+        if "Injection Time" in data_rows.columns:
+            x_labels = data_rows["Injection Time"].fillna(data_rows["Injection Name"])
+        else:
+            x_labels = data_rows["Injection Name"]
+
+        # Écrire une zone temporaire pour le chart (x + séries)
+        tmp_start_r = chart1_row
+        tmp_start_c = chart1_col
+        ws.cell(row=tmp_start_r, column=tmp_start_c, value="X").font = header_font
+        for i, xl in enumerate(x_labels, start=1):
+            ws.cell(row=tmp_start_r + i, column=tmp_start_c, value=str(xl))
+
+        # Colonnes des molécules
+        mols = [m for m in hl if f"Rel. Area (%) : {m}" in data_rows.columns]
+        for j, mol in enumerate(mols, start=1):
+            ws.cell(row=tmp_start_r, column=tmp_start_c + j, value=mol).font = header_font
+            for i, v in enumerate(data_rows[f"Rel. Area (%) : {mol}"], start=1):
+                try:
+                    vv = float(v)
+                except Exception:
+                    vv = None
+                ws.cell(row=tmp_start_r + i, column=tmp_start_c + j, value=vv)
+
+        if mols:
+            lc = LineChart()
+            lc.title = "%mass gaz en fonction du temps"
+            lc.y_axis.title = "% Rel. Area"
+            lc.x_axis.title = "Temps / Injection"
+
+            data_ref = Reference(ws,
+                                min_col=tmp_start_c + 1,
+                                max_col=tmp_start_c + len(mols),
+                                min_row=tmp_start_r,
+                                max_row=tmp_start_r + len(data_rows))
+            cats_ref = Reference(ws,
+                                min_col=tmp_start_c,
+                                max_col=tmp_start_c,
+                                min_row=tmp_start_r + 1,
+                                max_row=tmp_start_r + 1 + len(data_rows) - 1)
+            lc.add_data(data_ref, titles_from_data=True)
+            lc.set_categories(cats_ref)
+            lc.height = 12
+            lc.width = 24
+            ws.add_chart(lc, f"I{chart1_row}")
+
+        # ------------- (F) Graphique 2 : Products repartition Gas phase (BarChart empilé) -------------
+        # Zone de données à partir de table2 : lignes C1..C8, colonnes Linear, Olefin, BTX gas
+        barch_row = chart1_row + 20
+        ws.cell(row=barch_row - 2, column=9, value="Products repartition Gas phase").font = title_font
+
+        # on sélectionne C1..C8 seulement si présents
+        rows_for_bar = [c for c in ["C1","C2","C3","C4","C5","C6","C7","C8"] if c in table2.index]
+        if rows_for_bar:
+            # Ecrit un petit bloc de données (catégories + 3 séries)
+            br = barch_row
+            bc = 9
+            ws.cell(row=br, column=bc, value="Carbon").font = header_font
+            cols_bar = ["Linear", "Olefin", "BTX gas"]
+            for j, name in enumerate(cols_bar, start=1):
+                ws.cell(row=br, column=bc + j, value=name).font = header_font
+
+            for i, car in enumerate(rows_for_bar, start=1):
+                ws.cell(row=br + i, column=bc + 0, value=car)
+                for j, name in enumerate(cols_bar, start=1):
+                    v = float(table2.loc[car, name]) if name in table2.columns else 0.0
+                    ws.cell(row=br + i, column=bc + j, value=v)
+
+            bar = BarChart()
+            bar.type = "col"
+            bar.grouping = "stacked"
+            bar.overlap = 100
+            data_ref = Reference(ws, min_col=bc + 1, max_col=bc + len(cols_bar),
+                                min_row=br, max_row=br + len(rows_for_bar))
+            cats_ref = Reference(ws, min_col=bc, max_col=bc,
+                                min_row=br + 1, max_row=br + len(rows_for_bar))
+            bar.add_data(data_ref, titles_from_data=True)
+            bar.set_categories(cats_ref)
+            bar.height = 14
+            bar.width  = 24
+            ws.add_chart(bar, f"I{barch_row}")
+
+        # ------------- Finitions -------------
+        ws.freeze_panes = "A3"  # gèle entêtes du tableau principal
+
+        return wb
 
 
 

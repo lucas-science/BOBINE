@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { SelectedMetricsBySensor } from "./type";
+import { PyResp, SelectedMetricsBySensor } from "./type";
 import { MetricsBySensor } from "./type";
 
 export async function getDocumentsDir(): Promise<string> {
@@ -21,17 +21,19 @@ export async function getMetricsAvailable(dirPath: string): Promise<MetricsBySen
   return await invoke<MetricsBySensor>("get_graphs_available", { dirPath });
 }
 
+
 export async function generateAndSaveExcel(
   dirPath: string,
   metrics: SelectedMetricsBySensor,
   destinationPath: string
-): Promise<void> {
-  await invoke("generate_and_save_excel", {
+): Promise<PyResp> {
+  return await invoke<PyResp>("generate_and_save_excel", {
     dirPath,
     metricWanted: metrics,
     destinationPath,
   });
 }
+
 
 export async function copyFile(sourcePath: string, destinationPath: string): Promise<void> {
   return await invoke("copy_file", { sourcePath, destinationPath });

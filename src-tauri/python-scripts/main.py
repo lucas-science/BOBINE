@@ -105,7 +105,12 @@ def get_graphs_available(dir_path):
     return metrics_available
 
 
-def save_to_excel_with_charts(dir_root: str, metrics_wanted: dict[str, list[str]], masses: dict[str, float]) -> Workbook:
+def save_to_excel_with_charts(
+    dir_root: str,
+    metrics_wanted: dict[str, list[str]],
+    masses: dict[str, float]
+) -> Workbook:
+    
     wb = Workbook()
     if 'Sheet' in wb.sheetnames:
         wb.remove(wb['Sheet'])
@@ -115,13 +120,12 @@ def save_to_excel_with_charts(dir_root: str, metrics_wanted: dict[str, list[str]
     if metrics_wanted.get(PIGNA):
         pigna_dir = getDirectories(dir_root)[PIGNA]
         wb = PignaData(pigna_dir) \
-            .generate_workbook_with_charts(wb, metrics_wanted["pigna"])
+            .generate_workbook_with_charts(wb, metrics_wanted[PIGNA])
 
     if metrics_wanted.get(CHROMELEON_ONLINE):
         chromo_online_dir = getDirectories(dir_root)[CHROMELEON_ONLINE]
-        # À terme, remplacer par votre classe ChromeleonOnlineData
-        # wb = ChromeleonOnlineData(chromo_online_dir) \
-        #         .generate_workbook_with_charts(wb, metrics_wanted["chromeleon_online"])
+        wb = ChromeleonOnline(chromo_online_dir) \
+            .generate_workbook_with_charts(wb, metrics_wanted[CHROMELEON_ONLINE])
 
     if metrics_wanted.get(CHROMELEON_OFFLINE):
         chromo_offline_dir = getDirectories(dir_root)[CHROMELEON_OFFLINE]

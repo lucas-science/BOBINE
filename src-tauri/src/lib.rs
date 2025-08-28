@@ -129,17 +129,24 @@ async fn generate_and_save_excel(
     dir_path: String,
     metric_wanted: SelectedMetricsBySensor,
     destination_path: String,
-) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let metrics_json = serde_json::to_string(&metric_wanted)
-            .map_err(|e| format!("Failed to serialize metrics: {e}"))?;
-        let out = run_python(&["GENERATE_EXCEL_TO_FILE", &metrics_json, &dir_path, &destination_path])?;
-        // on peut parser/valider si besoin
-        Ok::<(), String>(())
-    })
-    .await
-    .map_err(|e| format!("Join error: {e}"))??;
-    Ok(())
+) -> Result<serde_json::Value, String> {
+    let metrics_json = serde_json::to_string(&metric_wanted)
+        .map_err(|e| format!("Failed to serialize metrics: {e}"))?;
+
+    let dest = std::path::PathBuf::from(&destination_path);
+    if let Some(parent) = dest.parent() {
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("Cannot create output directory {}: {e}", parent.display()))?;
+    }
+
+    let out = run_python(&[
+        "GENERATE_EXCEL_TO_FILE",
+        &metrics_json,
+        &dir_path,
+        &destination_path,
+    ])?;
+
+    parse_python_json(&out.stdout)
 }
 
 

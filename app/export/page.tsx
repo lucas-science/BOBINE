@@ -2,11 +2,10 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { save } from "@tauri-apps/plugin-dialog";
-import { BaseDirectory, writeFile } from "@tauri-apps/plugin-fs";
 import BackButton from "../components/backButton";
 import { getIndexByPathname, getNavigationByIndex } from "@/src/lib/pathNavigation";
 import { useState } from "react";
-import { copyFile, generateAndSaveExcel, getDocumentsDir } from "@/src/lib/utils/invoke.utils";
+import { generateAndSaveExcel, getDocumentsDir } from "@/src/lib/utils/invoke.utils";
 import { toast } from "sonner";
 import { Loader2Icon, CheckCircle2Icon } from "lucide-react";
 import { Button } from "@/src/ui/button";
@@ -54,14 +53,14 @@ const handleGenerateExcel = async () => {
     const docsDir = await getDocumentsDir();
 
     const absPath = await save({
-      defaultPath: "metrics_data.xlsx",
+      defaultPath: "rapport.xlsx",
       filters: [{ name: "Excel", extensions: ["xlsx"] }],
     });
     if (!absPath) throw new Error("Enregistrement annulé");
 
-    await generateAndSaveExcel(docsDir, metrics, absPath);
-
-    setSavedPath(absPath);
+    const res = await generateAndSaveExcel(docsDir, metrics, absPath); 
+    if (!res || res.error) throw new Error(res?.error || "L’export a échoué");
+    setSavedPath(res.result ?? absPath);
     setDialogOpen(true);
   } catch (e: unknown) {
     console.error(e);

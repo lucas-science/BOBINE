@@ -1,3 +1,5 @@
+export type PyResp = { result?: string; error?: string };
+
 export type Metric = {
   name: string;
   columns?: string[];
