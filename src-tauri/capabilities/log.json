@@ -1,0 +1,10 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "log",
+  "description": "Allow frontend to use the log plugin from main webview",
+  "windows": ["main"],              
+  "webviews": ["main"],             
+  "permissions": [
+    "log:default"                 
+  ]
+}

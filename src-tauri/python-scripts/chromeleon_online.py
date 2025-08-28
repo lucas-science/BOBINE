@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import numpy as np
 
-class ChromeleonOfflineData:
+class ChromeleonOnline:
     def __init__(self, dir_root: str):
         self.first_file = ""
         if os.path.exists(dir_root):
@@ -36,6 +36,57 @@ class ChromeleonOfflineData:
         )
         self.experience_number = str(self.df.iloc[3, 2])
     
+    def get_graphs_available(self) -> list[dict]:
+        graphs = []
+
+        # 1) %mass gaz en fonction du temps
+        try:
+            rel = self.get_relative_area_by_injection()
+
+            # Temps valides (hors ligne "Moyennes")
+            times = pd.to_datetime(rel['Injection Time'], format='%H:%M:%S', errors='coerce')
+            is_data_row = (rel['Injection Name'] != 'Moyennes') & times.notna()
+
+            # Colonnes de %Rel Area disponibles
+            rel_cols = [c for c in rel.columns if c.startswith('Rel. Area (%)')]
+
+            # Au moins 2 points temporels + au moins une colonne avec des valeurs numériques exploitables
+            has_enough_timepoints = is_data_row.sum() >= 2
+            has_any_numeric_rel = any(
+                pd.to_numeric(rel.loc[is_data_row, c], errors='coerce').notna().any()
+                for c in rel_cols
+            ) if rel_cols else False
+
+            graphs.append({
+                'name': '%mass gaz en fonction du temps',
+                'available': bool(has_enough_timepoints and has_any_numeric_rel)
+            })
+        except Exception:
+            graphs.append({
+                'name': '%mass gaz en fonction du temps',
+                'available': False
+            })
+
+        # 2) products repartition gaz phase
+        try:
+            _, table2 = self.make_summary_tables()
+            # Vérifie qu'il existe des valeurs non nulles dans les familles d'intérêt
+            fam_cols = [c for c in ['Linear', 'Olefin', 'BTX gas'] if c in table2.columns]
+            has_nonzero = (table2[fam_cols].to_numpy().sum() > 0) if fam_cols else False
+
+            graphs.append({
+                'name': 'products repartition gaz phase',
+                'available': bool(has_nonzero)
+            })
+        except Exception:
+            graphs.append({
+                'name': 'products repartition gaz phase',
+                'available': False
+            })
+
+        return graphs
+
+
     def _get_time_by_injection(self)->dict:
         time_by_injection = {}
         start_row = self.overview_df[self.overview_df[0].str.startswith(
@@ -237,12 +288,13 @@ class ChromeleonOfflineData:
 
 
 
+# Exemple d'utilisation
+if __name__ == "__main__":
+    d = ChromeleonOnline(
+        "/home/lucaslhm/Bureau/Données_du_test_240625/24_06_2025FrontC1C6")
 
-d = ChromeleonOfflineData(
-    "/home/lucaslhm/Bureau/Données_du_test_240625/24_06_2025FrontC1C6")
+    print(d.get_relative_area_by_injection())
+    table1, table2 = d.make_summary_tables()
 
-print(d.get_relative_area_by_injection())
-table1, table2 = d.make_summary_tables()
-
-print(table1)
-print(table2)
+    print(table1)
+    print(table2)

@@ -47,28 +47,25 @@ export default function UploadPage() {
     setCurrentTask("Préparation…");
 
     try {
-      // 1) Copie des fichiers
+
       const ok = await runStep(1, "Copie des fichiers…", async () =>
         copyAllFilesToDocuments(allFilesByZoneKey)
       );
 
       if (!ok) {
-        // copie échouée → on ferme l’overlay et on sort
         setOverlayOpen(false);
         return;
       }
 
-      // 2) Préparation du dossier Documents de l’app
       const docsDir: string = await runStep(2, "Préparation du dossier…", async () =>
         getDocumentsDir()
       );
 
-      // 3) Vérification du contexte
+
       const is_context_ok: boolean = await runStep(3, "Vérification du contexte…", async () =>
         checkContext(docsDir)
       );
 
-      // 4) Si nécessaire : lecture/stockage du contexte
       if (is_context_ok) {
         await runStep(4, "Chargement du contexte…", async () => {
           const masses = await getContextMasses(docsDir);

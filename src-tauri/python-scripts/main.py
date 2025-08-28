@@ -7,9 +7,11 @@ import pandas as pd
 from openpyxl import Workbook
 from openpyxl.chart import LineChart, Series, Reference
 
-from pigna import PignaData
-from chromeleon_offline import ChromeleonOffline
 from context import ExcelContextData
+from pigna import PignaData
+from chromeleon_online import ChromeleonOnline
+from chromeleon_offline import ChromeleonOffline
+
 
 CHROMELEON_ONLINE = "chromeleon_online"
 CHROMELEON_OFFLINE = "chromeleon_offline"
@@ -31,6 +33,7 @@ def getDirectories(dir_path):
         CHROMELEON_OFFLINE: f"{dir_path}/chromeleon/offline",
     }
 
+
 def context_is_correct(dir_path):
     DIR = getDirectories(dir_path)[CONTEXT]
 
@@ -39,6 +42,7 @@ def context_is_correct(dir_path):
     contextData = ExcelContextData(DIR)
 
     return contextData.is_valid()
+
 
 def get_context_masses(dir_path):
     DIR = getDirectories(dir_path)[CONTEXT]
@@ -50,6 +54,7 @@ def get_context_masses(dir_path):
 
     return contextData.get_masses()
 
+
 def get_context_workbook(dir_path: str, wb: Workbook):
     DIR = getDirectories(dir_path)[CONTEXT]
 
@@ -59,7 +64,6 @@ def get_context_workbook(dir_path: str, wb: Workbook):
     contextData = ExcelContextData(DIR)
 
     return contextData.add_self_sheet_to(wb)
-    
 
 
 def get_context_b64(dir_path):
@@ -88,12 +92,14 @@ def get_graphs_available(dir_path):
 
     chromeleon_online_dir = directories[CHROMELEON_ONLINE]
     if os.path.exists(chromeleon_online_dir):
-        pass
+        chromeleon_online_data = ChromeleonOnline(chromeleon_online_dir)
+        metrics_available[CHROMELEON_ONLINE] = chromeleon_online_data.get_graphs_available(
+        )
 
     chromeleon_offline_dir = directories[CHROMELEON_OFFLINE]
     if os.path.exists(chromeleon_offline_dir):
-        chromeleon_online_data = ChromeleonOffline(chromeleon_offline_dir)
-        metrics_available[CHROMELEON_OFFLINE] = chromeleon_online_data.get_graphs_available(
+        chromeleon_offline_data = ChromeleonOffline(chromeleon_offline_dir)
+        metrics_available[CHROMELEON_OFFLINE] = chromeleon_offline_data.get_graphs_available(
         )
 
     return metrics_available
@@ -148,7 +154,7 @@ if __name__ == "__main__":
         if action == "CONTEXT_IS_CORRECT":
             result = context_is_correct(dir_path=arg2)
             response = {"result": result}
-            
+
         elif action == "GET_CONTEXT_MASSES":
             try:
                 result = get_context_masses(arg2)
@@ -182,7 +188,8 @@ if __name__ == "__main__":
                     raise ValueError("Output path is required")
 
                 masses = get_context_masses(dir_root)
-                wb = save_to_excel_with_charts(dir_root, metrics_wanted, masses)
+                wb = save_to_excel_with_charts(
+                    dir_root, metrics_wanted, masses)
                 wb.save(out_path)
                 response = {"result": out_path}
             except Exception as e:

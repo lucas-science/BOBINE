@@ -9,9 +9,9 @@ import { cn } from "@/src/lib/utils";
 
 type LoaderOverlayProps = {
   open: boolean;
-  currentStep: number;   // e.g., 1
-  totalSteps: number;    // e.g., 4
-  currentTask: string;   // e.g., "copie des fichiers…"
+  currentStep: number;  
+  totalSteps: number;    
+  currentTask: string;   
   className?: string;
 };
 
@@ -20,6 +20,7 @@ export default function LoaderOverlay({
   currentStep,
   totalSteps,
   currentTask,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   className,
 }: LoaderOverlayProps) {
   if (!open) return null;
