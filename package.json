@@ -10,7 +10,8 @@
     "tauri": "tauri dev",
     "tauri-build": "tauri build",
     "tauri-clean": "tauri clean",
-    "tauri-version": "tauri --version"
+    "tauri-version": "tauri --version",
+    "tauri-icon": "tauri icon"
   },
   "dependencies": {
     "@radix-ui/react-checkbox": "^1.3.2",
