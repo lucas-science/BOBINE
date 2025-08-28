@@ -7,7 +7,7 @@ import { getIndexByPathname, getNavigationByIndex } from "@/src/lib/pathNavigati
 import { useState } from "react";
 import { generateAndSaveExcel, getDocumentsDir } from "@/src/lib/utils/invoke.utils";
 import { toast } from "sonner";
-import { Loader2Icon, CheckCircle2Icon } from "lucide-react";
+import { CheckCircle2Icon } from "lucide-react";
 import { Button } from "@/src/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/src/components/ui/card";
 import {
@@ -19,16 +19,7 @@ import {
 } from "@/src/components/ui/dialog";
 import RestartButton from "../components/restartButton";
 import { HOME } from "@/src/lib/utils/navigation.utils";
-
-
-export function ButtonLoading() {
-  return (
-    <Button size="sm" disabled className="w-full justify-center space-x-2">
-      <Loader2Icon className="animate-spin h-4 w-4" />
-      <span>Please wait</span>
-    </Button>
-  );
-}
+import ButtonLoading from "@/app/components/buttonLoading";
 
 export default function Page() {
   const router = useRouter();
@@ -84,9 +75,9 @@ const handleGenerateExcel = async () => {
           </CardHeader>
 
           {loading ? (
-            <ButtonLoading />
+            <ButtonLoading className="bg-secondary/80 text-white" />
           ) : (
-            <Button onClick={handleGenerateExcel} className="w-full cursor-pointer hover:rounded-lg hover:drop-shadow-md transition-all">
+            <Button onClick={handleGenerateExcel} className="w-full bg-secondary hover:bg-secondary/80 text-white cursor-pointer hover:rounded-lg transition-all">
               Générer l&apos;Excel
             </Button>
           )}

@@ -58,10 +58,8 @@ export default function Page() {
   };
 
 
-  const handleSelectionChange = (selectedMetrics: SelectedMetricsBySensor) => {
-    console.log("Selected metrics:", selectedMetrics);
-    setSelectedMetrics(selectedMetrics);
-  };
+  const handleSelectionChange = (selectedMetrics: SelectedMetricsBySensor) => setSelectedMetrics(selectedMetrics);
+
 
   useEffect(() => {
     getMetrics();
@@ -73,11 +71,12 @@ export default function Page() {
     <div>
       {metricsAvailable && (
         <MetricsSelector
+          className="pb-28"
           data={metricsAvailable}
           onSelectionChange={handleSelectionChange}
         />
       )}
-      <div className="fixed bottom-0 left-0 right-0 bg-amber-300 p-4">
+      <div className="fixed bottom-0 left-0 right-0  p-4">
         <div className="flex justify-between items-center w-full mx-auto">
           <BackButton onClick={handleBack} disable={!prevPath} />
           <NextButton

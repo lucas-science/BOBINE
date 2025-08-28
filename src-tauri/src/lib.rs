@@ -14,11 +14,19 @@ struct CommandOutput {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+struct MetricSelected {
+    name: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    chimicalElementSelected: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct SelectedMetricsBySensor {
     chromeleon_offline: Vec<String>,
-    chromeleon_online: Vec<String>,
+    chromeleon_online: Vec<MetricSelected>,
     pigna: Vec<String>,
 }
+
 
 
 const SCRIPT_PATH: &str = "/home/lucaslhm/Documents/ETIC/Bobine/project/desktop_app/src-tauri/python-scripts/main.py";

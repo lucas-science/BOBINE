@@ -107,7 +107,7 @@ def get_graphs_available(dir_path):
 
 def save_to_excel_with_charts(
     dir_root: str,
-    metrics_wanted: dict[str, list[str]],
+    metrics_wanted: dict,
     masses: dict[str, float]
 ) -> Workbook:
     

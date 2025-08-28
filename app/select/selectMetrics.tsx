@@ -1,110 +1,189 @@
-import React, { useCallback, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
-import { Checkbox } from '@/src/components/ui/checkbox';
-import { Metric, MetricsBySensor, SelectedMetricsBySensor } from '@/src/lib/utils/type';
+"use client";
+
+import React, { useState } from "react";
+import { Card } from "@/src/components/ui/card";
+import {
+  MetricsBySensor,
+  SelectedMetricsBySensor,
+  ChromeleonOfflineMetric,
+  ChromeleonOnlineMetric,
+  PignaMetric,
+} from "@/src/lib/utils/type";
+import { MetricsSection } from "./MetricsSection";
+import { MetricItem } from "./MetricItem";
+import { ChromeleonOnlineItem } from "./chromeleonOnlineItem";
 
 interface MetricsSelectorProps {
   data: MetricsBySensor;
-  onSelectionChange: (selectedMetrics: SelectedMetricsBySensor) => void;
+  onSelectionChange: (selected: SelectedMetricsBySensor) => void;
   className?: string;
 }
 
-const MetricsSelector: React.FC<MetricsSelectorProps> = ({
+export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
   data,
   onSelectionChange,
-  className = ""
+  className = "",
 }) => {
   const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(new Set());
+  // éléments chimiques par métrique online (clé "chromeleon_online-i")
+  const [onlineElements, setOnlineElements] = useState<Record<string, string[]>>({});
 
-  const getSelectedMetricsBySensor = useCallback((selectedKeys: Set<string>): SelectedMetricsBySensor => {
-    const result: SelectedMetricsBySensor = {
+  const getSensorDisplayName = (k: string) =>
+    ({ chromeleon_offline: "Chromeleon Offline", chromeleon_online: "Chromeleon Online", pigna: "Pigna" } as const)[
+      k as "chromeleon_offline" | "chromeleon_online" | "pigna"
+    ] ?? k;
+
+  // ---- construit SelectedMetricsBySensor à partir d’états fournis ----
+  const buildSelectedFrom = (
+    keys: Set<string>,
+    onlineMap: Record<string, string[]>
+  ): SelectedMetricsBySensor => {
+    const out: SelectedMetricsBySensor = {
       chromeleon_offline: [],
       chromeleon_online: [],
-      pigna: []
+      pigna: [],
     };
 
-    selectedKeys.forEach(key => {
-      const [sensorType, indexStr] = key.split('-');
-      const metricIndex = parseInt(indexStr, 10);
-      const metric = data[sensorType as keyof MetricsBySensor]?.[metricIndex];
+    keys.forEach((key) => {
+      const [sensorType, indexStr] = key.split("-");
+      const i = parseInt(indexStr, 10);
 
-      if (metric && (sensorType === "chromeleon_offline" || sensorType === "chromeleon_online" || sensorType === "pigna")) {
-        result[sensorType].push(metric.name);
+      if (sensorType === "chromeleon_offline") {
+        const m = data.chromeleon_offline?.[i] as ChromeleonOfflineMetric | undefined;
+        if (m) out.chromeleon_offline.push(m.name);
+      } else if (sensorType === "pigna") {
+        const m = data.pigna?.[i] as PignaMetric | undefined;
+        if (m) out.pigna.push(m.name);
+      } else if (sensorType === "chromeleon_online") {
+        const m = data.chromeleon_online?.[i] as ChromeleonOnlineMetric | undefined;
+        if (m) {
+          // 👉 si la métrique n’a PAS de chimicalElements, on renvoie un tableau vide
+          const hasElements = Array.isArray(m.chimicalElements) && m.chimicalElements.length > 0;
+          out.chromeleon_online.push({
+            name: m.name,
+            chimicalElementSelected: hasElements ? (onlineMap[key] ?? []) : [],
+          });
+        }
       }
     });
 
-    return result;
-  }, [data]);
-
-  const handleMetricToggle = (metricKey: string, available: boolean) => {
-    if (!available) return;
-
-    const newSelected = new Set(selectedMetrics);
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    newSelected.has(metricKey) ? newSelected.delete(metricKey) : newSelected.add(metricKey);
-    setSelectedMetrics(newSelected);
-    onSelectionChange(getSelectedMetricsBySensor(newSelected));
+    return out;
   };
 
-  const getSensorDisplayName = (sensorKey: string) => {
-    const names = {
-      chromeleon_offline: 'Chromeleon Offline',
-      chromeleon_online: 'Chromeleon Online',
-      pigna: 'Pigna'
-    };
-    if (sensorKey in names) {
-      return names[sensorKey as keyof typeof names];
-    }
-    return sensorKey;
+  // ---- toggle d’une métrique ----
+  const handleMetricToggle = (metricKey: string, available: boolean) => {
+    if (!available) return;
+    const next = new Set(selectedMetrics);
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    next.has(metricKey) ? next.delete(metricKey) : next.add(metricKey);
+    setSelectedMetrics(next);
+    onSelectionChange(buildSelectedFrom(next, onlineElements));
+  };
+
+  // ---- add / remove d’un élément chimique (pour les métriques qui en ont) ----
+  const addOnlineElement = (metricKey: string, value: string) => {
+    const cur = new Set(onlineElements[metricKey] ?? []);
+    cur.add(value);
+    const nextMap = { ...onlineElements, [metricKey]: Array.from(cur) };
+    setOnlineElements(nextMap);
+    onSelectionChange(buildSelectedFrom(selectedMetrics, nextMap));
+  };
+
+  const removeOnlineElement = (metricKey: string, value: string) => {
+    const cur = new Set(onlineElements[metricKey] ?? []);
+    cur.delete(value);
+    const nextMap = { ...onlineElements, [metricKey]: Array.from(cur) };
+    setOnlineElements(nextMap);
+    onSelectionChange(buildSelectedFrom(selectedMetrics, nextMap));
   };
 
   return (
     <div className={`w-full max-w-2xl mx-auto space-y-4 ${className}`}>
-      {Object.entries(data).map(([sensorKey, metrics]) => (
-        <Card key={sensorKey} className="shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg font-semibold text-gray-900">
-              {getSensorDisplayName(sensorKey)}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {metrics.map((metric: Metric, index: number) => {
-              const metricKey = `${sensorKey}-${index}`;
-              const isSelected = selectedMetrics.has(metricKey);
+      {/* Chromeleon Offline */}
+      <Card className="shadow-sm">
+        <MetricsSection title={getSensorDisplayName("chromeleon_offline")}>
+          {data.chromeleon_offline.map((metric, index) => {
+            const metricKey = `chromeleon_offline-${index}`;
+            const isSelected = selectedMetrics.has(metricKey);
+            return (
+              <MetricItem
+                key={metricKey}
+                metricKey={metricKey}
+                name={metric.name}
+                available={metric.available}
+                selected={isSelected}
+                onToggle={() => handleMetricToggle(metricKey, metric.available)}
+              />
+            );
+          })}
+        </MetricsSection>
+      </Card>
 
+      {/* Chromeleon Online */}
+      <Card className="shadow-sm">
+        <MetricsSection title={getSensorDisplayName("chromeleon_online")}>
+          {data.chromeleon_online.map((metric, index) => {
+            const metricKey = `chromeleon_online-${index}`;
+            const isSelected = selectedMetrics.has(metricKey);
+            const hasElements =
+              Array.isArray(metric.chimicalElements) && metric.chimicalElements.length > 0;
+
+            if (!hasElements) {
+              // 🟦 métrique online SANS éléments chimiques -> item simple
               return (
-                <div
+                <MetricItem
                   key={metricKey}
-                  className={`flex items-start space-x-3 p-3 rounded-lg border transition-colors ${metric.available
-                      ? isSelected
-                        ? 'bg-blue-50 border-blue-200'
-                        : 'bg-white border-gray-200 hover:bg-gray-50'
-                      : 'bg-gray-50 border-gray-200'
-                    } ${metric.available ? 'cursor-pointer' : 'cursor-not-allowed'}`}
-                  onClick={() => handleMetricToggle(metricKey, metric.available)}
-                >
-                  <Checkbox
-                    checked={isSelected}
-                    disabled={!metric.available}
-                    className={`mt-0.5 ${!metric.available ? 'opacity-50' : ''}`}
-                    onCheckedChange={() => handleMetricToggle(metricKey, metric.available)}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm leading-5 ${metric.available ? 'text-gray-900' : 'text-gray-400'}`}>
-                      {metric.name}
-                    </p>
-                    {metric.columns && (
-                      <p className={`text-xs mt-1 ${metric.available ? 'text-gray-500' : 'text-gray-300'}`}>
-                        Colonnes: {metric.columns.length > 0 ? metric.columns.join(', ') : metric.columns}
-                      </p>
-                    )}
-                  </div>
-                </div>
+                  metricKey={metricKey}
+                  name={metric.name}
+                  available={metric.available}
+                  selected={isSelected}
+                  onToggle={() => handleMetricToggle(metricKey, metric.available)}
+                />
               );
-            })}
-          </CardContent>
-        </Card>
-      ))}
+            }
+
+            // 🟨 métrique online AVEC éléments chimiques -> combobox + badges
+            const chosen = onlineElements[metricKey] ?? [];
+            return (
+              <ChromeleonOnlineItem
+                key={metricKey}
+                metricKey={metricKey}
+                name={metric.name}
+                available={metric.available}
+                selected={isSelected}
+                chimicalElements={metric.chimicalElements ?? []}
+                chosenElements={chosen}
+                onToggle={() => handleMetricToggle(metricKey, metric.available)}
+                onAddElement={(v: string) => addOnlineElement(metricKey, v)}
+                onRemoveElement={(v: string) => removeOnlineElement(metricKey, v)}
+              />
+            );
+          })}
+        </MetricsSection>
+      </Card>
+
+      {/* Pigna */}
+      <Card className="shadow-sm">
+        <MetricsSection title={getSensorDisplayName("pigna")}>
+          {data.pigna.map((metric, index) => {
+            const metricKey = `pigna-${index}`;
+            const isSelected = selectedMetrics.has(metricKey);
+            return (
+              <MetricItem
+                key={metricKey}
+                metricKey={metricKey}
+                name={metric.name}
+                available={metric.available}
+                selected={isSelected}
+                onToggle={() => handleMetricToggle(metricKey, metric.available)}
+                subText={
+                  metric.columns?.length ? `Colonnes: ${metric.columns.join(", ")}` : undefined
+                }
+              />
+            );
+          })}
+        </MetricsSection>
+      </Card>
     </div>
   );
 };
