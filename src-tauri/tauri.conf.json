@@ -33,10 +33,7 @@
     ],
     "resources": [
       "python-scripts/**",
-      "python-runtime/venv/pyvenv.cfg",
-      "python-runtime/venv/Scripts/**",
-      "python-runtime/venv/Lib/**",
-      "python-runtime/venv/DLLs/**"
+      "python-runtime/venv/**"
     ],
     "icon": [
       "icons/32x32.png",
