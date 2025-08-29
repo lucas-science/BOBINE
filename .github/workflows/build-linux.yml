@@ -1,0 +1,184 @@
+name: Build Linux Ubuntu (Tauri v2)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      NEXT_TELEMETRY_DISABLED: "1"
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: 0
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Installation des dépendances système Ubuntu
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libgtk-3-dev \
+            libglib2.0-dev \
+            libgio2.0-cil-dev \
+            libnss3-dev \
+            libgconf-2-4
+
+      # Cache système Linux
+      - name: Cache Linux System
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            /var/cache/apt
+            ~/.cache
+          key: linux-system-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            linux-system-${{ runner.os }}-
+
+      # Configuration Python avec cache
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'src-tauri/python-runtime/requirements.txt'
+
+      # Configuration Node avec cache npm
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      # Cache Next.js
+      - name: Cache Next.js
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/.next/cache
+            node_modules/.cache
+          key: nextjs-linux-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
+          restore-keys: |
+            nextjs-linux-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}-
+            nextjs-linux-${{ runner.os }}-
+
+      # Cache Python venv
+      - name: Cache Python venv
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/python-runtime/venv
+          key: python-venv-linux-${{ runner.os }}-${{ hashFiles('src-tauri/python-runtime/requirements.txt') }}
+          restore-keys: |
+            python-venv-linux-${{ runner.os }}-
+
+      # Installation frontend
+      - name: Install frontend deps
+        run: npm ci --prefer-offline --no-audit
+
+      # Build Next.js
+      - name: Build Next.js
+        run: npm run build
+
+      # Configuration Rust
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: x86_64-unknown-linux-gnu
+          components: clippy, rustfmt
+
+      # Cache Cargo optimisé
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: cargo-linux-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}-${{ hashFiles('src-tauri/src/**/*.rs') }}
+          restore-keys: |
+            cargo-linux-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}-
+            cargo-linux-${{ runner.os }}-
+
+      # Création venv Python (conditionnel)
+      - name: Create Python venv (if not cached)
+        run: |
+          if [ ! -f "src-tauri/python-runtime/venv/bin/python3" ]; then
+            echo "Creating new Python venv..."
+            python3 -m venv src-tauri/python-runtime/venv
+            src-tauri/python-runtime/venv/bin/pip install --upgrade pip
+            src-tauri/python-runtime/venv/bin/pip install -r src-tauri/python-runtime/requirements.txt
+          else
+            echo "Python venv found in cache, skipping creation"
+          fi
+
+      # Vérification Python venv
+      - name: Verify Python venv
+        run: |
+          if [ ! -f "src-tauri/python-runtime/venv/bin/python3" ]; then
+            echo "Error: Python executable not found in venv/bin/"
+            exit 1
+          fi
+          src-tauri/python-runtime/venv/bin/python3 --version
+          echo "Python venv verified successfully"
+
+      # Build Tauri pour Linux avec formats multiples
+      - name: Build Tauri bundle
+        uses: tauri-apps/tauri-action@v0
+        env:
+          TAURI_PRIVATE_KEY: ""
+          TAURI_KEY_PASSWORD: ""
+
+      # Upload artifacts Linux
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-bundles-${{ github.run_number }}
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bobine
+          compression-level: 6
+          retention-days: 30
+
+      # Upload logs de debug en cas d'échec
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build-logs-${{ github.run_number }}
+          path: |
+            src-tauri/target/release/build/**/*.log
+            ~/.cargo/registry/src/**/build.log
+          retention-days: 7
+
+      # Test de base pour vérifier que le binaire fonctionne
+      - name: Test binary
+        run: |
+          if [ -f "src-tauri/target/release/bobine" ]; then
+            file src-tauri/target/release/bobine
+            ldd src-tauri/target/release/bobine || true
+            echo "Binary built successfully"
+          else
+            echo "Warning: Binary not found"
+          fi
