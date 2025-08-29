@@ -1,11 +1,8 @@
-use tauri::command;
+use tauri::{command, AppHandle, Manager};
 use dirs::document_dir;
 use serde::{Serialize, Deserialize};
 use serde_json::Value as JsonValue;
-use tempfile::NamedTempFile;
-use std::{fs, path::{Path, PathBuf}, process::Command, time::{SystemTime, UNIX_EPOCH}};
-use base64::{engine::general_purpose, Engine as _};
-
+use std::{fs, path::{Path, PathBuf}};
 
 #[derive(Serialize)]
 struct CommandOutput {
@@ -17,7 +14,7 @@ struct CommandOutput {
 struct MetricSelected {
     name: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    chimicalElementSelected: Vec<String>,
+    chimical_element_selected: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -27,19 +24,38 @@ struct SelectedMetricsBySensor {
     pigna: Vec<String>,
 }
 
+fn resolve_embedded_python(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
+    let base = app.path_resolver().resolve_resource("python-runtime/venv")?;
+    #[cfg(target_os = "windows")]
+    let bin = base.join("Scripts").join("python.exe");
+    #[cfg(not(target_os = "windows"))]
+    let bin = base.join("bin").join("python3");
+    if bin.exists() { Some(bin) } else { None }
+}
+}
 
+fn resolve_python_main(app: &AppHandle) -> Result<PathBuf, String> {
+    let resource_dir = app.path().resource_dir()
+        .map_err(|e| format!("Cannot get resource directory: {}", e))?;
+    let main_py = resource_dir.join("python-scripts").join("main.py");
+    if main_py.exists() {
+        Ok(main_py)
+    } else {
+        Err("main.py introuvable dans les resources".into())
+    }
+}
 
-const SCRIPT_PATH: &str = "/home/lucaslhm/Documents/ETIC/Bobine/project/desktop_app/src-tauri/python-scripts/main.py";
+fn run_python(app: &AppHandle, args: &[&str]) -> Result<CommandOutput, String> {
+    let script = resolve_python_main(app)?;
+    let python_bin = resolve_embedded_python(app)
+        .unwrap_or_else(|| PathBuf::from("python3"));
 
-/// ---------- Helper générique pour appeler Python ----------
-
-fn run_python(args: &[&str]) -> Result<CommandOutput, String> {
-    let output = Command::new("python3")
-        .arg("-u") // <<< important : stdout/stderr non-bufferisés
-        .arg(SCRIPT_PATH)
+    let output = std::process::Command::new(&python_bin)
+        .arg("-u")
+        .arg(&script)
         .args(args)
         .output()
-        .map_err(|e| format!("Failed to execute command: {}", e))?;
+        .map_err(|e| format!("Failed to execute Python ({:?}): {}", python_bin, e))?;
 
     let stdout = String::from_utf8(output.stdout)
         .map_err(|e| format!("Invalid UTF-8 in stdout: {}", e))?;
@@ -48,16 +64,14 @@ fn run_python(args: &[&str]) -> Result<CommandOutput, String> {
 
     if !output.status.success() {
         return Err(if stderr.trim().is_empty() {
-            "Python exited with error".into()
+            format!("Python exited with error (code {:?})", output.status.code())
         } else {
             stderr
         });
     }
-
     if stdout.trim().is_empty() && !stderr.trim().is_empty() {
         return Err(stderr);
     }
-
     Ok(CommandOutput { stdout, stderr })
 }
 
@@ -77,17 +91,16 @@ fn parse_python_json(stdout: &str) -> Result<JsonValue, String> {
 /// ---------- Commandes par action ----------
 
 #[tauri::command]
-fn context_is_correct(dir_path: String) -> Result<bool, String> {
-    let out = run_python(&["CONTEXT_IS_CORRECT", &dir_path])?;
+fn context_is_correct(app: tauri::AppHandle, dir_path: String) -> Result<bool, String> {
+    let out = run_python(&app, &["CONTEXT_IS_CORRECT", &dir_path])?;
     let json = parse_python_json(&out.stdout)?;
-    // Python renvoie {"result": true/false}
     json.as_bool()
         .ok_or_else(|| "Invalid JSON: expected boolean".into())
 }
 
 #[tauri::command]
-fn get_context_masses(dir_path: String) -> Result<JsonValue, String> {
-    let out = run_python(&["GET_CONTEXT_MASSES", &dir_path])?;
+fn get_context_masses(app: tauri::AppHandle, dir_path: String) -> Result<JsonValue, String> {
+    let out = run_python(&app, &["GET_CONTEXT_MASSES", &dir_path])?;
     if out.stdout.trim().is_empty() {
         return Err(if out.stderr.trim().is_empty() {
             "Empty stdout from Python".into()
@@ -99,12 +112,11 @@ fn get_context_masses(dir_path: String) -> Result<JsonValue, String> {
     json.as_object()
         .map(|obj| {serde_json::to_value(obj).unwrap()})
         .ok_or_else(|| "Invalid JSON: expected object".into())
-    
 }
 
 #[tauri::command]
-fn get_context_b64(dir_path: String) -> Result<String, String> {
-    let out = run_python(&["GET_CONTEXT_B64", &dir_path])?;
+fn get_context_b64(app: tauri::AppHandle, dir_path: String) -> Result<String, String> {
+    let out = run_python(&app, &["GET_CONTEXT_B64", &dir_path])?;
     if out.stdout.trim().is_empty() {
         return Err(if out.stderr.trim().is_empty() {
             "Empty stdout from Python".into()
@@ -119,8 +131,8 @@ fn get_context_b64(dir_path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn get_graphs_available(dir_path: String) -> Result<JsonValue, String> {
-    let out = run_python(&["GET_GRAPHS_AVAILABLE", &dir_path])?;
+fn get_graphs_available(app: tauri::AppHandle, dir_path: String) -> Result<JsonValue, String> {
+    let out = run_python(&app, &["GET_GRAPHS_AVAILABLE", &dir_path])?;
     if out.stdout.trim().is_empty() {
         return Err(if out.stderr.trim().is_empty() {
             "Empty stdout from Python".into()
@@ -131,9 +143,9 @@ fn get_graphs_available(dir_path: String) -> Result<JsonValue, String> {
     parse_python_json(&out.stdout)
 }
 
-
 #[tauri::command]
 async fn generate_and_save_excel(
+    app: tauri::AppHandle,
     dir_path: String,
     metric_wanted: SelectedMetricsBySensor,
     destination_path: String,
@@ -147,7 +159,7 @@ async fn generate_and_save_excel(
             .map_err(|e| format!("Cannot create output directory {}: {e}", parent.display()))?;
     }
 
-    let out = run_python(&[
+    let out = run_python(&app, &[
         "GENERATE_EXCEL_TO_FILE",
         &metrics_json,
         &dir_path,
@@ -156,7 +168,6 @@ async fn generate_and_save_excel(
 
     parse_python_json(&out.stdout)
 }
-
 
 /// ---------- Utilitaires fichier / système ----------
 
