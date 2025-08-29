@@ -122,12 +122,6 @@ jobs:
           & "src-tauri/python-runtime/venv/Scripts/python.exe" --version
           Write-Host "Python venv verified successfully"
 
-      # Précompilation des dépendances Rust (conditionnel)
-      - name: Pre-build Rust dependencies
-        working-directory: src-tauri
-        run: |
-          cargo fetch
-          cargo build --release --no-default-features
 
       # Build Tauri avec optimisations
       - name: Build Tauri bundle
