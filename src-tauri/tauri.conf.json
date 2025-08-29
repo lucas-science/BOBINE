@@ -27,15 +27,12 @@
   },
   "bundle": {
     "active": true,
-     "targets": ["deb", "rpm"],
-"resources": [
+    "targets": [
+      "msi",
+      "nsis"
+    ],
+    "resources": [
       "python-scripts/**",
-
-      "python-runtime/venv/pyvenv.cfg",
-      "python-runtime/venv/bin/**",
-      "python-runtime/venv/lib/**",
-      "python-runtime/venv/lib64/**",
-
       "python-runtime/venv/pyvenv.cfg",
       "python-runtime/venv/Scripts/**",
       "python-runtime/venv/Lib/**",

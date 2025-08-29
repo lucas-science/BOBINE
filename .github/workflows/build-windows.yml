@@ -1,5 +1,4 @@
 name: Build Windows (Tauri v2)
-
 on:
   workflow_dispatch:
   push:
@@ -8,7 +7,6 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
-
     env:
       NODE_OPTIONS: --max-old-space-size=4096
       NEXT_TELEMETRY_DISABLED: "1"
@@ -20,14 +18,14 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.11'  # Ou 3.12
+          python-version: '3.11'
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: "npm"
-          
+
       - name: Cache Next.js
         uses: actions/cache@v4
         with:
@@ -35,8 +33,7 @@ jobs:
             ~/.npm
             ${{ github.workspace }}/.next/cache
           key: nextjs-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            nextjs-${{ runner.os }}-
+          restore-keys: nextjs-${{ runner.os }}-
 
       - name: Install frontend deps
         run: npm ci
@@ -46,6 +43,9 @@ jobs:
 
       - name: Setup Rust (MSVC)
         uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          target: x86_64-pc-windows-msvc
 
       - name: Cache Cargo
         uses: actions/cache@v4
@@ -56,32 +56,27 @@ jobs:
             src-tauri/target
           key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
-      # Créer le venv Windows à packager
       - name: Create Python venv (Windows)
         shell: powershell
         run: |
           python -m venv src-tauri\python-runtime\venv
-          ./src-tauri/python-runtime/venv/Scripts/python.exe -m pip install --upgrade pip
-          ./src-tauri/python-runtime/venv/Scripts/pip.exe install -r src-tauri/python-runtime/requirements.txt
+          & "src-tauri/python-runtime/venv/Scripts/pip.exe" install --upgrade pip
+          & "src-tauri/python-runtime/venv/Scripts/pip.exe" install -r src-tauri/python-runtime/requirements.txt
 
-      # Optionnel: vérification rapide
-      - name: Show Python version and site-packages
+      - name: Verify Python venv (Windows)
         shell: powershell
         run: |
-          ./src-tauri/python-runtime/venv/Scripts/python.exe --version
-          if (-Not (Test-Path "src-tauri/python-runtime/venv/pyvenv.cfg")) { throw "pyvenv.cfg missing" }
+          if (-Not (Test-Path "src-tauri/python-runtime/venv/Scripts/python.exe")) {
+            throw "Python executable not found in venv/Scripts/"
+          }
+          & "src-tauri/python-runtime/venv/Scripts/python.exe" --version
 
-      # Utilise l'action officielle Tauri qui installe Wix/NSIS au besoin
       - name: Build Tauri bundle
         uses: tauri-apps/tauri-action@v0
-        with:
-          # Force l'utilisation de la commande build (pas dev)
-          args: ""
         env:
           TAURI_PRIVATE_KEY: ""
           TAURI_KEY_PASSWORD: ""
 
-      # Récupère les bundles (.msi/.exe/.zip)
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:

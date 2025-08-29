@@ -30,8 +30,10 @@ fn resolve_embedded_python(app: &tauri::AppHandle) -> Option<std::path::PathBuf>
     let bin = base.join("Scripts").join("python.exe");
     #[cfg(not(target_os = "windows"))]
     let bin = base.join("bin").join("python3");
+
+    println!("cargo:warning=Resolved Python path: {}", bin.display()); // Log de debug
+
     if bin.exists() { Some(bin) } else { None }
-}
 }
 
 fn resolve_python_main(app: &AppHandle) -> Result<PathBuf, String> {
