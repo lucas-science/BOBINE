@@ -98,17 +98,6 @@ jobs:
             cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}-
             cargo-${{ runner.os }}-
 
-      # Installation Tauri CLI avec cache
-      - name: Install Tauri CLI
-        uses: actions/cache@v4
-        id: tauri-cli-cache
-        with:
-          path: ~/.cargo/bin/tauri*
-          key: tauri-cli-${{ runner.os }}-v2
-
-      - name: Install Tauri CLI (if not cached)
-        if: steps.tauri-cli-cache.outputs.cache-hit != 'true'
-        run: cargo install tauri-cli --version "^2.0" --locked
 
       # Création venv Python (conditionnel)
       - name: Create Python venv (if not cached)
@@ -142,14 +131,10 @@ jobs:
 
       # Build Tauri avec optimisations
       - name: Build Tauri bundle
-        working-directory: src-tauri  
-        shell: powershell
-        run: |
-          $env:CARGO_PROFILE_RELEASE_LTO = "fat"
-          $env:CARGO_PROFILE_RELEASE_CODEGEN_UNITS = "1"
-          cargo tauri build --verbose
+        uses: tauri-apps/tauri-action@v0
         env:
-          RUST_BACKTRACE: 1
+          TAURI_PRIVATE_KEY: ""
+          TAURI_KEY_PASSWORD: ""
 
       # Upload artifacts avec compression
       - name: Upload Windows artifacts
