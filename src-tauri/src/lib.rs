@@ -24,15 +24,13 @@ struct SelectedMetricsBySensor {
     pigna: Vec<String>,
 }
 
-fn resolve_embedded_python(app: &tauri::AppHandle) -> Option<std::path::PathBuf> {
-    let base = app.path_resolver().resolve_resource("python-runtime/venv")?;
+fn resolve_embedded_python(app: &AppHandle) -> Option<PathBuf> {
+    let resource_dir = app.path().resource_dir().ok()?;
+    let base = resource_dir.join("python-runtime").join("venv");
     #[cfg(target_os = "windows")]
     let bin = base.join("Scripts").join("python.exe");
     #[cfg(not(target_os = "windows"))]
     let bin = base.join("bin").join("python3");
-
-    println!("cargo:warning=Resolved Python path: {}", bin.display()); // Log de debug
-
     if bin.exists() { Some(bin) } else { None }
 }
 
