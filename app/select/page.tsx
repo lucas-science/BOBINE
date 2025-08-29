@@ -10,7 +10,6 @@ import { getMetricsAvailable } from "@/src/lib/utils/invoke.utils";
 import MetricsSelector from "./selectMetrics";
 import { MetricsBySensor, SelectedMetricsBySensor } from "@/src/lib/utils/type";
 import { invoke } from "@tauri-apps/api/core";
-import { info } from '@tauri-apps/plugin-log';
 
 export default function Page() {
   const router = useRouter();
@@ -21,7 +20,7 @@ export default function Page() {
 
   const step = getIndexByPathname(pathname);
   const [prevPath, nextPath] = getNavigationByIndex(step);
-
+  
   const handleNext = async () => {
     if (!nextPath) return;
     try {
@@ -50,7 +49,7 @@ export default function Page() {
     try {
       const docsDir: string = await invoke("get_documents_dir");
       const metrics = await getMetricsAvailable(docsDir); // ← plus de parse stdout
-      info("Metrics fetched:" + JSON.stringify(metrics));
+      //info("Metrics fetched:" + JSON.stringify(metrics));
       setMetricsAvailable(metrics);
     } catch (error) {
       console.error("Error fetching metrics:", error);

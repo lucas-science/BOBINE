@@ -21,6 +21,7 @@ import RestartButton from "../components/restartButton";
 import { HOME } from "@/src/lib/utils/navigation.utils";
 import ButtonLoading from "@/app/components/buttonLoading";
 
+
 export default function Page() {
   const router = useRouter();
   const pathname = usePathname();
