@@ -33,11 +33,11 @@ export default function UploadPage() {
   const [currentStep, setCurrentStep] = React.useState(0);
   const [currentTask, setCurrentTask] = React.useState("Préparation…");
 
-  const runStep = async (n: number, label: string, fn: () => Promise<any>) => {
+  async function runStep<T>(n: number, label: string, fn: () => Promise<T>): Promise<T> {
     setCurrentStep(n);
     setCurrentTask(label);
     return await fn();
-  };
+  }
 
   const handleNext = async () => {
     if (!nextPath) return;
@@ -48,7 +48,7 @@ export default function UploadPage() {
 
     try {
 
-      const ok = await runStep(1, "Copie des fichiers…", async () =>
+      const ok = await runStep<boolean>(1, "Copie des fichiers…", async () =>
         copyAllFilesToDocuments(allFilesByZoneKey)
       );
 
@@ -57,12 +57,12 @@ export default function UploadPage() {
         return;
       }
 
-      const docsDir: string = await runStep(2, "Préparation du dossier…", async () =>
+      const docsDir: string = await runStep<string>(2, "Préparation du dossier…", async () =>
         getDocumentsDir()
       );
 
 
-      const is_context_ok: boolean = await runStep(3, "Vérification du contexte…", async () =>
+      const is_context_ok: boolean = await runStep<boolean>(3, "Vérification du contexte…", async () =>
         checkContext(docsDir)
       );
 

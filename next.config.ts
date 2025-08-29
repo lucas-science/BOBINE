@@ -1,8 +1,13 @@
-// next.config.ts
-import type { NextConfig } from "next";
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'export',
+  trailingSlash: true,
+  images: {
+    unoptimized: true
+  },
+  // Désactive la génération de sitemap et autres fichiers non nécessaires
+  generateEtags: false,
+  distDir: 'out'
+}
 
-const nextConfig: NextConfig = {
-  // ici, vous pouvez rajouter d'autres options Next.js si besoin
-};
-
-export default nextConfig;
+module.exports = nextConfig

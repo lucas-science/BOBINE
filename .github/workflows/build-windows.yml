@@ -1,0 +1,75 @@
+name: Build Windows (Tauri v2)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    env:
+      NODE_OPTIONS: --max-old-space-size=4096
+      NEXT_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: Build Next.js
+        run: npm run build
+
+      - name: Setup Rust (MSVC)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      # Créer le venv Windows à packager
+      - name: Create Python venv (Windows)
+        shell: powershell
+        run: |
+          python -m venv src-tauri\python-runtime\venv
+          ./src-tauri/python-runtime/venv/Scripts/python.exe -m pip install --upgrade pip
+          ./src-tauri/python-runtime/venv/Scripts/pip.exe install -r src-tauri/python-runtime/requirements.txt
+
+      # Optionnel: vérification rapide
+      - name: Show Python version and site-packages
+        shell: powershell
+        run: |
+          ./src-tauri/python-runtime/venv/Scripts/python.exe --version
+          if (-Not (Test-Path "src-tauri/python-runtime/venv/pyvenv.cfg")) { throw "pyvenv.cfg missing" }
+
+      # Utilise l'action officielle Tauri qui installe Wix/NSIS au besoin
+      - name: Build Tauri bundle
+        uses: tauri-apps/tauri-action@v0
+        with:
+          # exécute "npm run tauri-build" depuis la racine (défaut OK)
+          tagName: ""
+          releaseId: ""
+        env:
+          TAURI_PRIVATE_KEY: ""
+          TAURI_KEY_PASSWORD: ""
+
+      # Récupère les bundles (.msi/.exe/.zip)
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-bundles
+          path: src-tauri/target/release/bundle/**
