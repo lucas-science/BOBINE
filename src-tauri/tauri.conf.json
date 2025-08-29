@@ -27,7 +27,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["deb", "rpm", "msi", "nsis"],
     "resources": [
       "./python-scripts/**/*",
       "./python-runtime/**/*"
