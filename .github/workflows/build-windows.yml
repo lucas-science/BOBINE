@@ -27,6 +27,16 @@ jobs:
         with:
           node-version: 20
           cache: "npm"
+          
+      - name: Cache Next.js
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            ${{ github.workspace }}/.next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            nextjs-${{ runner.os }}-
 
       - name: Install frontend deps
         run: npm ci
@@ -65,9 +75,8 @@ jobs:
       - name: Build Tauri bundle
         uses: tauri-apps/tauri-action@v0
         with:
-          # exécute "npm run tauri-build" depuis la racine (défaut OK)
-          tagName: ""
-          releaseId: ""
+          # Force l'utilisation de la commande build (pas dev)
+          args: ""
         env:
           TAURI_PRIVATE_KEY: ""
           TAURI_KEY_PASSWORD: ""
