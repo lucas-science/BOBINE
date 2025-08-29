@@ -15,7 +15,6 @@ import {
 import BackButton from "./components/backButton";
 import NextButton from "./components/nextButton";
 
-// ⬇️ ajoute ce composant (créé précédemment)
 import LoaderOverlay from "@/app/components/LoaderOverlay";
 
 export default function UploadPage() {
@@ -24,7 +23,6 @@ export default function UploadPage() {
 
   const stepIndex = getIndexByPathname(pathname);
   const [prevPath, nextPath] = getNavigationByIndex(stepIndex);
-
   const { allFilesByZoneKey, handleFilesChange, setAllFilesByZoneKey } = useUploadState();
 
   // ----- Loader overlay state -----

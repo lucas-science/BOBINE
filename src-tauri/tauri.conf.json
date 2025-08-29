@@ -27,10 +27,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "msi",
-      "nsis"
-    ],
+    "targets": "all",
     "resources": [
       "./python-scripts/**/*",
       "./python-runtime/**/*"
