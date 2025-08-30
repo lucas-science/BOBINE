@@ -44,4 +44,86 @@ jobs:
       - name: Setup Rust (MSVC)
         uses: dtolnay/rust-toolchain@stable
 
-      - na
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
+
+      # Cache du runtime Python portable
+      - name: Cache Portable Python (Windows)
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/python-runtime/venv
+          key: win-portable-python-${{ runner.os }}-${{ hashFiles('src-tauri/python-runtime/requirements.txt') }}
+          restore-keys: |
+            win-portable-python-${{ runner.os }}-
+
+      # Télécharger un CPython portable (windows-msvc)
+      - name: Setup Portable Python (Windows)
+        shell: powershell
+        run: |
+          if (-Not (Test-Path "src-tauri\python-runtime\venv\python.exe")) {
+            Write-Host "Downloading portable Python..."
+            $url = "https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10%2B20241016-x86_64-pc-windows-msvc-install_only.tar.gz"
+            Invoke-WebRequest $url -OutFile "python-portable.tar.gz"
+
+            Write-Host "Extracting..."
+            tar -xf python-portable.tar.gz
+
+            Write-Host "Moving into runtime dir..."
+            New-Item -ItemType Directory -Force -Path "src-tauri\python-runtime" | Out-Null
+            Move-Item -Force -Path "python" -Destination "src-tauri\python-runtime\venv"
+
+            Remove-Item -Force "python-portable.tar.gz"
+          } else {
+            Write-Host "Portable Python found in cache, skipping"
+          }
+
+      # Installer les dépendances Python
+      - name: Install Python deps into portable runtime
+        shell: powershell
+        run: |
+          $py = "src-tauri\python-runtime\venv\python.exe"
+          & $py -V
+          & $py -m ensurepip --upgrade
+          & $py -m pip install --upgrade pip
+          & $py -m pip install -r src-tauri/python-runtime/requirements.txt --no-warn-script-location
+
+      # Vérifications Python
+      - name: Verify portable Python (Windows)
+        shell: powershell
+        run: |
+          $py = "src-tauri\python-runtime\venv\python.exe"
+          if (-Not (Test-Path $py)) { throw "python.exe not found" }
+
+          & $py -c "import sys,platform; print('OK Python:', sys.version); print('Prefix:', sys.prefix); print('Plat:', platform.platform())"
+
+          & $py -c "
+          import numpy, pandas, PIL, matplotlib, pandas.util._decorators
+          print('Imports OK:', numpy.__version__, pandas.__version__)
+          "
+
+          Get-ChildItem -Path "src-tauri\python-runtime\venv" -Filter "python311*.dll" -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host "Found:" $_.FullName }
+
+      # Installer le CLI Tauri
+      - name: Install Tauri CLI
+        run: npm install -g @tauri-apps/cli@latest
+
+      # Build Tauri
+      - name: Build Tauri bundle (Windows)
+        working-directory: src-tauri
+        run: cargo tauri build
+
+      # Exporter les artefacts
+      - name: Upload Windows artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-bundles
+          path: src-tauri/target/release/bundle/**
