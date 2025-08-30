@@ -115,8 +115,6 @@ jobs:
       # Build avec l'action officielle Tauri
       - name: Build Tauri App (official action)
         uses: tauri-apps/tauri-action@v0
-        with:
-          args: build
         
       # Exporter les artefacts
       - name: Upload Windows artifacts
