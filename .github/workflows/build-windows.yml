@@ -1,22 +1,17 @@
 name: Build Windows (Tauri v2)
-
 on:
   workflow_dispatch:
   push:
     branches: [ main ]
-
 jobs:
   build-windows:
     runs-on: windows-latest
-
     env:
       NODE_OPTIONS: --max-old-space-size=4096
       NEXT_TELEMETRY_DISABLED: "1"
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       # Node + cache
       - name: Setup Node
         uses: actions/setup-node@v4
