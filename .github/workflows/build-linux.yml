@@ -37,6 +37,7 @@ jobs:
             libgtk-3-dev \
             libglib2.0-dev \
             libnss3-dev
+          patchelf --version || true
 
       # Cache système Linux
       - name: Cache Linux System
@@ -123,34 +124,53 @@ jobs:
           if [ ! -f "src-tauri/python-runtime/venv/bin/python3" ]; then
             echo "Downloading portable Python..."
             wget -q https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10%2B20241016-x86_64-unknown-linux-gnu-install_only.tar.gz -O python-portable.tar.gz
-            
+
             echo "Extracting portable Python..."
             tar -xf python-portable.tar.gz
-            
+
             echo "Moving Python to runtime directory..."
             mkdir -p src-tauri/python-runtime/
             mv python src-tauri/python-runtime/venv
-            
-            echo "Installing Python packages..."
+
+            echo "Upgrading pip and installing Python packages..."
             src-tauri/python-runtime/venv/bin/pip install --upgrade pip
             src-tauri/python-runtime/venv/bin/pip install -r src-tauri/python-runtime/requirements.txt
-            
-            rm python-portable.tar.gz
+
+            rm -f python-portable.tar.gz
           else
             echo "Portable Python found in cache, skipping download"
           fi
 
-      # Vérification Python portable
+      # Vérification Python portable (basique)
       - name: Verify Portable Python
         run: |
           if [ ! -f "src-tauri/python-runtime/venv/bin/python3" ]; then
             echo "Error: Portable Python executable not found"
             exit 1
           fi
+          chmod +x src-tauri/python-runtime/venv/bin/python3 || true
           echo "Testing portable Python..."
           src-tauri/python-runtime/venv/bin/python3 --version
           src-tauri/python-runtime/venv/bin/python3 -c "import sys; print('Python path:', sys.executable)"
           echo "Portable Python verified successfully"
+
+      # ✅ Vérifier la présence de libpython et patcher le RPATH
+      - name: Verify portable Python layout
+        run: |
+          test -f src-tauri/python-runtime/venv/bin/python3
+          test -f src-tauri/python-runtime/venv/lib/libpython3.11.so.1.0
+          echo "Layout OK"
+
+      - name: Patch python3 RPATH
+        run: |
+          echo "Current RPATH:"
+          patchelf --print-rpath src-tauri/python-runtime/venv/bin/python3 || true
+          echo "Setting RPATH to \$ORIGIN/../lib"
+          patchelf --set-rpath '$ORIGIN/../lib' src-tauri/python-runtime/venv/bin/python3
+          echo "New RPATH:"
+          patchelf --print-rpath src-tauri/python-runtime/venv/bin/python3
+          echo "ldd on python3 (sanity check):"
+          ldd src-tauri/python-runtime/venv/bin/python3 || true
 
       # Build Tauri avec action officielle
       - name: Build Tauri bundle
