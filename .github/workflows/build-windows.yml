@@ -112,15 +112,12 @@ jobs:
           Get-ChildItem -Path "src-tauri\python-runtime\venv" -Filter "python311*.dll" -ErrorAction SilentlyContinue |
             ForEach-Object { Write-Host "Found:" $_.FullName }
 
-      # Installer le CLI Tauri
-      - name: Install Tauri CLI
-        run: npm install -g @tauri-apps/cli@latest
-
-      # Build Tauri
-      - name: Build Tauri bundle (Windows)
-        working-directory: src-tauri
-        run: cargo tauri build
-
+      # Build avec l'action officielle Tauri
+      - name: Build Tauri App (official action)
+        uses: tauri-apps/tauri-action@v0
+        with:
+          args: build
+        
       # Exporter les artefacts
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
