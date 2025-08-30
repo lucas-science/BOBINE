@@ -141,22 +141,12 @@ jobs:
           src-tauri/python-runtime/venv/bin/python3 -c "import sys; print('Python path:', sys.executable)"
           echo "Portable Python verified successfully"
 
-      # Build Tauri manuellement pour plus de contrôle
-      - name: Install Tauri CLI
-        run: cargo install tauri-cli --version "^2.0" --locked
-
+      # Build Tauri avec action officielle
       - name: Build Tauri bundle
-        working-directory: src-tauri
-        run: |
-          cargo tauri build --verbose || true
-          # Vérifier si les formats principaux ont été générés
-          if [ -f "target/release/bundle/deb/Bobine_0.1.0_amd64.deb" ] && [ -f "target/release/bundle/rpm/Bobine-0.1.0-1.x86_64.rpm" ]; then
-            echo "Build partially successful - main formats generated"
-            exit 0
-          else
-            echo "Build failed - no packages generated"
-            exit 1
-          fi
+        uses: tauri-apps/tauri-action@v0
+        env:
+          TAURI_PRIVATE_KEY: ""
+          TAURI_KEY_PASSWORD: ""
 
       # Vérification des fichiers générés
       - name: List generated files
