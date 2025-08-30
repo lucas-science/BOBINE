@@ -17,11 +17,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'  # Ou 3.12
-
+      # Node + cache
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -39,11 +35,12 @@ jobs:
             nextjs-${{ runner.os }}-
 
       - name: Install frontend deps
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit
 
       - name: Build Next.js
         run: npm run build
 
+      # Rust (MSVC) + cache
       - name: Setup Rust (MSVC)
         uses: dtolnay/rust-toolchain@stable
 
@@ -55,33 +52,82 @@ jobs:
             ~/.cargo/git
             src-tauri/target
           key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-
 
-      # Créer le venv Windows à packager
-      - name: Create Python venv (Windows)
+      # Cache du runtime Python portable
+      - name: Cache Portable Python (Windows)
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/python-runtime/venv
+          key: win-portable-python-${{ runner.os }}-${{ hashFiles('src-tauri/python-runtime/requirements.txt') }}
+          restore-keys: |
+            win-portable-python-${{ runner.os }}-
+
+      # ✅ Télécharger un CPython portable (windows-msvc), pas de venv système
+      - name: Setup Portable Python (Windows)
         shell: powershell
         run: |
-          python -m venv src-tauri\python-runtime\venv
-          ./src-tauri/python-runtime/venv/Scripts/python.exe -m pip install --upgrade pip
-          ./src-tauri/python-runtime/venv/Scripts/pip.exe install -r src-tauri/python-runtime/requirements.txt
+          if (-Not (Test-Path "src-tauri\python-runtime\venv\python.exe")) {
+            Write-Host "Downloading portable Python..."
+            $url = "https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10%2B20241016-x86_64-pc-windows-msvc-install_only.tar.gz"
+            Invoke-WebRequest $url -OutFile "python-portable.tar.gz"
 
-      # Optionnel: vérification rapide
-      - name: Show Python version and site-packages
+            Write-Host "Extracting..."
+            tar -xf python-portable.tar.gz
+
+            Write-Host "Moving into runtime dir..."
+            New-Item -ItemType Directory -Force -Path "src-tauri\python-runtime" | Out-Null
+            Move-Item -Force -Path "python" -Destination "src-tauri\python-runtime\venv"
+
+            Remove-Item -Force "python-portable.tar.gz"
+          } else {
+            Write-Host "Portable Python found in cache, skipping"
+          }
+
+      # Installer les deps dans CE Python portable
+      - name: Install Python deps into portable runtime
         shell: powershell
         run: |
-          ./src-tauri/python-runtime/venv/Scripts/python.exe --version
-          if (-Not (Test-Path "src-tauri/python-runtime/venv/pyvenv.cfg")) { throw "pyvenv.cfg missing" }
+          $py = "src-tauri\python-runtime\venv\python.exe"
+          & $py -V
+          # Assure pip/ensurepip
+          & $py -m ensurepip --upgrade
+          & $py -m pip install --upgrade pip
+          & $py -m pip install -r src-tauri/python-runtime/requirements.txt --no-warn-script-location
 
-      # Build Tauri manuellement
+      # Vérifs rapides (DLL, stdlib, import numpy/pandas, etc.)
+      - name: Verify portable Python (Windows)
+        shell: powershell
+        run: |
+          $py = "src-tauri\python-runtime\venv\python.exe"
+          if (-Not (Test-Path $py)) { throw "python.exe not found" }
+
+          & $py -c "import sys,platform; print('OK Python:', sys.version); print('Prefix:', sys.prefix); print('Plat:', platform.platform())"
+
+          # Sanity import for native deps
+          & $py - << 'PYCODE'
+          import numpy, pandas, PIL, matplotlib, pandas.util._decorators
+          print("Imports OK:", numpy.__version__, pandas.__version__)
+          PYCODE
+
+          # Vérifier qu'on a bien les DLL aux côtés de python.exe
+          Get-ChildItem -Path "src-tauri\python-runtime\venv" -Filter "python311*.dll" -ErrorAction SilentlyContinue |
+            ForEach-Object { Write-Host "Found:" $_.FullName }
+
+      # Installer le CLI Tauri (ou utiliser l'action officielle si tu préfères)
       - name: Install Tauri CLI
         run: npm install -g @tauri-apps/cli@latest
 
-      - name: Build Tauri bundle
+
+      # Build Tauri
+      - name: Build Tauri bundle (Windows)
         shell: powershell
         run: |
           cd src-tauri
           cargo tauri build
 
-      # Récupère les bundles (.msi/.exe/.zip)
+      # Artifacts
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
