@@ -77,14 +77,14 @@ jobs:
             nextjs-linux-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}-
             nextjs-linux-${{ runner.os }}-
 
-      # Cache Python venv
-      - name: Cache Python venv
+      # Cache Python portable
+      - name: Cache Portable Python
         uses: actions/cache@v4
         with:
           path: src-tauri/python-runtime/venv
-          key: python-venv-linux-${{ runner.os }}-${{ hashFiles('src-tauri/python-runtime/requirements.txt') }}
+          key: portable-python-${{ runner.os }}-${{ hashFiles('src-tauri/python-runtime/requirements.txt') }}
           restore-keys: |
-            python-venv-linux-${{ runner.os }}-
+            portable-python-${{ runner.os }}-
 
       # Installation frontend
       - name: Install frontend deps
@@ -117,16 +117,27 @@ jobs:
             cargo-linux-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}-
             cargo-linux-${{ runner.os }}-
 
-      # Création venv Python (conditionnel)
-      - name: Create Python venv (if not cached)
+      # Download et setup Python portable (conditionnel)
+      - name: Setup Portable Python (if not cached)
         run: |
           if [ ! -f "src-tauri/python-runtime/venv/bin/python3" ]; then
-            echo "Creating new Python venv..."
-            python3 -m venv src-tauri/python-runtime/venv
+            echo "Downloading portable Python..."
+            wget -q https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10%2B20241016-x86_64-unknown-linux-gnu-install_only.tar.gz -O python-portable.tar.gz
+            
+            echo "Extracting portable Python..."
+            tar -xf python-portable.tar.gz
+            
+            echo "Moving Python to runtime directory..."
+            mkdir -p src-tauri/python-runtime/
+            mv python src-tauri/python-runtime/venv
+            
+            echo "Installing Python packages..."
             src-tauri/python-runtime/venv/bin/pip install --upgrade pip
             src-tauri/python-runtime/venv/bin/pip install -r src-tauri/python-runtime/requirements.txt
+            
+            rm python-portable.tar.gz
           else
-            echo "Python venv found in cache, skipping creation"
+            echo "Portable Python found in cache, skipping download"
           fi
 
       # Vérification Python portable
@@ -156,7 +167,7 @@ jobs:
           echo "=== Release directory structure ==="
           find src-tauri/target/release/ -name "bobine*" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" 2>/dev/null || echo "No release files found"
 
-      # Upload artifacts Linux (conditionnel)
+      # Upload artifacts Linux
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         if: success()
