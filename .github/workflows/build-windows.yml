@@ -97,23 +97,21 @@ jobs:
           & $py -m pip install -r src-tauri/python-runtime/requirements.txt --no-warn-script-location
 
       # Vérifs rapides (DLL, stdlib, import numpy/pandas, etc.)
-      - name: Verify portable Python (Windows)
-        shell: powershell
-        run: |
-          $py = "src-tauri\python-runtime\venv\python.exe"
-          if (-Not (Test-Path $py)) { throw "python.exe not found" }
+    - name: Verify portable Python (Windows)
+      shell: powershell
+      run: |
+        $py = "src-tauri\python-runtime\venv\python.exe"
+        if (-Not (Test-Path $py)) { throw "python.exe not found" }
+        & $py -c "import sys,platform; print('OK Python:', sys.version); print('Prefix:', sys.prefix); print('Plat:', platform.platform())"
+        # Vérification des imports
+        & $py -c "
+        import numpy, pandas, PIL, matplotlib, pandas.util._decorators
+        print('Imports OK:', numpy.__version__, pandas.__version__)
+        "
+        # Vérifier les DLL
+        Get-ChildItem -Path "src-tauri\python-runtime\venv" -Filter "python311*.dll" -ErrorAction SilentlyContinue |
+          ForEach-Object { Write-Host "Found:" $_.FullName }
 
-          & $py -c "import sys,platform; print('OK Python:', sys.version); print('Prefix:', sys.prefix); print('Plat:', platform.platform())"
-
-          # Sanity import for native deps
-          & $py - << 'PYCODE'
-          import numpy, pandas, PIL, matplotlib, pandas.util._decorators
-          print("Imports OK:", numpy.__version__, pandas.__version__)
-          PYCODE
-
-          # Vérifier qu'on a bien les DLL aux côtés de python.exe
-          Get-ChildItem -Path "src-tauri\python-runtime\venv" -Filter "python311*.dll" -ErrorAction SilentlyContinue |
-            ForEach-Object { Write-Host "Found:" $_.FullName }
 
       # Installer le CLI Tauri (ou utiliser l'action officielle si tu préfères)
       - name: Install Tauri CLI
