@@ -12,143 +12,78 @@ jobs:
     env:
       NODE_OPTIONS: --max-old-space-size=4096
       NEXT_TELEMETRY_DISABLED: "1"
-      CARGO_TERM_COLOR: always
-      CARGO_INCREMENTAL: 0
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Cache système global pour pip et autres outils
-      - name: Cache Windows System
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~\AppData\Local\pip\Cache
-            ~\AppData\Local\Microsoft\Windows\INetCache
-            ~\AppData\Local\Temp\chocolatey
-          key: windows-system-${{ runner.os }}-${{ github.run_id }}
-          restore-keys: |
-            windows-system-${{ runner.os }}-
-
-      # Configuration Python avec cache intégré
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
-          cache: 'pip'
-          cache-dependency-path: 'src-tauri/python-runtime/requirements.txt'
+          python-version: '3.11'  # Ou 3.12
 
-      # Configuration Node avec cache npm
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: "npm"
 
-      # Cache Next.js avec chemins Windows corrects
       - name: Cache Next.js
         uses: actions/cache@v4
         with:
           path: |
-            ${{ github.workspace }}\.next\cache
-            node_modules\.cache
-          key: nextjs-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
+            ~/.npm
+            ${{ github.workspace }}/.next/cache
+          key: nextjs-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            nextjs-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}-
             nextjs-${{ runner.os }}-
 
-      # Cache Python venv complet
-      - name: Cache Python venv
-        uses: actions/cache@v4
-        with:
-          path: src-tauri\python-runtime\venv
-          key: python-venv-${{ runner.os }}-${{ hashFiles('src-tauri/python-runtime/requirements.txt') }}
-          restore-keys: |
-            python-venv-${{ runner.os }}-
-
-      # Installation frontend avec vérification cache
       - name: Install frontend deps
-        run: npm ci --prefer-offline --no-audit
+        run: npm ci
 
-      # Build Next.js
       - name: Build Next.js
         run: npm run build
 
-      # Configuration Rust avec toolchain et target
-      - name: Setup Rust
+      - name: Setup Rust (MSVC)
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          targets: x86_64-pc-windows-msvc
-          components: clippy, rustfmt
 
-      # Cache Cargo optimisé avec chemins spécifiques
       - name: Cache Cargo
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            src-tauri/target/
-          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}-${{ hashFiles('src-tauri/src/**/*.rs') }}
-          restore-keys: |
-            cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}-
-            cargo-${{ runner.os }}-
+            ~/.cargo/registry
+            ~/.cargo/git
+            src-tauri/target
+          key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
 
-
-      # Création venv Python (conditionnel)
-      - name: Create Python venv (if not cached)
+      # Créer le venv Windows à packager
+      - name: Create Python venv (Windows)
         shell: powershell
         run: |
-          if (-Not (Test-Path "src-tauri\python-runtime\venv\Scripts\python.exe")) {
-            Write-Host "Creating new Python venv..."
-            python -m venv src-tauri\python-runtime\venv
-            & "src-tauri/python-runtime/venv/Scripts/pip.exe" install --upgrade pip
-            & "src-tauri/python-runtime/venv/Scripts/pip.exe" install --no-deps -r src-tauri/python-runtime/requirements.txt
-          } else {
-            Write-Host "Python venv found in cache, skipping creation"
-          }
+          python -m venv src-tauri\python-runtime\venv
+          ./src-tauri/python-runtime/venv/Scripts/python.exe -m pip install --upgrade pip
+          ./src-tauri/python-runtime/venv/Scripts/pip.exe install -r src-tauri/python-runtime/requirements.txt
 
-      # Vérification Python venv
-      - name: Verify Python venv
+      # Optionnel: vérification rapide
+      - name: Show Python version and site-packages
         shell: powershell
         run: |
-          if (-Not (Test-Path "src-tauri/python-runtime/venv/Scripts/python.exe")) {
-            throw "Python executable not found in venv/Scripts/"
-          }
-          & "src-tauri/python-runtime/venv/Scripts/python.exe" --version
-          Write-Host "Python venv verified successfully"
+          ./src-tauri/python-runtime/venv/Scripts/python.exe --version
+          if (-Not (Test-Path "src-tauri/python-runtime/venv/pyvenv.cfg")) { throw "pyvenv.cfg missing" }
 
+      # Build Tauri manuellement
+      - name: Install Tauri CLI
+        run: npm install -g @tauri-apps/cli@latest
 
-      # Build Tauri avec optimisations
       - name: Build Tauri bundle
-        uses: tauri-apps/tauri-action@v0
-        env:
-          TAURI_PRIVATE_KEY: ""
-          TAURI_KEY_PASSWORD: ""
+        shell: powershell
+        run: |
+          cd src-tauri
+          cargo tauri build
 
-      # Upload artifacts avec compression
+      # Récupère les bundles (.msi/.exe/.zip)
       - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: windows-bundles-${{ github.run_number }}
-          path: |
-            src-tauri/target/release/bundle/**/*.msi
-            src-tauri/target/release/bundle/**/*.exe
-            src-tauri/target/release/bundle/**/*.zip
-          compression-level: 6
-          retention-days: 30
-
-      # Upload logs de debug en cas d'échec
-      - name: Upload build logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs-${{ github.run_number }}
-          path: |
-            src-tauri/target/release/build/**/*.log
-            ~/.cargo/registry/src/**/build.log
-          retention-days: 7
+          name: windows-bundles
+          path: src-tauri/target/release/bundle/**

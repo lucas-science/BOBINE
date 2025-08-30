@@ -27,11 +27,36 @@ struct SelectedMetricsBySensor {
 fn resolve_embedded_python(app: &AppHandle) -> Option<PathBuf> {
     let resource_dir = app.path().resource_dir().ok()?;
     let base = resource_dir.join("python-runtime").join("venv");
+    
     #[cfg(target_os = "windows")]
-    let bin = base.join("Scripts").join("python.exe");
+    {
+        // Essayer d'abord le Python portable (racine)
+        let portable_bin = base.join("python.exe");
+        if portable_bin.exists() {
+            return Some(portable_bin);
+        }
+        // Fallback vers le venv classique
+        let venv_bin = base.join("Scripts").join("python.exe");
+        if venv_bin.exists() {
+            return Some(venv_bin);
+        }
+    }
+    
     #[cfg(not(target_os = "windows"))]
-    let bin = base.join("bin").join("python3");
-    if bin.exists() { Some(bin) } else { None }
+    {
+        // Essayer d'abord le Python portable (racine)
+        let portable_bin = base.join("python3");
+        if portable_bin.exists() {
+            return Some(portable_bin);
+        }
+        // Fallback vers le venv classique
+        let venv_bin = base.join("bin").join("python3");
+        if venv_bin.exists() {
+            return Some(venv_bin);
+        }
+    }
+    
+    None
 }
 
 fn resolve_python_main(app: &AppHandle) -> Result<PathBuf, String> {

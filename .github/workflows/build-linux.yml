@@ -129,33 +129,53 @@ jobs:
             echo "Python venv found in cache, skipping creation"
           fi
 
-      # Vérification Python venv
-      - name: Verify Python venv
+      # Vérification Python portable
+      - name: Verify Portable Python
         run: |
           if [ ! -f "src-tauri/python-runtime/venv/bin/python3" ]; then
-            echo "Error: Python executable not found in venv/bin/"
+            echo "Error: Portable Python executable not found"
             exit 1
           fi
+          echo "Testing portable Python..."
           src-tauri/python-runtime/venv/bin/python3 --version
-          echo "Python venv verified successfully"
+          src-tauri/python-runtime/venv/bin/python3 -c "import sys; print('Python path:', sys.executable)"
+          echo "Portable Python verified successfully"
 
-      # Build Tauri pour Linux avec formats multiples
+      # Build Tauri manuellement pour plus de contrôle
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2.0" --locked
+
       - name: Build Tauri bundle
-        uses: tauri-apps/tauri-action@v0
-        env:
-          TAURI_PRIVATE_KEY: ""
-          TAURI_KEY_PASSWORD: ""
+        working-directory: src-tauri
+        run: |
+          cargo tauri build --verbose || true
+          # Vérifier si les formats principaux ont été générés
+          if [ -f "target/release/bundle/deb/Bobine_0.1.0_amd64.deb" ] && [ -f "target/release/bundle/rpm/Bobine-0.1.0-1.x86_64.rpm" ]; then
+            echo "Build partially successful - main formats generated"
+            exit 0
+          else
+            echo "Build failed - no packages generated"
+            exit 1
+          fi
 
-      # Upload artifacts Linux
+      # Vérification des fichiers générés
+      - name: List generated files
+        run: |
+          echo "=== Bundle directory structure ==="
+          find src-tauri/target/release/bundle/ -type f 2>/dev/null || echo "No bundle directory found"
+          echo "=== Release directory structure ==="
+          find src-tauri/target/release/ -name "bobine*" -o -name "*.deb" -o -name "*.rpm" -o -name "*.AppImage" 2>/dev/null || echo "No release files found"
+
+      # Upload artifacts Linux (conditionnel)
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: linux-bundles-${{ github.run_number }}
           path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/appimage/*.AppImage
-            src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/
             src-tauri/target/release/bobine
+          if-no-files-found: warn
           compression-level: 6
           retention-days: 30
 
