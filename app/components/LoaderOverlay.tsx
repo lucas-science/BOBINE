@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/src/components/ui/card";
 import { Progress } from "@/src/components/ui/progress";
 import { motion, useMotionValue, useAnimationFrame } from "framer-motion";
 import { cn } from "@/src/lib/utils";
+import BobineLoader from "./BobineLoader";
 
 type LoaderOverlayProps = {
   open: boolean;
@@ -40,7 +41,7 @@ export default function LoaderOverlay({
       <Card
         className={cn(
           "w-[min(92vw,420px)] rounded-2xl shadow-2xl border border-white/10",
-          "bg-white/90 dark:bg-zinc-900/90"
+          "bg-white dark:bg-zinc-900/90"
         )}
         role="status"
         aria-live="polite"
@@ -48,7 +49,7 @@ export default function LoaderOverlay({
         <CardContent className="p-6">
           {/* Fancy geometric animation */}
           <div className="mx-auto mb-5 flex items-center justify-center">
-            <GeometricLoader />
+            <BobineLoader size={180} speed={1} stroke="#0A0A0A" />
           </div>
 
           {/* Step indicator */}
@@ -75,6 +76,7 @@ export default function LoaderOverlay({
 }
 
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function GeometricLoader() {
   // centre et rayon d’orbite
   const W = 144; // 36 * 4 (taille du conteneur)

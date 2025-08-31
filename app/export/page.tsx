@@ -20,6 +20,7 @@ import {
 import RestartButton from "../components/restartButton";
 import { HOME } from "@/src/lib/utils/navigation.utils";
 import ButtonLoading from "@/app/components/buttonLoading";
+import { info } from "@tauri-apps/plugin-log";
 
 
 export default function Page() {
@@ -39,6 +40,7 @@ const handleGenerateExcel = async () => {
 
   try {
     const sel = localStorage.getItem("selectedMetrics");
+    info("Selected metrics from localStorage:" + JSON.stringify(sel));
     if (!sel) throw new Error("Aucune métrique sélectionnée");
     const metrics = JSON.parse(sel);
 

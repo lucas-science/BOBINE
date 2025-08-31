@@ -6,6 +6,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.chart import LineChart, BarChart, Reference, Series
+from openpyxl.chart.marker import Marker
 
 
 class ChromeleonOnline:
@@ -297,17 +298,17 @@ class ChromeleonOnline:
     def generate_workbook_with_charts(
         self,
         wb: Workbook,
-        metrics_wanted: list[dict],   # <--- IMPORTANT: list de dicts {name: str, chimicalElementSelected?: list[str]}
+        metrics_wanted: list[dict],   # list de dicts {name: str, chimicalElementSelected?: list[str]}
         sheet_name: str = "GC-Online",
     ) -> Workbook:
         """
-        Crée la feuille GC-Online :
+        Crée la feuille GC-Online avec graphiques optimisés (sans duplication des données) :
         - Tableau principal des %RelArea par injection
         - Tableau moyenne 'Gas phase Integration Results test average'
         - Tableau pivot Carbon x Family
         - Graphique(s) en fonction des métriques demandées :
-            * "%mass gaz en fonction du temps" -> courbes seulement pour les éléments sélectionnés
-            * "products repartition gaz phase" -> bar chart empilé (pas d'éléments à prendre en compte)
+            * "%mass gaz en fonction du temps" -> courbes référençant directement les données existantes
+            * "products repartition gaz phase" -> bar chart référençant directement table2
         """
         # ---- 0) Quels graphiques sont demandés ? ----
         asked_names = { (m.get("name") or "").strip() for m in (metrics_wanted or []) }
@@ -318,23 +319,32 @@ class ChromeleonOnline:
         selected_elements: list[str] = []
         for m in (metrics_wanted or []):
             if (m.get("name") or "").strip() == "%mass gaz en fonction du temps":
-                selected_elements = list(m.get("chimicalElementSelected") or [])
+                # Essayer les deux formats possibles (camelCase et snake_case)
+                selected_elements = list(m.get("chimicalElementSelected") or m.get("chimical_element_selected") or [])
                 break  # un seul bloc attendu
 
         # ---- 1) Données source (méthodes existantes) ----
         rel_df = self.get_relative_area_by_injection()     # grand tableau (inclut ligne "Moyennes")
         table1, table2 = self.make_summary_tables()        # détails pics + pivot Carbon×Family
+        
+        # Log de debug via stderr pour que Rust puisse le capturer
+        import sys
+        sys.stderr.write(f"DEBUG - want_line: {want_line}\n")
+        sys.stderr.write(f"DEBUG - selected_elements: {selected_elements}\n")
+        sys.stderr.flush()
 
         # ---- 2) Création de la feuille ----
         ws = wb.create_sheet(title=sheet_name[:31])
 
-        # Styles
+        # Styles - AJOUT DES BORDURES NOIRES comme pour Pigna
         title_font = Font(bold=True, size=12)
         header_font = Font(bold=True)
         gray_fill = PatternFill("solid", fgColor="DDDDDD")
         center = Alignment(horizontal="center", vertical="center")
-        thin = Side(style="thin", color="999999")
-        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+        
+        # MODIFICATION: bordures noires au lieu de grises
+        black_thin = Side(style="thin", color="000000")  # Noir au lieu de 999999
+        border = Border(left=black_thin, right=black_thin, top=black_thin, bottom=black_thin)
 
         # ---- (A) Grand tableau rel_df ----
         ws.cell(row=1, column=1, value="%Rel Area par injection (Online)").font = title_font
@@ -361,6 +371,7 @@ class ChromeleonOnline:
             ws.column_dimensions[get_column_letter(j)].width = 12 if j <= 2 else 11
 
         rel_table_last_row = start_row + 1 + len(rel_df)
+        rel_table_data_rows = len(rel_df) - 1  # Exclure ligne "Moyennes"
 
         # ---- (B) Bloc "Gas phase Integration Results test average" (table1) ----
         block1_row = rel_table_last_row + 3
@@ -397,19 +408,20 @@ class ChromeleonOnline:
 
         # ---- (C) Bloc pivot Carbon × Family (table2) ----
         block2_col = 6
-        ws.cell(row=block1_row, column=block2_col,
+        block2_start_row = block1_row
+        ws.cell(row=block2_start_row, column=block2_col,
                 value="Regroupement par carbone / famille").font = title_font
 
         t2 = table2.copy()
         headers2 = ["Carbon"] + list(t2.columns)
         for j, h in enumerate(headers2, start=block2_col):
-            c = ws.cell(row=block1_row + 1, column=j, value=h)
+            c = ws.cell(row=block2_start_row + 1, column=j, value=h)
             c.font = header_font
             c.fill = gray_fill
             c.alignment = center
             c.border = border
 
-        r = block1_row + 2
+        r = block2_start_row + 2
         for _, row in t2.reset_index().iterrows():
             ws.cell(row=r, column=block2_col + 0, value=row["Carbon"]).border = border
             for j, colname in enumerate(list(t2.columns), start=1):
@@ -425,7 +437,7 @@ class ChromeleonOnline:
         for j in range(len(headers2)):
             ws.column_dimensions[get_column_letter(block2_col + j)].width = 10
 
-        # ---- (D) Petit tableau “composition moyenne principaux HXL (%)” ----
+        # ---- (D) Petit tableau "composition moyenne principaux HXL (%)" ----
         try:
             avg_row = rel_df.loc[rel_df['Injection Name'] == 'Moyennes'].iloc[0]
         except Exception:
@@ -462,110 +474,142 @@ class ChromeleonOnline:
         ws.column_dimensions[get_column_letter(small_col + 0)].width = 18
         ws.column_dimensions[get_column_letter(small_col + 1)].width = 10
 
-        # ---- (E) Graphique 1 (Line) : %mass gaz en fonction du temps pour les éléments sélectionnés ----
+        # ---- (E) Graphique 1 OPTIMISÉ (Line) : %mass gaz en fonction du temps ----
         chart_anchor_row = block1_last_row + 2
-        chart_anchor_col = 9
 
         if want_line:
-            # lignes de données hors "Moyennes"
-            data_rows = rel_df[rel_df["Injection Name"] != "Moyennes"].reset_index(drop=True)
-
-            # Si pas de sélection explicite, on ne trace rien (conforme à ta demande)
-            elements_to_plot = [e for e in (selected_elements or []) if f"Rel. Area (%) : {e}" in data_rows.columns]
+            sys.stderr.write("DEBUG - Traçage du graphique line optimisé\n")
+            
+            # Identifier les éléments à tracer
+            available_elements = [col.replace("Rel. Area (%) : ", "") 
+                                for col in rel_df.columns 
+                                if col.startswith("Rel. Area (%) : ")]
+            
+            # Si selected_elements est vide, on prend tous les éléments disponibles
+            if not selected_elements:
+                elements_to_plot = available_elements
+                sys.stderr.write(f"DEBUG - Aucun élément sélectionné, utilisation de tous: {elements_to_plot}\n")
+            else:
+                elements_to_plot = [e for e in selected_elements if f"Rel. Area (%) : {e}" in headers]
+                sys.stderr.write(f"DEBUG - Éléments sélectionnés et disponibles: {elements_to_plot}\n")
 
             if elements_to_plot:
-                # X = temps si dispo, sinon nom d'injection
-                if "Injection Time" in data_rows.columns:
-                    x_labels = data_rows["Injection Time"].fillna(data_rows["Injection Name"])
-                else:
-                    x_labels = data_rows["Injection Name"]
-
-                # on écrit une petite zone temporaire (X + séries)
-                tmp_r = chart_anchor_row
-                tmp_c = chart_anchor_col
-                ws.cell(row=tmp_r, column=tmp_c, value="X").font = header_font
-                for i, xl in enumerate(x_labels, start=1):
-                    ws.cell(row=tmp_r + i, column=tmp_c, value=str(xl))
-
-                for j, mol in enumerate(elements_to_plot, start=1):
-                    ws.cell(row=tmp_r, column=tmp_c + j, value=mol).font = header_font
-                    colname = f"Rel. Area (%) : {mol}"
-                    for i, v in enumerate(data_rows[colname], start=1):
-                        try:
-                            vv = float(v)
-                        except Exception:
-                            vv = None
-                        ws.cell(row=tmp_r + i, column=tmp_c + j, value=vv)
-
+                sys.stderr.write(f"DEBUG - Création du graphique optimisé avec {len(elements_to_plot)} éléments\n")
+                
+                # Créer le graphique en référençant directement les données existantes
                 lc = LineChart()
                 lc.title = "%mass gaz en fonction du temps"
-                lc.y_axis.title = "% Rel. Area"
+                lc.y_axis.title = "mass %"  # Changement du label
                 lc.x_axis.title = "Temps / Injection"
-
-                data_ref = Reference(
-                    ws,
-                    min_col=tmp_c + 1,
-                    max_col=tmp_c + len(elements_to_plot),
-                    min_row=tmp_r,
-                    max_row=tmp_r + len(data_rows)
-                )
+                
+                # Pour chaque élément, ajouter une série en référençant sa colonne
+                # Palette de couleurs distinctes pour les éléments chimiques
+                colors = ["1f77b4", "ff7f0e", "2ca02c", "d62728", "9467bd", "8c564b", 
+                        "e377c2", "7f7f7f", "bcbd22", "17becf", "aec7e8", "ffbb78",
+                        "98df8a", "ff9896", "c5b0d5", "c49c94", "f7b6d3", "c7c7c7",
+                        "dbdb8d", "9edae5", "393b79", "5254a3", "6b6ecf", "9c9ede"]
+                
+                for i, element in enumerate(elements_to_plot):
+                    colname = f"Rel. Area (%) : {element}"
+                    col_index = headers.index(colname) + 1  # +1 car Excel commence à 1
+                    
+                    # Référence des données pour cet élément (excluant ligne "Moyennes")
+                    data_ref = Reference(
+                        ws,
+                        min_col=col_index,
+                        max_col=col_index,
+                        min_row=start_row,  # En-tête
+                        max_row=start_row + rel_table_data_rows  # Exclut "Moyennes"
+                    )
+                    
+                    series = Series(data_ref, title=element)
+                    
+                    # Configuration pour avoir des points reliés par des lignes avec couleur distincte
+                    color = colors[i % len(colors)]  # Cycle through colors
+                    series.marker = Marker(symbol="circle", size=5)  # Points circulaires
+                    series.graphicalProperties.line.solidFill = color  # Couleur de la ligne
+                    series.marker.graphicalProperties.solidFill = color  # Couleur du marqueur
+                    series.smooth = False  # Lignes droites entre les points
+                    
+                    lc.series.append(series)
+                
+                # Référence des catégories (colonne Time ou Injection Name)
+                if "Injection Time" in headers:
+                    cats_col_index = headers.index("Injection Time") + 1
+                else:
+                    cats_col_index = headers.index("Injection Name") + 1
+                    
                 cats_ref = Reference(
                     ws,
-                    min_col=tmp_c,
-                    max_col=tmp_c,
-                    min_row=tmp_r + 1,
-                    max_row=tmp_r + len(data_rows)
+                    min_col=cats_col_index,
+                    max_col=cats_col_index,
+                    min_row=start_row + 1,  # Première ligne de données
+                    max_row=start_row + rel_table_data_rows
                 )
-                # openpyxl: titles_from_data -> l'entête de chaque série est en 1ère ligne
-                lc.add_data(data_ref, titles_from_data=True)
+                
                 lc.set_categories(cats_ref)
                 lc.height = 12
                 lc.width = 24
-                ws.add_chart(lc, f"I{chart_anchor_row}")
+                
+                ws.add_chart(lc, f"Q{chart_anchor_row}")
+                sys.stderr.write(f"DEBUG - Graphique optimisé ajouté sans duplication\n")
+                
+                chart_anchor_row += 20  # Décaler pour le prochain graphique
 
-                # décale l’ancrage pour le chart 2 s’il est demandé
-                chart_anchor_row = chart_anchor_row + 20
-
-        # ---- (F) Graphique 2 (Bar empilé) : Products repartition Gas phase ----
+        # ---- (F) Graphique 2 OPTIMISÉ (Bar empilé) : Products repartition Gas phase ----
         if want_bar:
-            ws.cell(row=chart_anchor_row - 2, column=9,
-                    value="Products repartition Gas phase").font = title_font
-
+            sys.stderr.write("DEBUG - Traçage du graphique bar optimisé\n")
+            
+            # Lignes de données à utiliser (exclut "Total")
             rows_for_bar = [c for c in ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8"] if c in table2.index]
+            
             if rows_for_bar:
-                br = chart_anchor_row
-                bc = 9
-                ws.cell(row=br, column=bc, value="Carbon").font = header_font
-                cols_bar = ["Linear", "Olefin", "BTX gas"]
-                for j, name in enumerate(cols_bar, start=1):
-                    ws.cell(row=br, column=bc + j, value=name).font = header_font
-
-                for i, car in enumerate(rows_for_bar, start=1):
-                    ws.cell(row=br + i, column=bc + 0, value=car)
-                    for j, name in enumerate(cols_bar, start=1):
-                        v = float(table2.loc[car, name]) if name in table2.columns else 0.0
-                        ws.cell(row=br + i, column=bc + j, value=v)
-
                 bar = BarChart()
                 bar.type = "col"
                 bar.grouping = "stacked"
                 bar.overlap = 100
-                data_ref = Reference(ws, min_col=bc + 1, max_col=bc + len(cols_bar),
-                                    min_row=br, max_row=br + len(rows_for_bar))
-                cats_ref = Reference(ws, min_col=bc, max_col=bc,
-                                    min_row=br + 1, max_row=br + len(rows_for_bar))
-                bar.add_data(data_ref, titles_from_data=True)
+                bar.title = "Products repartition Gas phase"
+                
+                # Colonnes de données dans le tableau pivot
+                cols_bar = ["Linear", "Olefin", "BTX gas"]
+                
+                # Pour chaque famille, créer une série référençant directement table2
+                for i, family in enumerate(cols_bar):
+                    if family in t2.columns:
+                        family_col_index = block2_col + 1 + list(t2.columns).index(family)
+                        
+                        # Référence des données pour cette famille (lignes C1-C8 seulement)
+                        data_ref = Reference(
+                            ws,
+                            min_col=family_col_index,
+                            max_col=family_col_index,
+                            min_row=block2_start_row + 2,  # Première ligne de données
+                            max_row=block2_start_row + 2 + len(rows_for_bar) - 1  # Dernière ligne avant "Total"
+                        )
+                        
+                        series = Series(data_ref, title=family)
+                        bar.series.append(series)
+                
+                # Référence des catégories (colonnes Carbon : C1, C2, etc.)
+                cats_ref = Reference(
+                    ws,
+                    min_col=block2_col,
+                    max_col=block2_col,
+                    min_row=block2_start_row + 2,
+                    max_row=block2_start_row + 2 + len(rows_for_bar) - 1
+                )
+                
                 bar.set_categories(cats_ref)
                 bar.height = 14
                 bar.width = 24
-                ws.add_chart(bar, f"I{chart_anchor_row}")
+                
+                ws.add_chart(bar, f"Q{chart_anchor_row}")
+                sys.stderr.write(f"DEBUG - Graphique bar optimisé ajouté sans duplication\n")
 
         # ---- Finitions ----
         ws.freeze_panes = "A3"
+        sys.stderr.flush()
         return wb
-
-
-
 
 # Exemple d'utilisation
 if __name__ == "__main__":
