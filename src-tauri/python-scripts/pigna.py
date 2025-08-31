@@ -3,6 +3,7 @@ import sys
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.chart import LineChart, Reference
+from openpyxl.styles import Font, Border, Side
 
 from utils.pigna_constants import (
     TIME,
@@ -155,21 +156,48 @@ class PignaData:
     def generate_workbook_with_charts(self,
         wb: Workbook,
         metrics_wanted: list[str],
-        sheet_name="Pignat"
+        sheet_name: str = "Pignat"
     ) -> Workbook:
-        for metric in metrics_wanted:
+        # Création d'une seule feuille
+        ws = wb.create_sheet(title=sheet_name)
+        
+        # Styles pour le formatage
+        header_font = Font(bold=True)
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin')
+        )
+        
+        current_col = 1  # Position de colonne actuelle
+        
+        for i, metric in enumerate(metrics_wanted):
             try:
                 metric_data = self.get_json_metrics(metric)
                 df = metric_data['data']
-                # Création d'une feuille de données
-                ws = wb.create_sheet(title=sheet_name)
-                ws.append(df.columns.tolist())
-                for row in df.itertuples(index=False):
-                    ws.append(list(row))
-
-                # Configuration du graphique
+                
+                # === PLACEMENT DES DONNÉES ===
+                # Titre de la métrique (sans caractères spéciaux qui causent Err:509)
+                title = metric_data['name'].replace('=', '-')  # Éviter les erreurs de formule
+                title_cell = ws.cell(row=1, column=current_col, value=title)
+                title_cell.font = header_font
+                
+                # En-têtes des colonnes avec formatage
+                for j, col_name in enumerate(df.columns):
+                    header_cell = ws.cell(row=2, column=current_col + j, value=col_name)
+                    header_cell.font = header_font
+                    header_cell.border = thin_border
+                
+                # Données avec bordures
+                for row_idx, row_data in enumerate(df.itertuples(index=False)):
+                    for col_idx, value in enumerate(row_data):
+                        data_cell = ws.cell(row=3 + row_idx, column=current_col + col_idx, value=value)
+                        data_cell.border = thin_border
+                
+                # === CRÉATION DU GRAPHIQUE ===
                 chart = LineChart()
-                chart.title = metric_data['name']
+                chart.title = title  # Utiliser le titre corrigé
                 chart.style = 13
                 chart.y_axis.title = (
                     ', '.join(metric_data['y_axis'])
@@ -177,25 +205,49 @@ class PignaData:
                     else metric_data['y_axis'][0]
                 )
                 chart.x_axis.title = metric_data['x_axis']
-
-                max_row = ws.max_row
-                # Séries de données (colonnes 2…n)
+                
+                max_row = 2 + len(df)
+                
+                # Référence des données (colonnes 2…n de ce bloc)
                 data_ref = Reference(ws,
-                                     min_col=2,
-                                     min_row=1,
-                                     max_col=1 + len(metric_data['y_axis']),
-                                     max_row=max_row)
+                                    min_col=current_col + 1,
+                                    min_row=2,
+                                    max_col=current_col + len(metric_data['y_axis']),
+                                    max_row=max_row)
                 chart.add_data(data_ref, titles_from_data=True)
-                # Axe des abscisses (catégories)
-                cats = Reference(ws, min_col=1, min_row=2, max_row=max_row)
+                
+                # Référence des catégories (colonne 1 de ce bloc)
+                cats = Reference(ws, 
+                                min_col=current_col, 
+                                min_row=3, 
+                                max_row=max_row)
                 chart.set_categories(cats)
-
-                # Insertion du graphique
-                insert_col = chr(65 + df.shape[1] + 1)
-                ws.add_chart(chart, f"{insert_col}2")
-
+                
+                # === PLACEMENT DU GRAPHIQUE À DROITE DES DONNÉES ===
+                # Position du graphique : à droite des colonnes de données + 1 colonne d'espacement
+                chart_col = current_col + len(df.columns) + 1
+                
+                # Gestion des colonnes au-delà de Z (AA, AB, AC...)
+                if chart_col <= 26:
+                    chart_col_letter = chr(64 + chart_col)  # A-Z
+                else:
+                    first_letter = chr(64 + ((chart_col - 1) // 26))
+                    second_letter = chr(65 + ((chart_col - 1) % 26))
+                    chart_col_letter = first_letter + second_letter
+                    
+                ws.add_chart(chart, f"{chart_col_letter}2")  # Ligne 2 pour aligner avec les données
+                
+                # === MISE À JOUR DE LA POSITION POUR LE PROCHAIN MÉTRIQUE ===
+                # Calculer la largeur totale utilisée : données + graphique + espacement
+                data_width = len(df.columns)
+                chart_width = 15  # Largeur standard d'un graphique Excel
+                spacing = 3       # Espacement entre les blocs
+                
+                current_col += data_width + chart_width + spacing
+                
             except Exception as e:
-                print(
-                    f"Erreur traitement métrique '{metric}': {e}", file=sys.stderr)
-
+                print(f"Erreur traitement métrique '{metric}': {e}", file=sys.stderr)
+                # En cas d'erreur, on passe au prochain métrique en décalant quand même les colonnes
+                current_col += 20  # Décalage pour éviter les chevauchements
+        
         return wb
