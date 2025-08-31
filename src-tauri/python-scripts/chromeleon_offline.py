@@ -292,7 +292,7 @@ class ChromeleonOffline:
         c.font = title_font
         c.alignment = Alignment(horizontal="left", vertical="center")
 
-        # Ligne d’entêtes
+        # Ligne d'entêtes
         hr = start_row + 1
         sr = start_row + 2
         for i, h in enumerate(headers):
@@ -323,7 +323,7 @@ class ChromeleonOffline:
                 rt = None
             ws.cell(row=r, column=start_col + 2,
                     value=rt).number_format = "0.000"
-            # Relative Area -> % (valeur déjà en % “plein”, pas 0-1)
+            # Relative Area -> % (valeur déjà en % "plein", pas 0-1)
             try:
                 ra = float(str(row["Relative Area"]).replace(",", "."))
             except Exception:
@@ -335,8 +335,8 @@ class ChromeleonOffline:
                 ws.cell(row=r, column=start_col + i).border = border
             r += 1
 
-        # Ajuste les largeurs
-        widths = [5, 22, 10, 12]
+        # MODIFICATION: Largeurs augmentées pour éviter les colonnes coupées
+        widths = [9, 35, 17, 19]  # Augmenté de [5,22,10,12] vers [6,28,14,16]
         for i, w in enumerate(widths):
             ws.column_dimensions[get_column_letter(start_col + i)].width = w
 
@@ -349,18 +349,6 @@ class ChromeleonOffline:
         start_row: int,
         data: Optional[Dict[str, Any]] = None
     ) -> Tuple[int, int]:
-        """
-        Écrit le bloc 'Bilan matière' (si data est fournie).
-        data attendu (clé libres, on formate simplement) :
-          {
-            "Masse recette 1 (kg)": 1.21,
-            "Masse recette 2 (kg)": 1.04,
-            "Masse cendrier (kg)": 0.59,
-            "Masse injectée (kg)": 8,
-            "wt% R1/R2": [0.54, 0.46],
-            "Rendement (massique)": {"Liquide (%)": 28.13, "Gaz (%)": 64.50, "Residue (%)": 7.38}
-          }
-        """
         title_font = Font(bold=True, size=12)
         header_font = Font(bold=True)
         gray_fill = PatternFill("solid", fgColor="DDDDDD")
@@ -371,7 +359,7 @@ class ChromeleonOffline:
         border = Border(left=thin, right=thin, top=thin, bottom=thin)
 
         if not data:
-            # Écrire seulement un titre placeholder pour réserver l’espace
+            # Écrire seulement un titre placeholder pour réserver l'espace
             ws.cell(row=start_row, column=start_col,
                     value="Bilan matière").font = title_font
             return start_row, start_col + 3
@@ -381,7 +369,7 @@ class ChromeleonOffline:
                 value="Bilan matière").font = title_font
 
         r = start_row + 2
-        # Ligne “wt% R1/R2”
+        # Ligne "wt% R1/R2"
         ws.cell(row=r, column=start_col, value="wt% R1/R2").font = header_font
         vals = data.get("wt% R1/R2")
         if isinstance(vals, (list, tuple)) and len(vals) >= 2:
@@ -415,16 +403,16 @@ class ChromeleonOffline:
                             value=float(rend[k])).number_format = "0.00"
                     r += 1
 
-        # Bordures “light” autour de la zone
+        # Bordures "light" autour de la zone
         max_c = start_col + 3
         for rr in range(start_row, r):
             for cc in range(start_col, max_c + 1):
                 ws.cell(row=rr, column=cc).border = border
 
-        # Largeurs
-        ws.column_dimensions[get_column_letter(start_col)].width = 20
-        ws.column_dimensions[get_column_letter(start_col + 1)].width = 10
-        ws.column_dimensions[get_column_letter(start_col + 2)].width = 10
+        # MODIFICATION: Largeurs augmentées pour les libellés longs
+        ws.column_dimensions[get_column_letter(start_col)].width = 29     # Au lieu de 20
+        ws.column_dimensions[get_column_letter(start_col + 1)].width = 22  # Au lieu de 10 
+        ws.column_dimensions[get_column_letter(start_col + 2)].width = 15  # Au lieu de 10
         return r - 1, max_c
 
     @staticmethod
@@ -534,15 +522,16 @@ class ChromeleonOffline:
                         c.border = border
                     r += 1
 
-                widths = [6, 8, 8, 8, 10]
+                # MODIFICATION: Largeurs augmentées pour éviter les colonnes coupées
+                widths = [10, 13, 13, 11, 15]  # Augmenté de [6,8,8,8,10] vers [8,10,10,8,12]
                 for i, w in enumerate(widths):
                     ws.column_dimensions[get_column_letter(
                         anchor_col + i)].width = w
                 return r
 
             _ = write_summary(tables["R1"], anchor_col=1,  title="R1")
-            _ = write_summary(tables["R2"], anchor_col=8,  title="R2")
-            _ = write_summary(tables["Moyenne"], anchor_col=15, title="Moyenne")
+            _ = write_summary(tables["R2"], anchor_col=9,  title="R2")  # Décalé pour la nouvelle largeur
+            _ = write_summary(tables["Moyenne"], anchor_col=18, title="Moyenne")  # Décalé pour la nouvelle largeur
 
             ws.freeze_panes = "A4"
             return wb
