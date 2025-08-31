@@ -13,7 +13,7 @@ struct CommandOutput {
 #[derive(Debug, Serialize, Deserialize)]
 struct MetricSelected {
     name: String,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty", rename = "chimicalElementSelected")]
     chimical_element_selected: Vec<String>,
 }
 
@@ -96,6 +96,9 @@ fn run_python(app: &AppHandle, args: &[&str]) -> Result<CommandOutput, String> {
     }
     if stdout.trim().is_empty() && !stderr.trim().is_empty() {
         return Err(stderr);
+    }
+    if !stderr.trim().is_empty() {
+        eprintln!("Python debug: {}", stderr);  // Affiche les logs de debug
     }
     Ok(CommandOutput { stdout, stderr })
 }
