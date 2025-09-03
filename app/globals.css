@@ -11,109 +11,109 @@
 
 /* 3. Variables CSS */
 :root {
-  /* Couleurs principales */
-  --primary: 67, 99%, 57%;
-  --primary-foreground: 330, 7%, 17%;
-  --secondary: 211, 100%, 57%;
-  --secondary-foreground: 0, 0%, 100%;
+  /* Couleurs principales - FORMAT HSL COMPLET */
+  --primary: hsl(67, 99%, 57%);
+  --primary-foreground: hsl(330, 7%, 17%);
+  --secondary: hsl(211, 100%, 57%);
+  --secondary-foreground: hsl(0, 0%, 100%);
 
   /* Fond et texte */
-  --background: 60, 11%, 96%;
-  --foreground: 330, 7%, 17%;
+  --background: hsl(60, 11%, 96%);
+  --foreground: hsl(330, 7%, 17%);
 
   /* Zone de fichier */
-  --filezone: 0, 0%, 93%;
+  --filezone: hsl(0, 0%, 93%);
 
   /* Radius global */
   --radius: 0.625rem;
 
   /* Cartes & popovers */
-  --card: 0, 0%, 100%;
-  --card-foreground: 0, 0%, 14.5%;
-  --popover: 0, 0%, 100%;
-  --popover-foreground: 0, 0%, 14.5%;
+  --card: hsl(0, 0%, 100%);
+  --card-foreground: hsl(0, 0%, 14.5%);
+  --popover: hsl(0, 0%, 100%);
+  --popover-foreground: hsl(0, 0%, 14.5%);
 
   /* Muted & accent */
-  --muted: 0, 0%, 85%;
-  --muted-foreground: 0, 0%, 55.6%;
-  --accent: 0, 0%, 97%;
-  --accent-foreground: 0, 0%, 20.5%;
+  --muted: hsl(0, 0%, 85%);
+  --muted-foreground: hsl(0, 0%, 55.6%);
+  --accent: hsl(0, 0%, 97%);
+  --accent-foreground: hsl(0, 0%, 20.5%);
 
   /* Destructive */
-  --destructive: 0, 84%, 60%;
-  --destructive-foreground: 0, 0%, 98%;
+  --destructive: hsl(0, 84%, 60%);
+  --destructive-foreground: hsl(0, 0%, 98%);
 
   /* Bordure, input, ring */
-  --border: 0, 0%, 92.2%;
-  --input: 0, 0%, 92.2%;
-  --ring: 0, 0%, 70.8%;
+  --border: hsl(0, 0%, 92.2%);
+  --input: hsl(0, 0%, 92.2%);
+  --ring: hsl(0, 0%, 70.8%);
 
   /* Charts */
-  --chart-1: 41, 65%, 64.6%;
-  --chart-2: 185, 30%, 60%;
-  --chart-3: 227, 14%, 39.8%;
-  --chart-4: 84, 47%, 82.8%;
-  --chart-5: 70, 47%, 76.9%;
+  --chart-1: hsl(41, 65%, 64.6%);
+  --chart-2: hsl(185, 30%, 60%);
+  --chart-3: hsl(227, 14%, 39.8%);
+  --chart-4: hsl(84, 47%, 82.8%);
+  --chart-5: hsl(70, 47%, 76.9%);
 
   /* Sidebar */
-  --sidebar: 0, 0%, 98.5%;
-  --sidebar-foreground: 0, 0%, 14.5%;
-  --sidebar-primary: 0, 0%, 20.5%;
-  --sidebar-primary-foreground: 0, 0%, 98.5%;
-  --sidebar-accent: 0, 0%, 97%;
-  --sidebar-accent-foreground: 0, 0%, 20.5%;
-  --sidebar-border: 0, 0%, 92.2%;
-  --sidebar-ring: 0, 0%, 70.8%;
+  --sidebar: hsl(0, 0%, 98.5%);
+  --sidebar-foreground: hsl(0, 0%, 14.5%);
+  --sidebar-primary: hsl(0, 0%, 20.5%);
+  --sidebar-primary-foreground: hsl(0, 0%, 98.5%);
+  --sidebar-accent: hsl(0, 0%, 97%);
+  --sidebar-accent-foreground: hsl(0, 0%, 20.5%);
+  --sidebar-border: hsl(0, 0%, 92.2%);
+  --sidebar-ring: hsl(0, 0%, 70.8%);
 }
 
 /* 4. Mode sombre */
 .dark {
-  --background: 0, 0%, 14.5%;
-  --foreground: 0, 0%, 98.5%;
-  --card: 0, 0%, 20.5%;
-  --card-foreground: 0, 0%, 98.5%;
-  --popover: 0, 0%, 20.5%;
-  --popover-foreground: 0, 0%, 98.5%;
+  --background: hsl(0, 0%, 14.5%);
+  --foreground: hsl(0, 0%, 98.5%);
+  --card: hsl(0, 0%, 20.5%);
+  --card-foreground: hsl(0, 0%, 98.5%);
+  --popover: hsl(0, 0%, 20.5%);
+  --popover-foreground: hsl(0, 0%, 98.5%);
   
   /* COULEURS PRIMAIRES ET SECONDAIRES CONSERVÉES EN MODE SOMBRE */
-  --primary: 67, 99%, 57%;           /* Jaune conservé */
-  --primary-foreground: 330, 7%, 17%;
-  --secondary: 211, 100%, 57%;       /* Bleu conservé */
-  --secondary-foreground: 0, 0%, 100%;
+  --primary: hsl(67, 99%, 57%);           /* Jaune conservé */
+  --primary-foreground: hsl(330, 7%, 17%);
+  --secondary: hsl(211, 100%, 57%);       /* Bleu conservé */
+  --secondary-foreground: hsl(0, 0%, 100%);
   
-  --muted: 0, 0%, 26.9%;
-  --muted-foreground: 0, 0%, 70.8%;
-  --accent: 0, 0%, 26.9%;
-  --accent-foreground: 0, 0%, 98.5%;
-  --destructive: 0, 62%, 30%;
-  --destructive-foreground: 0, 85%, 97%;
-  --border: 0, 0%, 10%;
-  --input: 0, 0%, 15%;
-  --ring: 0, 0%, 55.6%;
-  --chart-1: 264, 49%, 48.8%;
-  --chart-2: 162, 34%, 69.6%;
-  --chart-3: 70, 47%, 76.9%;
-  --chart-4: 304, 53%, 62.7%;
-  --chart-5: 16, 49%, 64.5%;
-  --sidebar: 0, 0%, 20.5%;
-  --sidebar-foreground: 0, 0%, 98.5%;
-  --sidebar-primary: 264, 49%, 48.8%;
-  --sidebar-primary-foreground: 0, 0%, 98.5%;
-  --sidebar-accent: 0, 0%, 26.9%;
-  --sidebar-accent-foreground: 0, 0%, 98.5%;
-  --sidebar-border: 0, 0%, 10%;
-  --sidebar-ring: 0, 0%, 55.6%;
+  --muted: hsl(0, 0%, 26.9%);
+  --muted-foreground: hsl(0, 0%, 70.8%);
+  --accent: hsl(0, 0%, 26.9%);
+  --accent-foreground: hsl(0, 0%, 98.5%);
+  --destructive: hsl(0, 62%, 30%);
+  --destructive-foreground: hsl(0, 85%, 97%);
+  --border: hsl(0, 0%, 10%);
+  --input: hsl(0, 0%, 15%);
+  --ring: hsl(0, 0%, 55.6%);
+  --chart-1: hsl(264, 49%, 48.8%);
+  --chart-2: hsl(162, 34%, 69.6%);
+  --chart-3: hsl(70, 47%, 76.9%);
+  --chart-4: hsl(304, 53%, 62.7%);
+  --chart-5: hsl(16, 49%, 64.5%);
+  --sidebar: hsl(0, 0%, 20.5%);
+  --sidebar-foreground: hsl(0, 0%, 98.5%);
+  --sidebar-primary: hsl(264, 49%, 48.8%);
+  --sidebar-primary-foreground: hsl(0, 0%, 98.5%);
+  --sidebar-accent: hsl(0, 0%, 26.9%);
+  --sidebar-accent-foreground: hsl(0, 0%, 98.5%);
+  --sidebar-border: hsl(0, 0%, 10%);
+  --sidebar-ring: hsl(0, 0%, 55.6%);
 }
 
 /* 5. Styles de base */
 @layer base {
   * {
-    border-color: hsl(var(--border));
+    border-color: var(--border);
   }
   
   body {
-    background-color: hsl(var(--background));
-    color: hsl(var(--foreground));
+    background-color: var(--background);
+    color: var(--foreground);
     font-family: "Poppins", sans-serif;
     margin: 0;
     padding: 0;
