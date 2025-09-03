@@ -21,6 +21,7 @@ struct MetricSelected {
 struct SelectedMetricsBySensor {
     chromeleon_offline: Vec<String>,
     chromeleon_online: Vec<MetricSelected>,
+    chromeleon_online_permanent_gas: Vec<MetricSelected>,
     pigna: Vec<String>,
 }
 

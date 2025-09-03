@@ -11,18 +11,21 @@ from context import ExcelContextData
 from pigna import PignaData
 from chromeleon_online import ChromeleonOnline
 from chromeleon_offline import ChromeleonOffline
+from chromeleon_online_permanent import ChromeleonOnlinePermanent
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', line_buffering=True)
 
 CHROMELEON_ONLINE = "chromeleon_online"
 CHROMELEON_OFFLINE = "chromeleon_offline"
+CHROMELEON_ONLINE_PERMANENT_GAS = "chromeleon_online_permanent_gas"
 PIGNA = "pigna"
 CONTEXT = "context"
 
 dataFromMetricsSensor = {
     CHROMELEON_ONLINE:  [],
     CHROMELEON_OFFLINE: [],
+    CHROMELEON_ONLINE_PERMANENT_GAS: [],
     PIGNA:              [],
 }
 
@@ -33,6 +36,7 @@ def getDirectories(dir_path):
         PIGNA:              f"{dir_path}/pigna/pigna",
         CHROMELEON_ONLINE:  f"{dir_path}/chromeleon/online",
         CHROMELEON_OFFLINE: f"{dir_path}/chromeleon/offline",
+        CHROMELEON_ONLINE_PERMANENT_GAS: f"{dir_path}/chromeleon_online_permanent_gas/chromeleon_online_permanent_gas",
     }
 
 
@@ -84,6 +88,7 @@ def get_graphs_available(dir_path):
         PIGNA:              [],
         CHROMELEON_ONLINE:  [],
         CHROMELEON_OFFLINE: [],
+        CHROMELEON_ONLINE_PERMANENT_GAS: [],
     }
     directories = getDirectories(dir_path)
 
@@ -103,6 +108,11 @@ def get_graphs_available(dir_path):
         chromeleon_offline_data = ChromeleonOffline(chromeleon_offline_dir)
         metrics_available[CHROMELEON_OFFLINE] = chromeleon_offline_data.get_graphs_available(
         )
+
+    chromeleon_online_permanent_gas_dir = directories[CHROMELEON_ONLINE_PERMANENT_GAS]
+    if os.path.exists(chromeleon_online_permanent_gas_dir):
+        chromeleon_online_permanent_gas_data = ChromeleonOnlinePermanent(chromeleon_online_permanent_gas_dir)
+        metrics_available[CHROMELEON_ONLINE_PERMANENT_GAS] = chromeleon_online_permanent_gas_data.get_graphs_available()
 
     return metrics_available
 
@@ -137,6 +147,12 @@ def save_to_excel_with_charts(
             metrics_wanted[CHROMELEON_OFFLINE],
             masses
         )
+
+    if metrics_wanted.get(CHROMELEON_ONLINE_PERMANENT_GAS):
+        chromo_online_permanent_gas_dir = getDirectories(dir_root)[CHROMELEON_ONLINE_PERMANENT_GAS]
+        wb = ChromeleonOnlinePermanent(chromo_online_permanent_gas_dir) \
+            .generate_workbook_with_charts(wb, metrics_wanted[CHROMELEON_ONLINE_PERMANENT_GAS])
+
     return wb
 
 

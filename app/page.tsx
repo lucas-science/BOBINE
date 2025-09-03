@@ -10,7 +10,7 @@ import { checkContext, getDocumentsDir } from "@/src/lib/utils/invoke.utils";
 import BackButton from "./components/backButton";
 import NextButton from "./components/nextButton";
 import LoaderOverlay from "@/app/components/LoaderOverlay";
-import ErrorAlert from "@/app/components/ErrorAlert"; // Ajustez le path selon votre structure
+import ErrorAlert from "@/app/components/ErrorAlert";
 
 export default function UploadPage() {
   const router = useRouter();
@@ -103,6 +103,16 @@ export default function UploadPage() {
     setError(null);
   };
 
+  const getZoneDisplayName = (zoneKey: string) => {
+    const zoneNames: Record<string, string> = {
+      context: "Context",
+      pigna: "Pigna", 
+      chromeleon: "Chromeleon",
+      chromeleon_online_permanent_gas: "Chromeleon online Permanent Gas"
+    };
+    return zoneNames[zoneKey] || zoneKey.charAt(0).toUpperCase() + zoneKey.slice(1);
+  };
+
   return (
     <div className="min-h-screen">
       <div className="max-w-6xl mx-auto pb-24">
@@ -119,7 +129,7 @@ export default function UploadPage() {
           {Object.keys(FILE_ZONE).map((zoneKey) => (
             <FileUploadCard
               key={zoneKey}
-              title={zoneKey.charAt(0).toUpperCase() + zoneKey.slice(1)}
+              title={getZoneDisplayName(zoneKey)}
               zoneKey={zoneKey as keyof typeof FILE_ZONE}
               onFilesChange={handleFilesChange}
             />

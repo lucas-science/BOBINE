@@ -12,6 +12,9 @@ export type ChromeleonOfflineMetric = Metric;
 export type ChromeleonOnlineMetric = Metric & {
   chimicalElements?: string[];
 };
+export type ChromeleonOnlinePermanentMetric = Metric & {
+  chimicalElements?: string[];
+};
 export type PignaMetric = Metric & {
   columns: string[];
 };
@@ -19,6 +22,7 @@ export type PignaMetric = Metric & {
 export interface MetricsBySensor {
   chromeleon_offline: ChromeleonOfflineMetric[];
   chromeleon_online: ChromeleonOnlineMetric[];
+  chromeleon_online_permanent_gas: ChromeleonOnlinePermanentMetric[];
   pigna: PignaMetric[];
 }
 
@@ -31,5 +35,6 @@ export type MetricSelected = {
 export interface SelectedMetricsBySensor {
   chromeleon_offline: string[];
   chromeleon_online: MetricSelected[];
+  chromeleon_online_permanent_gas: MetricSelected[];
   pigna: string[];
 }

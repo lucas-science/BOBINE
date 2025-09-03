@@ -7,6 +7,7 @@ import {
   SelectedMetricsBySensor,
   ChromeleonOfflineMetric,
   ChromeleonOnlineMetric,
+  ChromeleonOnlinePermanentMetric,
   PignaMetric,
 } from "@/src/lib/utils/type";
 import { MetricsSection } from "./MetricsSection";
@@ -29,8 +30,8 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
   const [onlineElements, setOnlineElements] = useState<Record<string, string[]>>({});
 
   const getSensorDisplayName = (k: string) =>
-    ({ chromeleon_offline: "Chromeleon Offline", chromeleon_online: "Chromeleon Online", pigna: "Pigna" } as const)[
-      k as "chromeleon_offline" | "chromeleon_online" | "pigna"
+    ({ chromeleon_offline: "Chromeleon Offline", chromeleon_online: "Chromeleon Online", chromeleon_online_permanent_gas: "Chromeleon online Permanent Gas", pigna: "Pigna" } as const)[
+      k as "chromeleon_offline" | "chromeleon_online" | "chromeleon_online_permanent_gas" | "pigna"
     ] ?? k;
 
   // ---- construit SelectedMetricsBySensor à partir d’états fournis ----
@@ -41,6 +42,7 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
     const out: SelectedMetricsBySensor = {
       chromeleon_offline: [],
       chromeleon_online: [],
+      chromeleon_online_permanent_gas: [],
       pigna: [],
     };
 
@@ -57,9 +59,19 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
       } else if (sensorType === "chromeleon_online") {
         const m = data.chromeleon_online?.[i] as ChromeleonOnlineMetric | undefined;
         if (m) {
-          // 👉 si la métrique n’a PAS de chimicalElements, on renvoie un tableau vide
+          // 👉 si la métrique n'a PAS de chimicalElements, on renvoie un tableau vide
           const hasElements = Array.isArray(m.chimicalElements) && m.chimicalElements.length > 0;
           out.chromeleon_online.push({
+            name: m.name,
+            chimicalElementSelected: hasElements ? (onlineMap[key] ?? []) : [],
+          });
+        }
+      } else if (sensorType === "chromeleon_online_permanent_gas") {
+        const m = data.chromeleon_online_permanent_gas?.[i] as ChromeleonOnlinePermanentMetric | undefined;
+        if (m) {
+          // 👉 si la métrique n'a PAS de chimicalElements, on renvoie un tableau vide
+          const hasElements = Array.isArray(m.chimicalElements) && m.chimicalElements.length > 0;
+          out.chromeleon_online_permanent_gas.push({
             name: m.name,
             chimicalElementSelected: hasElements ? (onlineMap[key] ?? []) : [],
           });
@@ -143,6 +155,49 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
             }
 
             // 🟨 métrique online AVEC éléments chimiques -> combobox + badges
+            const chosen = onlineElements[metricKey] ?? [];
+            return (
+              <ChromeleonOnlineItem
+                key={metricKey}
+                metricKey={metricKey}
+                name={metric.name}
+                available={metric.available}
+                selected={isSelected}
+                chimicalElements={metric.chimicalElements ?? []}
+                chosenElements={chosen}
+                onToggle={() => handleMetricToggle(metricKey, metric.available)}
+                onAddElement={(v: string) => addOnlineElement(metricKey, v)}
+                onRemoveElement={(v: string) => removeOnlineElement(metricKey, v)}
+              />
+            );
+          })}
+        </MetricsSection>
+      </Card>
+
+      {/* Chromeleon Online Permanent Gas */}
+      <Card className="shadow-sm">
+        <MetricsSection title={getSensorDisplayName("chromeleon_online_permanent_gas")}>
+          {data.chromeleon_online_permanent_gas.map((metric, index) => {
+            const metricKey = `chromeleon_online_permanent_gas-${index}`;
+            const isSelected = selectedMetrics.has(metricKey);
+            const hasElements =
+              Array.isArray(metric.chimicalElements) && metric.chimicalElements.length > 0;
+
+            if (!hasElements) {
+              // 🟦 métrique online permanent gas SANS éléments chimiques -> item simple
+              return (
+                <MetricItem
+                  key={metricKey}
+                  metricKey={metricKey}
+                  name={metric.name}
+                  available={metric.available}
+                  selected={isSelected}
+                  onToggle={() => handleMetricToggle(metricKey, metric.available)}
+                />
+              );
+            }
+
+            // 🟨 métrique online permanent gas AVEC éléments chimiques -> combobox + badges
             const chosen = onlineElements[metricKey] ?? [];
             return (
               <ChromeleonOnlineItem
