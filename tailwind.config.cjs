@@ -54,5 +54,14 @@ module.exports = {
       },
     },
   },
-  plugins: [],
+  plugins: [
+    // Plugin pour ajouter les utilitaires manquants
+    function({ addUtilities }) {
+      addUtilities({
+        '.border-border': {
+          'border-color': 'hsl(var(--border))',
+        },
+      })
+    }
+  ],
 };
