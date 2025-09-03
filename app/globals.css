@@ -1,7 +1,8 @@
 /* globals.css */
 
 /* 1. Import des polices */
-@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;display=swap");
+@import "tailwindcss";
 
 /* 2. Directives Tailwind */
 @tailwind base;
@@ -53,6 +54,16 @@
   --chart-3: 227 14% 39.8%;
   --chart-4: 84 47% 82.8%;
   --chart-5: 70 47% 76.9%;
+
+  /* Sidebar */
+  --sidebar: 0 0% 98.5%;
+  --sidebar-foreground: 0 0% 14.5%;
+  --sidebar-primary: 0 0% 20.5%;
+  --sidebar-primary-foreground: 0 0% 98.5%;
+  --sidebar-accent: 0 0% 97%;
+  --sidebar-accent-foreground: 0 0% 20.5%;
+  --sidebar-border: 0 0% 92.2%;
+  --sidebar-ring: 0 0% 70.8%;
 }
 
 /* 4. Mode sombre */
@@ -81,21 +92,27 @@
   --chart-3: 70 47% 76.9%;
   --chart-4: 304 53% 62.7%;
   --chart-5: 16 49% 64.5%;
+  --sidebar: 0 0% 20.5%;
+  --sidebar-foreground: 0 0% 98.5%;
+  --sidebar-primary: 264 49% 48.8%;
+  --sidebar-primary-foreground: 0 0% 98.5%;
+  --sidebar-accent: 0 0% 26.9%;
+  --sidebar-accent-foreground: 0 0% 98.5%;
+  --sidebar-border: 0 0% 10%;
+  --sidebar-ring: 0 0% 55.6%;
 }
 
 /* 5. Styles de base */
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--border));
   }
   
   body {
-    @apply bg-background text-foreground;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
     font-family: "Poppins", sans-serif;
     margin: 0;
     padding: 0;
   }
 }
-
-/* 6. Utilitaires personnalisés - SUPPRIMÉS car redondants */
-/* Ces classes sont maintenant générées automatiquement par Tailwind */

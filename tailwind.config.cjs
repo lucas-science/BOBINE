@@ -8,7 +8,6 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        // Utilisation des variables CSS définies dans globals.css
         primary: {
           DEFAULT: 'hsl(var(--primary))',
           foreground: 'hsl(var(--primary-foreground))',
@@ -20,12 +19,9 @@ module.exports = {
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         filezone: 'hsl(var(--filezone))',
-        
-        // Ajout des variables manquantes pour border, card, etc.
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
-        
         card: {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
@@ -54,14 +50,5 @@ module.exports = {
       },
     },
   },
-  plugins: [
-    // Plugin pour ajouter les utilitaires manquants
-    function({ addUtilities }) {
-      addUtilities({
-        '.border-border': {
-          'border-color': 'hsl(var(--border))',
-        },
-      })
-    }
-  ],
+  plugins: [],
 };
