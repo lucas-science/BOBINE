@@ -8,7 +8,8 @@ import {
   ChromeleonOfflineMetric,
   ChromeleonOnlineMetric,
   ChromeleonOnlinePermanentMetric,
-  PignaMetric,
+  PignatMetric,
+  ResumeMetric,
 } from "@/src/lib/utils/type";
 import { MetricsSection } from "./MetricsSection";
 import { MetricItem } from "./MetricItem";
@@ -30,8 +31,8 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
   const [onlineElements, setOnlineElements] = useState<Record<string, string[]>>({});
 
   const getSensorDisplayName = (k: string) =>
-    ({ chromeleon_offline: "Chromeleon Offline", chromeleon_online: "Chromeleon Online", chromeleon_online_permanent_gas: "Chromeleon online Permanent Gas", pigna: "Pigna" } as const)[
-      k as "chromeleon_offline" | "chromeleon_online" | "chromeleon_online_permanent_gas" | "pigna"
+    ({ chromeleon_offline: "Chromeleon Offline", chromeleon_online: "Chromeleon Online", chromeleon_online_permanent_gas: "Chromeleon online Permanent Gas", pignat: "Pignat", resume: "Resume" } as const)[
+      k as "chromeleon_offline" | "chromeleon_online" | "chromeleon_online_permanent_gas" | "pignat" | "resume"
     ] ?? k;
 
   // ---- construit SelectedMetricsBySensor à partir d’états fournis ----
@@ -43,7 +44,8 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
       chromeleon_offline: [],
       chromeleon_online: [],
       chromeleon_online_permanent_gas: [],
-      pigna: [],
+      pignat: [],
+      resume: [],
     };
 
     keys.forEach((key) => {
@@ -53,9 +55,12 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
       if (sensorType === "chromeleon_offline") {
         const m = data.chromeleon_offline?.[i] as ChromeleonOfflineMetric | undefined;
         if (m) out.chromeleon_offline.push(m.name);
-      } else if (sensorType === "pigna") {
-        const m = data.pigna?.[i] as PignaMetric | undefined;
-        if (m) out.pigna.push(m.name);
+      } else if (sensorType === "pignat") {
+        const m = data.pignat?.[i] as PignatMetric | undefined;
+        if (m) out.pignat.push(m.name);
+      } else if (sensorType === "resume") {
+        const m = data.resume?.[i] as ResumeMetric | undefined;
+        if (m) out.resume.push(m.name);
       } else if (sensorType === "chromeleon_online") {
         const m = data.chromeleon_online?.[i] as ChromeleonOnlineMetric | undefined;
         if (m) {
@@ -217,11 +222,11 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
         </MetricsSection>
       </Card>
 
-      {/* Pigna */}
+      {/* Pignat */}
       <Card className="shadow-sm">
-        <MetricsSection title={getSensorDisplayName("pigna")}>
-          {data.pigna.map((metric, index) => {
-            const metricKey = `pigna-${index}`;
+        <MetricsSection title={getSensorDisplayName("pignat")}>
+          {data.pignat.map((metric, index) => {
+            const metricKey = `pignat-${index}`;
             const isSelected = selectedMetrics.has(metricKey);
             return (
               <MetricItem
@@ -234,6 +239,26 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
                 subText={
                   metric.columns?.length ? `Colonnes: ${metric.columns.join(", ")}` : undefined
                 }
+              />
+            );
+          })}
+        </MetricsSection>
+      </Card>
+
+      {/* Resume */}
+      <Card className="shadow-sm">
+        <MetricsSection title={getSensorDisplayName("resume")}>
+          {data.resume.map((metric, index) => {
+            const metricKey = `resume-${index}`;
+            const isSelected = selectedMetrics.has(metricKey);
+            return (
+              <MetricItem
+                key={metricKey}
+                metricKey={metricKey}
+                name={metric.name}
+                available={metric.available}
+                selected={isSelected}
+                onToggle={() => handleMetricToggle(metricKey, metric.available)}
               />
             );
           })}

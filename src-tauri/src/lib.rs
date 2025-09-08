@@ -22,7 +22,8 @@ struct SelectedMetricsBySensor {
     chromeleon_offline: Vec<String>,
     chromeleon_online: Vec<MetricSelected>,
     chromeleon_online_permanent_gas: Vec<MetricSelected>,
-    pigna: Vec<String>,
+    pignat: Vec<String>,
+    resume: Vec<String>,
 }
 
 fn resolve_embedded_python(app: &AppHandle) -> Option<PathBuf> {

@@ -106,7 +106,7 @@ export default function UploadPage() {
   const getZoneDisplayName = (zoneKey: string) => {
     const zoneNames: Record<string, string> = {
       context: "Context",
-      pigna: "Pigna", 
+      pignat: "Pignat", 
       chromeleon: "Chromeleon",
       chromeleon_online_permanent_gas: "Chromeleon online Permanent Gas"
     };

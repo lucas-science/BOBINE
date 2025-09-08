@@ -8,10 +8,11 @@ from openpyxl import Workbook
 from openpyxl.chart import LineChart, Series, Reference
 
 from context import ExcelContextData
-from pigna import PignaData
+from pignat import PignatData
 from chromeleon_online import ChromeleonOnline
 from chromeleon_offline import ChromeleonOffline
 from chromeleon_online_permanent import ChromeleonOnlinePermanent
+from resume import Resume
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
 sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', line_buffering=True)
@@ -19,24 +20,27 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', line_bufferin
 CHROMELEON_ONLINE = "chromeleon_online"
 CHROMELEON_OFFLINE = "chromeleon_offline"
 CHROMELEON_ONLINE_PERMANENT_GAS = "chromeleon_online_permanent_gas"
-PIGNA = "pigna"
+PIGNAT = "pignat"
+RESUME = "resume"
 CONTEXT = "context"
 
 dataFromMetricsSensor = {
     CHROMELEON_ONLINE:  [],
     CHROMELEON_OFFLINE: [],
     CHROMELEON_ONLINE_PERMANENT_GAS: [],
-    PIGNA:              [],
+    PIGNAT:             [],
+    RESUME:             [],
 }
 
 
 def getDirectories(dir_path):
     return {
         CONTEXT:            f"{dir_path}/context/context",
-        PIGNA:              f"{dir_path}/pigna/pigna",
+        PIGNAT:             f"{dir_path}/pignat/pignat",
         CHROMELEON_ONLINE:  f"{dir_path}/chromeleon/online",
         CHROMELEON_OFFLINE: f"{dir_path}/chromeleon/offline",
         CHROMELEON_ONLINE_PERMANENT_GAS: f"{dir_path}/chromeleon_online_permanent_gas/chromeleon_online_permanent_gas",
+        RESUME:             f"{dir_path}",  # Resume uses multiple subdirectories
     }
 
 
@@ -85,17 +89,18 @@ def get_context_b64(dir_path):
 
 def get_graphs_available(dir_path):
     metrics_available = {
-        PIGNA:              [],
+        PIGNAT:             [],
         CHROMELEON_ONLINE:  [],
         CHROMELEON_OFFLINE: [],
         CHROMELEON_ONLINE_PERMANENT_GAS: [],
+        RESUME:             [],
     }
     directories = getDirectories(dir_path)
 
-    pigna_dir = directories[PIGNA]
-    if os.path.exists(pigna_dir):
-        pigna_data = PignaData(pigna_dir)
-        metrics_available[PIGNA] = pigna_data.get_available_graphs()
+    pignat_dir = directories[PIGNAT]
+    if os.path.exists(pignat_dir):
+        pignat_data = PignatData(pignat_dir)
+        metrics_available[PIGNAT] = pignat_data.get_available_graphs()
 
     chromeleon_online_dir = directories[CHROMELEON_ONLINE]
     if os.path.exists(chromeleon_online_dir):
@@ -114,6 +119,21 @@ def get_graphs_available(dir_path):
         chromeleon_online_permanent_gas_data = ChromeleonOnlinePermanent(chromeleon_online_permanent_gas_dir)
         metrics_available[CHROMELEON_ONLINE_PERMANENT_GAS] = chromeleon_online_permanent_gas_data.get_graphs_available()
 
+    # Resume requires online, offline, and context directories
+    try:
+        resume_root_dir = directories[RESUME]
+        dir_online = f"{resume_root_dir}/chromeleon/online"
+        dir_offline = f"{resume_root_dir}/chromeleon/offline"
+        dir_context = f"{resume_root_dir}/context/context"
+        
+        # Check if required directories exist
+        if os.path.exists(dir_online) and os.path.exists(dir_offline) and os.path.exists(dir_context):
+            resume_data = Resume(dir_online, dir_offline, dir_context)
+            metrics_available[RESUME] = resume_data.get_all_graphs_available()
+    except Exception:
+        # If resume initialization fails, keep empty list
+        pass
+
     return metrics_available
 
 
@@ -129,10 +149,10 @@ def save_to_excel_with_charts(
 
     wb = get_context_workbook(dir_root, wb)
 
-    if metrics_wanted.get(PIGNA):
-        pigna_dir = getDirectories(dir_root)[PIGNA]
-        wb = PignaData(pigna_dir) \
-            .generate_workbook_with_charts(wb, metrics_wanted[PIGNA])
+    if metrics_wanted.get(PIGNAT):
+        pignat_dir = getDirectories(dir_root)[PIGNAT]
+        wb = PignatData(pignat_dir) \
+            .generate_workbook_with_charts(wb, metrics_wanted[PIGNAT])
 
     if metrics_wanted.get(CHROMELEON_ONLINE):
         chromo_online_dir = getDirectories(dir_root)[CHROMELEON_ONLINE]
@@ -152,6 +172,21 @@ def save_to_excel_with_charts(
         chromo_online_permanent_gas_dir = getDirectories(dir_root)[CHROMELEON_ONLINE_PERMANENT_GAS]
         wb = ChromeleonOnlinePermanent(chromo_online_permanent_gas_dir) \
             .generate_workbook_with_charts(wb, metrics_wanted[CHROMELEON_ONLINE_PERMANENT_GAS])
+
+    if metrics_wanted.get(RESUME):
+        try:
+            resume_root_dir = getDirectories(dir_root)[RESUME]
+            dir_online = f"{resume_root_dir}/chromeleon/online"
+            dir_offline = f"{resume_root_dir}/chromeleon/offline"
+            dir_context = f"{resume_root_dir}/context/context"
+            
+            # Check if required directories exist
+            if os.path.exists(dir_online) and os.path.exists(dir_offline) and os.path.exists(dir_context):
+                resume_data = Resume(dir_online, dir_offline, dir_context)
+                wb = resume_data.generate_workbook_with_charts(wb, metrics_wanted[RESUME])
+        except Exception:
+            # If resume generation fails, continue without it
+            pass
 
     return wb
 

@@ -6,7 +6,8 @@ from openpyxl.styles import Alignment, Border, Side, PatternFill, Font
 from openpyxl.chart import PieChart, BarChart, Reference, PieChart3D
 from openpyxl.utils import get_column_letter
 from openpyxl.chart.label import DataLabelList
-
+from openpyxl.chart.layout import Layout, ManualLayout
+from openpyxl.chart.label import DataLabelList
 
 from typing import Optional, Dict, Any
 from chromeleon_online import ChromeleonOnline
@@ -83,9 +84,9 @@ class Resume:
             return pd.DataFrame()
         
         mass_percentages = self._get_pourcentage_by_mass()
-        liquide_percent = mass_percentages.get("Liquide (%)", 0)
+        gas_percent = mass_percentages.get("Gas (%)", 0)
         
-        if liquide_percent is None or liquide_percent == 0:
+        if gas_percent is None or gas_percent == 0:
             return pd.DataFrame()
         
         gas_phase_df = self.online_relative_area_by_carbon.copy()
@@ -93,10 +94,10 @@ class Resume:
         # Reset index to make Carbon a column instead of index
         gas_phase_df = gas_phase_df.reset_index()
         
-        gas_phase_df["% linear"] = gas_phase_df["Linear"] * liquide_percent / 100
-        gas_phase_df["% iso+olefin"] = gas_phase_df["Olefin"] * liquide_percent / 100  
-        gas_phase_df["% BTX"] = gas_phase_df["BTX gas"] * liquide_percent / 100
-        gas_phase_df["% total"] = gas_phase_df["Total"] * liquide_percent / 100
+        gas_phase_df["% linear"] = gas_phase_df["Linear"] * gas_percent / 100
+        gas_phase_df["% iso+olefin"] = gas_phase_df["Olefin"] * gas_percent / 100  
+        gas_phase_df["% BTX"] = gas_phase_df["BTX gas"] * gas_percent / 100
+        gas_phase_df["% total"] = gas_phase_df["Total"] * gas_percent / 100
         
         return gas_phase_df
 
@@ -380,23 +381,36 @@ class Resume:
         cL2 = summary_table_start_col + 2  # labels centraux
         cV2 = summary_table_start_col + 3  # valeurs centrales
 
-        # Lignes des 3 catégories (dans la zone data ; la 1re ligne data = start_row+1)
+        # Lignes des 4 catégories (dans la zone data ; la 1re ligne data = start_row+1)
         r_gas   = summary_table_start_row + 3  # "Other Hydrocarbons gas"
         r_liq   = summary_table_start_row + 4  # "Other Hydrocarbons liquid"
         r_resid = summary_table_start_row + 5  # "Residue"
+        r_hvc   = summary_table_start_row + 6  # "HVC"
 
         chart = PieChart()
         chart.title = "Summary Repartition"
-        data = Reference(ws, min_col=cV2, min_row=r_gas, max_row=r_resid)
-        cats = Reference(ws, min_col=cL2, min_row=r_gas, max_row=r_resid)
+        data = Reference(ws, min_col=cV2, min_row=r_gas, max_row=r_hvc)
+        cats = Reference(ws, min_col=cL2, min_row=r_gas, max_row=r_hvc)
 
         chart.add_data(data, titles_from_data=False)
         chart.set_categories(cats)
-        chart.dataLabels = DataLabelList()
-        chart.dataLabels.showCatName = True
-        chart.dataLabels.showVal = True
+
+        # 1) rendre le camembert bien grand
         chart.height = 15
         chart.width = 24
+
+        # 3) ne pas laisser la légende rétrécir le tracé
+        chart.legend.position = "r"   # "t"=top (tu peux garder "r" si tu préfères)
+        chart.legend.overlay = True   # la légende “flotte” et n’enlève pas de place au camembert
+
+        # 4) étiquettes propres: Catégorie + %, pas de nom de série ni pastilles carrées
+        chart.dataLabels = DataLabelList()
+        chart.dataLabels.showCatName   = True
+        chart.dataLabels.showPercent   = True
+        chart.dataLabels.showVal       = False
+        chart.dataLabels.showSerName   = False
+        chart.dataLabels.showLegendKey = False   # petits carrés près des étiquettes
+        chart.dataLabels.separator     = "; "
 
         ws.add_chart(chart, ws.cell(row=chart_start_row, column=chart_start_col).coordinate)
 
@@ -561,17 +575,17 @@ class Resume:
                             "C4=", get("C4=")])
 
                 # ligne 4
-                data.append(["", 0.0,
+                data.append(["", "",
                             "Other Hydrocarbons liquid", get("Other Hydrocarbons liquid"),
                             "Benzene", get("Benzene")])
 
                 # ligne 5
-                data.append(["", 0.0,
+                data.append(["", "",
                             "Residue", get("Residue"),
                             "Toluene", get("Toluene")])
 
                 # ligne 6
-                data.append(["", 0.0,
+                data.append(["", "",
                             "HVC", get("HVC"),
                             "Xylene", get("Xylene")])
 
@@ -1001,52 +1015,76 @@ class Resume:
                 ] if isinstance(r, int)
             )
 
-            # Chart positioning starting at T14 with increased vertical spacing
-            CHART_HEIGHT = 35  # Further increased height space per chart row
+            # Dynamic chart positioning - collect charts to create first
+            charts_to_create = []
             
-            row1 = 14                      # Start at row 14 (T14)
-            row2 = row1 + CHART_HEIGHT     # Second row of charts  
-            row3 = row2 + CHART_HEIGHT     # Third row of charts
-
-            # Column positioning with reduced horizontal spacing
-            LEFT_COL  = 20  # Column T
-            RIGHT_COL = 27  # Column AA (reduced horizontal spacing by half)
-
-            # 1st row: Summary repartition (left) | Phase repartition (right)
             if has("summary repartition"):
-                self._create_summary_repartition_chart(
-                    ws, summary_df, row1, LEFT_COL,
-                    summary_start_col, current_top_row, summary_end_row, summary_end_col
-                )
-
+                charts_to_create.append(("summary_repartition", "Summary repartition"))
+                
             if has("phase repartition"):
-                mass_percentages = self._get_pourcentage_by_mass()
-                self._create_phase_repartition_chart(
-                    ws, mass_percentages, row1, RIGHT_COL,
-                    summary_start_col, current_top_row
-                )
-
-            # 2nd row: HVC repartition (left) | Products C1–C23 (right)  
+                charts_to_create.append(("phase_repartition", "Phase repartition"))
+                
             if has("hvc repartition"):
-                self._create_hvc_repartition_chart(
-                    ws, summary_df, row2, LEFT_COL,
-                    summary_start_col, current_top_row, summary_end_row, summary_end_col
-                )
-
+                charts_to_create.append(("hvc_repartition", "HVC repartition"))
+                
             if has("products repartition, c1 to c23") or has("products repartition"):
-                self._create_product_repartition_chart_range(
-                    ws, total_phase_df, row2, RIGHT_COL,
-                    total_start_col, current_top_row, total_end_row, total_end_col,
-                    c_start=1, c_end=23, title="Products repartition (C1–C23)"
-                )
-
-            # 3rd row: Products C1–C8 (centered or left)
+                charts_to_create.append(("products_c1_c23", "Products repartition (C1–C23)"))
+                
             if has("products repartition, c1 to c8"):
-                self._create_product_repartition_chart_range(
-                    ws, total_phase_df, row3, LEFT_COL,
-                    total_start_col, current_top_row, total_end_row, total_end_col,
-                    c_start=1, c_end=8, title="Products repartition (C1–C8)"
-                )
+                charts_to_create.append(("products_c1_c8", "Products repartition (C1–C8)"))
+
+            # Chart layout constants
+            CHART_HEIGHT = 35  # Vertical space per chart row
+            CHART_WIDTH = 8    # Horizontal space per chart (in columns) - reduced from 14 to 8
+            START_ROW = 14     # First chart row
+            START_COL = 20     # First chart column (Column T)
+            CHARTS_PER_ROW = 2 # Maximum charts per row
+
+            # Calculate dynamic positioning
+            current_chart_idx = 0
+            for chart_type, _ in charts_to_create:
+                # Calculate row and column based on current index
+                row_idx = current_chart_idx // CHARTS_PER_ROW
+                col_idx = current_chart_idx % CHARTS_PER_ROW
+                
+                chart_row = START_ROW + (row_idx * CHART_HEIGHT)
+                chart_col = START_COL + (col_idx * CHART_WIDTH)
+                
+                # Create the appropriate chart
+                if chart_type == "summary_repartition":
+                    self._create_summary_repartition_chart(
+                        ws, summary_df, chart_row, chart_col,
+                        summary_start_col, current_top_row, summary_end_row, summary_end_col
+                    )
+                    
+                elif chart_type == "phase_repartition":
+                    mass_percentages = self._get_pourcentage_by_mass()
+                    self._create_phase_repartition_chart(
+                        ws, mass_percentages, chart_row, chart_col,
+                        summary_start_col, current_top_row
+                    )
+                    
+                elif chart_type == "hvc_repartition":
+                    self._create_hvc_repartition_chart(
+                        ws, summary_df, chart_row, chart_col,
+                        summary_start_col, current_top_row, summary_end_row, summary_end_col
+                    )
+                    
+                elif chart_type == "products_c1_c23":
+                    self._create_product_repartition_chart_range(
+                        ws, total_phase_df, chart_row, chart_col,
+                        total_start_col, current_top_row, total_end_row, total_end_col,
+                        c_start=1, c_end=23, title="Products repartition (C1–C23)"
+                    )
+                    
+                elif chart_type == "products_c1_c8":
+                    self._create_product_repartition_chart_range(
+                        ws, total_phase_df, chart_row, chart_col,
+                        total_start_col, current_top_row, total_end_row, total_end_col,
+                        c_start=1, c_end=8, title="Products repartition (C1–C8)"
+                    )
+                
+                current_chart_idx += 1
 
             return wb
 
