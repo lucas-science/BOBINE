@@ -437,7 +437,7 @@ class ChromeleonOnline:
         for j in range(len(headers2)):
             ws.column_dimensions[get_column_letter(block2_col + j)].width = 10
 
-        # ---- (D) Petit tableau "composition moyenne principaux HXL (%)" ----
+        # ---- (D) Petit tableau "composition moyenne principaux HVC (%)" ----
         try:
             avg_row = rel_df.loc[rel_df['Injection Name'] == 'Moyennes'].iloc[0]
         except Exception:
@@ -445,7 +445,7 @@ class ChromeleonOnline:
 
         small_col = 12
         ws.cell(row=block1_row, column=small_col,
-                value="composition moyenne principaux HXL (%)").font = title_font
+                value="composition moyenne principaux HVC (%)").font = title_font
         small_headers = ["Molécule", "Moyenne (%)"]
         for j, h in enumerate(small_headers, start=small_col):
             c = ws.cell(row=block1_row + 1, column=j, value=h)

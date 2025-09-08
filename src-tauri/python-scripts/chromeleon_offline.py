@@ -99,7 +99,7 @@ class ChromeleonOffline:
 
         return df1, df2
 
-    def create_summary_tables(self) -> dict:
+    def get_relative_area_by_carbon_tables(self) -> dict:
         """
         Crée les tableaux de résumé R1, R2 et Moyenne à partir des données R1 et R2
 
@@ -255,6 +255,7 @@ class ChromeleonOffline:
             'R2': df_R2,
             'Moyenne': df_Moyenne
         }
+    
 
     def _write_df_block(
         self,
@@ -491,7 +492,7 @@ class ChromeleonOffline:
                 ws, start_col=18, start_row=1, data=bilan_matiere)
 
             start_row = max(r1_last_row, r2_last_row) + 4
-            tables = self.create_summary_tables()
+            tables = self.get_relative_area_by_carbon_tables()
             
             def write_summary(df, anchor_col, title):
                 title_font = Font(bold=True, size=12)
