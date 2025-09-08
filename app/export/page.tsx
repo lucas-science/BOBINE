@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { save } from "@tauri-apps/plugin-dialog";
-import BackButton from "../components/backButton";
+import BackButton from "@/src/components/shared/backButton";
 import { getIndexByPathname, getNavigationByIndex } from "@/src/lib/pathNavigation";
 import { useState } from "react";
 import { generateAndSaveExcel, getDocumentsDir } from "@/src/lib/utils/invoke.utils";
@@ -17,11 +17,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import RestartButton from "../components/restartButton";
+import RestartButton from "@/src/components/export/restartButton";
 import { HOME } from "@/src/lib/utils/navigation.utils";
-import ButtonLoading from "@/app/components/buttonLoading";
+import ButtonLoading from "@/src/components/export/buttonLoading";
 import { info } from "@tauri-apps/plugin-log";
-
 
 export default function Page() {
   const router = useRouter();
@@ -33,36 +32,36 @@ export default function Page() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [savedPath, setSavedPath] = useState("");
 
-const handleGenerateExcel = async () => {
-  // 1) afficher le loader tout de suite
-  setLoading(true);
-  await new Promise<void>((r) => requestAnimationFrame(() => r()));
+  const handleGenerateExcel = async () => {
+    // 1) afficher le loader tout de suite
+    setLoading(true);
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
-  try {
-    const sel = localStorage.getItem("selectedMetrics");
-    info("Selected metrics from localStorage:" + JSON.stringify(sel));
-    if (!sel) throw new Error("Aucune métrique sélectionnée");
-    const metrics = JSON.parse(sel);
+    try {
+      const sel = localStorage.getItem("selectedMetrics");
+      info("Selected metrics from localStorage:" + JSON.stringify(sel));
+      if (!sel) throw new Error("Aucune métrique sélectionnée");
+      const metrics = JSON.parse(sel);
 
-    const docsDir = await getDocumentsDir();
+      const docsDir = await getDocumentsDir();
 
-    const absPath = await save({
-      defaultPath: "rapport.xlsx",
-      filters: [{ name: "Excel", extensions: ["xlsx"] }],
-    });
-    if (!absPath) throw new Error("Enregistrement annulé");
+      const absPath = await save({
+        defaultPath: "rapport.xlsx",
+        filters: [{ name: "Excel", extensions: ["xlsx"] }],
+      });
+      if (!absPath) throw new Error("Enregistrement annulé");
 
-    const res = await generateAndSaveExcel(docsDir, metrics, absPath); 
-    if (!res || res.error) throw new Error(res?.error || "L’export a échoué");
-    setSavedPath(res.result ?? absPath);
-    setDialogOpen(true);
-  } catch (e: unknown) {
-    console.error(e);
-    toast.error(e instanceof Error ? e.message : "Une erreur est survenue lors de l’export");
-  } finally {
-    setLoading(false);
-  }
-};
+      const res = await generateAndSaveExcel(docsDir, metrics, absPath); 
+      if (!res || res.error) throw new Error(res?.error || "L'export a échoué");
+      setSavedPath(res.result ?? absPath);
+      setDialogOpen(true);
+    } catch (e: unknown) {
+      console.error(e);
+      toast.error(e instanceof Error ? e.message : "Une erreur est survenue lors de l'export");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleBack = () => prevPath && router.push(prevPath);
 
