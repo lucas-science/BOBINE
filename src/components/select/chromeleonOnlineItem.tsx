@@ -47,11 +47,11 @@ export const ChromeleonOnlineItem: React.FC<ChromeleonOnlineItemProps> = ({
 
   const handleClick = (e: React.MouseEvent) => {
     // Empêcher le toggle si on clique sur la checkbox, popover ou badges
-    if (e.target !== e.currentTarget && 
-        ((e.target as Element).closest('[role="checkbox"]') ||
-         (e.target as Element).closest('[role="combobox"]') ||
-         (e.target as Element).closest('.badge-remove') ||
-         (e.target as Element).closest('[data-radix-popper-content-wrapper]'))) {
+    if (e.target !== e.currentTarget &&
+      ((e.target as Element).closest('[role="checkbox"]') ||
+        (e.target as Element).closest('[role="combobox"]') ||
+        (e.target as Element).closest('.badge-remove') ||
+        (e.target as Element).closest('[data-radix-popper-content-wrapper]'))) {
       return;
     }
     if (available) {
@@ -60,9 +60,9 @@ export const ChromeleonOnlineItem: React.FC<ChromeleonOnlineItemProps> = ({
   };
 
   return (
-    <div className={`flex flex-col space-y-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors ${
-      available ? "cursor-pointer" : "cursor-not-allowed"
-    }`}>
+    <div className={`flex flex-col space-y-3 p-3 rounded-lg border transition-colors ${available ? "cursor-pointer" : "cursor-not-allowed"
+      } ${selected ? "bg-blue-50 hover:bg-blue-100 border-blue-300" : "hover:bg-gray-50"}`}
+    >
       <div className="flex items-start space-x-3" onClick={handleClick}>
         <Checkbox
           id={metricKey}
@@ -73,9 +73,8 @@ export const ChromeleonOnlineItem: React.FC<ChromeleonOnlineItemProps> = ({
         />
         <div className="flex-1 min-w-0">
           <div
-            className={`block text-sm font-medium ${
-              available ? "text-gray-900" : "text-gray-500"
-            }`}
+            className={`block text-sm font-medium ${available ? "text-gray-900" : "text-gray-500"
+              }`}
           >
             {name}
             {!available && " (Indisponible)"}
@@ -132,12 +131,12 @@ export const ChromeleonOnlineItem: React.FC<ChromeleonOnlineItemProps> = ({
           </div>
 
           {chosenElements.length > 0 && (
-            <div className="flex flex-wrap gap-1">
+            <div className="flex flex-wrap gap-2">
               {chosenElements.map((element) => (
-                <Badge key={element} variant="secondary" className="text-xs">
-                  {element}
+                <Badge key={element} variant="secondary" className="text-sm font-normal px-2 py-1 flex items-center">
+                  <span className="mr-2">{element}</span>
                   <X
-                    className="ml-1 h-3 w-3 cursor-pointer badge-remove"
+                    className="h-4 w-4 cursor-pointer badge-remove hover:text-red-500 transition-colors"
                     onClick={() => onRemoveElement(element)}
                   />
                 </Badge>

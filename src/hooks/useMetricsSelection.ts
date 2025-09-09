@@ -37,7 +37,7 @@ export const useMetricsSelection = (
         if (m) out.chromeleon_offline.push(m.name);
       } else if (sensorType === "pignat") {
         const m = data.pignat?.[i] as PignatMetric | undefined;
-        if (m) out.pignat.push(m.name);
+        if (m) out.pignat.push({ name: m.name });
       } else if (sensorType === "resume") {
         const m = data.resume?.[i] as ResumeMetric | undefined;
         if (m) out.resume.push(m.name);
