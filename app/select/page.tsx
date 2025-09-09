@@ -4,6 +4,7 @@ import { useState } from "react";
 import BackButton from "@/src/components/shared/backButton";
 import NextButton from "@/src/components/shared/nextButton";
 import { MetricsSelector } from "@/src/components/select/MetricsSelector";
+import { MetricsSkeleton } from "@/src/components/select/MetricsSkeleton";
 import { SelectedMetricsBySensor } from "@/src/lib/utils/type";
 import { useMetricsData } from "@/src/hooks/useMetricsData";
 import { useStepNavigation } from "@/src/hooks/useStepNavigation";
@@ -19,12 +20,14 @@ export default function Page() {
 
   return (
     <div>
-      {metricsAvailable && (
+      {metricsAvailable ? (
         <MetricsSelector
           className="pb-28"
           data={metricsAvailable}
           onSelectionChange={handleSelectionChange}
         />
+      ) : (
+        <MetricsSkeleton />
       )}
       <div className="fixed bottom-0 left-0 right-0  p-4">
         <div className="flex justify-between items-center w-full mx-auto">

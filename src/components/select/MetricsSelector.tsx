@@ -48,7 +48,9 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
           variant="outline"
           size="sm"
           disabled={isLoadingTimeRange}
-          className="px-6 py-2 text-sm font-medium"
+          className={`px-6 py-2 text-sm font-medium cursor-pointer ${
+            isAllSelected() ? "bg-secondary text-white hover:bg-secondary/80 hover:text-white" : "hover:bg-secondary/20"
+          }`}
         >
           {isLoadingTimeRange 
             ? "Chargement..." 

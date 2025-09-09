@@ -1,116 +1,41 @@
-/* globals.css */
-
-/* 1. Import des polices */
-@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;display=swap");
-@import "tailwindcss";
-
-/* 2. Directives Tailwind */
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* 3. Variables CSS */
+/* Variables */
 :root {
-  /* Couleurs principales - FORMAT HSL COMPLET */
   --primary: hsl(67, 99%, 57%);
   --primary-foreground: hsl(330, 7%, 17%);
   --secondary: hsl(211, 100%, 57%);
   --secondary-foreground: hsl(0, 0%, 100%);
 
-  /* Fond et texte */
   --background: hsl(60, 11%, 96%);
   --foreground: hsl(330, 7%, 17%);
 
-  /* Zone de fichier */
-  --filezone: hsl(0, 0%, 93%);
-
-  /* Radius global */
-  --radius: 0.625rem;
-
-  /* Cartes & popovers */
   --card: hsl(0, 0%, 100%);
   --card-foreground: hsl(0, 0%, 14.5%);
-  --popover: hsl(0, 0%, 100%);
-  --popover-foreground: hsl(0, 0%, 14.5%);
 
-  /* Muted & accent */
   --muted: hsl(0, 0%, 85%);
   --muted-foreground: hsl(0, 0%, 55.6%);
-  --accent: hsl(0, 0%, 97%);
-  --accent-foreground: hsl(0, 0%, 20.5%);
 
-  /* Destructive */
   --destructive: hsl(0, 84%, 60%);
   --destructive-foreground: hsl(0, 0%, 98%);
 
-  /* Bordure, input, ring */
   --border: hsl(0, 0%, 92.2%);
   --input: hsl(0, 0%, 92.2%);
   --ring: hsl(0, 0%, 70.8%);
 
-  /* Charts */
-  --chart-1: hsl(41, 65%, 64.6%);
-  --chart-2: hsl(185, 30%, 60%);
-  --chart-3: hsl(227, 14%, 39.8%);
-  --chart-4: hsl(84, 47%, 82.8%);
-  --chart-5: hsl(70, 47%, 76.9%);
+  /* manquantes auparavant */
+  --success: hsl(145, 63%, 42%);
+  --success-foreground: hsl(0, 0%, 100%);
+  --success-bg: hsl(145, 63%, 90%);
 
-  /* Sidebar */
-  --sidebar: hsl(0, 0%, 98.5%);
-  --sidebar-foreground: hsl(0, 0%, 14.5%);
-  --sidebar-primary: hsl(0, 0%, 20.5%);
-  --sidebar-primary-foreground: hsl(0, 0%, 98.5%);
-  --sidebar-accent: hsl(0, 0%, 97%);
-  --sidebar-accent-foreground: hsl(0, 0%, 20.5%);
-  --sidebar-border: hsl(0, 0%, 92.2%);
-  --sidebar-ring: hsl(0, 0%, 70.8%);
+  --radius: 0.625rem;
 }
 
-/* 4. Mode sombre */
-.dark {
-  --background: hsl(0, 0%, 14.5%);
-  --foreground: hsl(0, 0%, 98.5%);
-  --card: hsl(0, 0%, 20.5%);
-  --card-foreground: hsl(0, 0%, 98.5%);
-  --popover: hsl(0, 0%, 20.5%);
-  --popover-foreground: hsl(0, 0%, 98.5%);
-  
-  /* COULEURS PRIMAIRES ET SECONDAIRES CONSERVÉES EN MODE SOMBRE */
-  --primary: hsl(67, 99%, 57%);           /* Jaune conservé */
-  --primary-foreground: hsl(330, 7%, 17%);
-  --secondary: hsl(211, 100%, 57%);       /* Bleu conservé */
-  --secondary-foreground: hsl(0, 0%, 100%);
-  
-  --muted: hsl(0, 0%, 26.9%);
-  --muted-foreground: hsl(0, 0%, 70.8%);
-  --accent: hsl(0, 0%, 26.9%);
-  --accent-foreground: hsl(0, 0%, 98.5%);
-  --destructive: hsl(0, 62%, 30%);
-  --destructive-foreground: hsl(0, 85%, 97%);
-  --border: hsl(0, 0%, 10%);
-  --input: hsl(0, 0%, 15%);
-  --ring: hsl(0, 0%, 55.6%);
-  --chart-1: hsl(264, 49%, 48.8%);
-  --chart-2: hsl(162, 34%, 69.6%);
-  --chart-3: hsl(70, 47%, 76.9%);
-  --chart-4: hsl(304, 53%, 62.7%);
-  --chart-5: hsl(16, 49%, 64.5%);
-  --sidebar: hsl(0, 0%, 20.5%);
-  --sidebar-foreground: hsl(0, 0%, 98.5%);
-  --sidebar-primary: hsl(264, 49%, 48.8%);
-  --sidebar-primary-foreground: hsl(0, 0%, 98.5%);
-  --sidebar-accent: hsl(0, 0%, 26.9%);
-  --sidebar-accent-foreground: hsl(0, 0%, 98.5%);
-  --sidebar-border: hsl(0, 0%, 10%);
-  --sidebar-ring: hsl(0, 0%, 55.6%);
-}
-
-/* 5. Styles de base */
 @layer base {
-  * {
-    border-color: var(--border);
-  }
-  
+  * { border-color: var(--border); }
   body {
     background-color: var(--background);
     color: var(--foreground);
@@ -120,49 +45,11 @@
   }
 }
 
-/* 6. FORCE LES COULEURS PRIMARY ET SECONDARY PARTOUT */
-.bg-primary, 
-[class*="bg-primary"] {
-  background-color: hsl(67, 99%, 57%) !important;
-  color: hsl(330, 7%, 17%) !important; /* Force le texte sombre */
-}
+/* Optionnel si tu gardes l'animation ici */
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+.animate-pulse { animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
 
-.text-primary,
-[class*="text-primary"] {
-  color: hsl(67, 99%, 57%) !important;
-}
-
-.bg-secondary,
-[class*="bg-secondary"] {
-  background-color: hsl(211, 100%, 57%) !important;
-  color: hsl(0, 0%, 100%) !important; /* Force le texte blanc */
-}
-
-.text-secondary,
-[class*="text-secondary"] {
-  color: hsl(211, 100%, 57%) !important;
-}
-
-/* Force pour les boutons */
-button.bg-primary,
-button[class*="bg-primary"] {
-  background-color: hsl(67, 99%, 57%) !important;
-  color: hsl(330, 7%, 17%) !important; /* Texte sombre sur jaune */
-}
-
-button.bg-secondary,
-button[class*="bg-secondary"] {
-  background-color: hsl(211, 100%, 57%) !important;
-  color: hsl(0, 0%, 100%) !important; /* Texte blanc sur bleu */
-}
-
-/* Force pour les éléments avec primary-foreground */
-.text-primary-foreground,
-[class*="text-primary-foreground"] {
-  color: hsl(330, 7%, 17%) !important;
-}
-
-.text-secondary-foreground,
-[class*="text-secondary-foreground"] {
-  color: hsl(0, 0%, 100%) !important;
-}
+/* Force Tailwind green classes for static export */
+.bg-green-500 { background-color: #10b981 !important; }
+.bg-green-400 { background-color: #34d399 !important; }
+.border-green-600 { border-color: #059669 !important; }

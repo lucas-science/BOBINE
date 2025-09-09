@@ -32,9 +32,9 @@ export const MetricItem: React.FC<MetricItemProps> = ({
 
   return (
     <div 
-      className={`flex items-start space-x-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors ${
+      className={`flex items-start space-x-3 p-3 rounded-lg border transition-colors ${
         available ? "cursor-pointer" : "cursor-not-allowed"
-      }`}
+      } ${selected ? "bg-blue-50 hover:bg-blue-200" : "hover:bg-gray-50"}`}
       onClick={handleClick}
     >
       <Checkbox
