@@ -6,7 +6,7 @@ import { Card, CardContent } from "@/src/components/ui/card";
 import { Progress } from "@/src/components/ui/progress";
 import { motion, useMotionValue, useAnimationFrame } from "framer-motion";
 import { cn } from "@/src/lib/utils";
-import BobineLoader from "./BobineLoader";
+import BobineLoader from "@/src/components/shared/BobineLoader";
 
 type LoaderOverlayProps = {
   open: boolean;

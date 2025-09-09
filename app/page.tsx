@@ -1,18 +1,18 @@
 "use client";
 import React from "react";
 import { FILE_ZONE } from "@/src/lib/utils/uploadFile.utils";
-import FileUploadCard from "@/app/components/upload/FileUploadCard";
+import FileUploadCard from "@/src/components/upload/FileUploadCard";
 import { useUploadState } from "@/src/hooks/useUploadState";
 import { copyAllFilesToDocuments } from "@/src/lib/copyAllFilesToDocuments";
 import { getIndexByPathname, getNavigationByIndex } from "@/src/lib/pathNavigation";
 import { usePathname, useRouter } from "next/navigation";
 import { checkContext, getDocumentsDir } from "@/src/lib/utils/invoke.utils";
-import BackButton from "./components/backButton";
-import NextButton from "./components/nextButton";
-import LoaderOverlay from "@/app/components/LoaderOverlay";
-import ErrorAlert from "@/app/components/ErrorAlert";
+import BackButton from "@/src/components/shared/backButton";
+import NextButton from "@/src/components/shared/nextButton";
+import LoaderOverlay from "@/src/components/upload/LoaderOverlay";
+import ErrorAlert from "@/src/components/upload/ErrorAlert";
 
-export default function UploadPage() {
+export default function Page() {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -106,7 +106,7 @@ export default function UploadPage() {
   const getZoneDisplayName = (zoneKey: string) => {
     const zoneNames: Record<string, string> = {
       context: "Context",
-      pigna: "Pigna", 
+      pignat: "Pignat", 
       chromeleon: "Chromeleon",
       chromeleon_online_permanent_gas: "Chromeleon online Permanent Gas"
     };

@@ -15,26 +15,47 @@ export type ChromeleonOnlineMetric = Metric & {
 export type ChromeleonOnlinePermanentMetric = Metric & {
   chimicalElements?: string[];
 };
-export type PignaMetric = Metric & {
+export type PignatMetric = Metric & {
   columns: string[];
 };
+
+export type ResumeMetric = Metric;
 
 export interface MetricsBySensor {
   chromeleon_offline: ChromeleonOfflineMetric[];
   chromeleon_online: ChromeleonOnlineMetric[];
   chromeleon_online_permanent_gas: ChromeleonOnlinePermanentMetric[];
-  pigna: PignaMetric[];
+  pignat: PignatMetric[];
+  resume: ResumeMetric[];
+}
+
+// Time range selection for Pignat metrics
+export interface TimeRangeSelection {
+  startTime?: string;
+  endTime?: string;
 }
 
 // Selected metrics to generate the excel file
-
 export type MetricSelected = {
   name: string;
   chimicalElementSelected?: string[];
 };
+
+export type PignatSelectedMetric = {
+  name: string;
+  timeRange?: TimeRangeSelection;
+};
+
 export interface SelectedMetricsBySensor {
   chromeleon_offline: string[];
   chromeleon_online: MetricSelected[];
   chromeleon_online_permanent_gas: MetricSelected[];
-  pigna: string[];
+  pignat: PignatSelectedMetric[];
+  resume: string[];
+}
+
+export interface TimeRangeData {
+  min_time: string;
+  max_time: string;
+  unique_times: string[];
 }

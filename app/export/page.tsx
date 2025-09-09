@@ -2,67 +2,66 @@
 
 import { usePathname, useRouter } from "next/navigation";
 import { save } from "@tauri-apps/plugin-dialog";
-import BackButton from "../components/backButton";
+import BackButton from "@/src/components/shared/backButton";
 import { getIndexByPathname, getNavigationByIndex } from "@/src/lib/pathNavigation";
 import { useState } from "react";
 import { generateAndSaveExcel, getDocumentsDir } from "@/src/lib/utils/invoke.utils";
 import { toast } from "sonner";
-import { CheckCircle2Icon } from "lucide-react";
 import { Button } from "@/src/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/src/components/ui/card";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import RestartButton from "../components/restartButton";
+import RestartButton from "@/src/components/export/restartButton";
 import { HOME } from "@/src/lib/utils/navigation.utils";
-import ButtonLoading from "@/app/components/buttonLoading";
+import ButtonLoading from "@/src/components/export/buttonLoading";
 import { info } from "@tauri-apps/plugin-log";
-
 
 export default function Page() {
   const router = useRouter();
   const pathname = usePathname();
   const step = getIndexByPathname(pathname);
-  const [prevPath, ] = getNavigationByIndex(step);
+  const [prevPath] = getNavigationByIndex(step);
 
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [savedPath, setSavedPath] = useState("");
 
-const handleGenerateExcel = async () => {
-  // 1) afficher le loader tout de suite
-  setLoading(true);
-  await new Promise<void>((r) => requestAnimationFrame(() => r()));
+  const handleGenerateExcel = async () => {
+    setLoading(true);
+    await new Promise<void>((r) => requestAnimationFrame(() => r()));
 
-  try {
-    const sel = localStorage.getItem("selectedMetrics");
-    info("Selected metrics from localStorage:" + JSON.stringify(sel));
-    if (!sel) throw new Error("Aucune métrique sélectionnée");
-    const metrics = JSON.parse(sel);
+    try {
+      const sel = localStorage.getItem("selectedMetrics");
+      info("Selected metrics from localStorage:" + JSON.stringify(sel));
+      if (!sel) throw new Error("Aucune métrique sélectionnée");
+      const metrics = JSON.parse(sel);
 
-    const docsDir = await getDocumentsDir();
+      const docsDir = await getDocumentsDir();
 
-    const absPath = await save({
-      defaultPath: "rapport.xlsx",
-      filters: [{ name: "Excel", extensions: ["xlsx"] }],
-    });
-    if (!absPath) throw new Error("Enregistrement annulé");
+      const absPath = await save({
+        defaultPath: "rapport.xlsx",
+        filters: [{ name: "Excel", extensions: ["xlsx"] }],
+      });
+      if (!absPath) throw new Error("Enregistrement annulé");
 
-    const res = await generateAndSaveExcel(docsDir, metrics, absPath); 
-    if (!res || res.error) throw new Error(res?.error || "L’export a échoué");
-    setSavedPath(res.result ?? absPath);
-    setDialogOpen(true);
-  } catch (e: unknown) {
-    console.error(e);
-    toast.error(e instanceof Error ? e.message : "Une erreur est survenue lors de l’export");
-  } finally {
-    setLoading(false);
-  }
-};
+      const res = await generateAndSaveExcel(docsDir, metrics, absPath);
+      if (!res || res.error) throw new Error(res?.error || "L'export a échoué");
+
+      setSavedPath(res.result ?? absPath);
+      setDialogOpen(true);
+    } catch (e: unknown) {
+      console.error(e);
+      toast.error(
+        e instanceof Error ? e.message : "Une erreur est survenue lors de l'export"
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleBack = () => prevPath && router.push(prevPath);
 
@@ -80,7 +79,10 @@ const handleGenerateExcel = async () => {
           {loading ? (
             <ButtonLoading className="bg-secondary/80 text-white" />
           ) : (
-            <Button onClick={handleGenerateExcel} className="w-full bg-secondary hover:bg-secondary/80 text-white cursor-pointer hover:rounded-lg transition-all">
+            <Button
+              onClick={handleGenerateExcel}
+              className="w-full bg-secondary hover:bg-secondary/80 text-white cursor-pointer hover:rounded-lg transition-all"
+            >
               Générer l&apos;Excel
             </Button>
           )}
@@ -95,16 +97,30 @@ const handleGenerateExcel = async () => {
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md animate-fade-in scale-in origin-center">
-          <DialogHeader className="text-center space-y-2">
-            <DialogTitle>Téléchargement réussi</DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground">
-              Votre fichier a bien été enregistré sous :
-              <br />
-              <span className="font-mono break-all">{savedPath}</span>
+        <DialogContent className="max-w-md">
+          <div className="text-center space-y-4 p-4">
+            <DialogTitle className="text-xl font-semibold">
+              Téléchargement terminé
+            </DialogTitle>
+            
+            <DialogDescription className="text-muted-foreground">
+              Votre fichier Excel a été enregistré avec succès.
             </DialogDescription>
-            <CheckCircle2Icon className="mx-auto h-12 w-12 text-green-500" />
-          </DialogHeader>
+            
+            <div className="p-3 bg-muted rounded border text-left">
+              <p className="text-sm text-muted-foreground mb-1">Emplacement :</p>
+              <p className="font-mono text-sm break-all">{savedPath}</p>
+            </div>
+            
+            <div className="flex gap-2 pt-2">
+              <Button 
+                onClick={() => setDialogOpen(false)}
+                className="flex-1 cursor-pointer hover:rounded-lg transition-all"
+              >
+                OK
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </>
