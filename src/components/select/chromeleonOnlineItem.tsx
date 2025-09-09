@@ -45,26 +45,41 @@ export const ChromeleonOnlineItem: React.FC<ChromeleonOnlineItemProps> = ({
 }) => {
   const [open, setOpen] = useState(false);
 
+  const handleClick = (e: React.MouseEvent) => {
+    // Empêcher le toggle si on clique sur la checkbox, popover ou badges
+    if (e.target !== e.currentTarget && 
+        ((e.target as Element).closest('[role="checkbox"]') ||
+         (e.target as Element).closest('[role="combobox"]') ||
+         (e.target as Element).closest('.badge-remove') ||
+         (e.target as Element).closest('[data-radix-popper-content-wrapper]'))) {
+      return;
+    }
+    if (available) {
+      onToggle();
+    }
+  };
+
   return (
-    <div className="flex flex-col space-y-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors">
-      <div className="flex items-start space-x-3">
+    <div className={`flex flex-col space-y-3 p-3 rounded-lg border hover:bg-gray-50 transition-colors ${
+      available ? "cursor-pointer" : "cursor-not-allowed"
+    }`}>
+      <div className="flex items-start space-x-3" onClick={handleClick}>
         <Checkbox
           id={metricKey}
           checked={selected}
           onCheckedChange={onToggle}
           disabled={!available}
-          className="mt-0.5"
+          className="mt-0.5 pointer-events-none"
         />
         <div className="flex-1 min-w-0">
-          <label
-            htmlFor={metricKey}
-            className={`block text-sm font-medium cursor-pointer ${
+          <div
+            className={`block text-sm font-medium ${
               available ? "text-gray-900" : "text-gray-500"
             }`}
           >
             {name}
             {!available && " (Indisponible)"}
-          </label>
+          </div>
         </div>
       </div>
 
@@ -122,7 +137,7 @@ export const ChromeleonOnlineItem: React.FC<ChromeleonOnlineItemProps> = ({
                 <Badge key={element} variant="secondary" className="text-xs">
                   {element}
                   <X
-                    className="ml-1 h-3 w-3 cursor-pointer"
+                    className="ml-1 h-3 w-3 cursor-pointer badge-remove"
                     onClick={() => onRemoveElement(element)}
                   />
                 </Badge>

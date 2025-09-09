@@ -236,6 +236,24 @@ if __name__ == "__main__":
                 print(f"[GET_GRAPHS_AVAILABLE] {e}", file=sys.stderr)
                 response = {"error": str(e)}
 
+        elif action == "GET_TIME_RANGE":
+            try:
+                dir_root = arg2
+                if not dir_root:
+                    raise ValueError("Directory path is required")
+
+                # Time range is only available for PIGNAT data
+                pignat_dir = getDirectories(dir_root)[PIGNAT]
+                if os.path.exists(pignat_dir):
+                    pignat_data = PignatData(pignat_dir)
+                    result = pignat_data.get_time_range()
+                    response = {"result": result}
+                else:
+                    response = {"error": f"Pignat directory not found: {pignat_dir}"}
+            except Exception as e:
+                print(f"[GET_TIME_RANGE] {e}", file=sys.stderr)
+                response = {"error": str(e)}
+
         elif action == "GENERATE_EXCEL_TO_FILE":
             try:
                 metrics_wanted = json.loads(arg2)

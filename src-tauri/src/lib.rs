@@ -18,11 +18,26 @@ struct MetricSelected {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+struct TimeRangeSelection {
+    #[serde(rename = "startTime")]
+    start_time: Option<String>,
+    #[serde(rename = "endTime")]
+    end_time: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct PignatSelectedMetric {
+    name: String,
+    #[serde(rename = "timeRange")]
+    time_range: Option<TimeRangeSelection>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct SelectedMetricsBySensor {
     chromeleon_offline: Vec<String>,
     chromeleon_online: Vec<MetricSelected>,
     chromeleon_online_permanent_gas: Vec<MetricSelected>,
-    pignat: Vec<String>,
+    pignat: Vec<PignatSelectedMetric>,
     resume: Vec<String>,
 }
 
@@ -174,14 +189,33 @@ fn get_graphs_available(app: tauri::AppHandle, dir_path: String) -> Result<JsonV
 }
 
 #[tauri::command]
+fn get_time_range(app: tauri::AppHandle, dir_path: String) -> Result<JsonValue, String> {
+    let out = run_python(&app, &["GET_TIME_RANGE", &dir_path])?;
+    if out.stdout.trim().is_empty() {
+        return Err(if out.stderr.trim().is_empty() {
+            "Empty stdout from Python".into()
+        } else {
+            out.stderr
+        });
+    }
+    parse_python_json(&out.stdout)
+}
+
+#[tauri::command(rename_all = "camelCase")]
 async fn generate_and_save_excel(
     app: tauri::AppHandle,
     dir_path: String,
     metric_wanted: SelectedMetricsBySensor,
     destination_path: String,
 ) -> Result<serde_json::Value, String> {
+    // Debug: Afficher les métriques reçues
+    println!("Received metrics: {:?}", metric_wanted);
+    
+    // Sérialiser l'objet reçu en JSON pour Python
     let metrics_json = serde_json::to_string(&metric_wanted)
         .map_err(|e| format!("Failed to serialize metrics: {e}"))?;
+    
+    println!("Serialized JSON: {}", metrics_json);
 
     let dest = std::path::PathBuf::from(&destination_path);
     if let Some(parent) = dest.parent() {
@@ -257,6 +291,7 @@ pub fn run() {
             get_context_masses,
             get_context_b64,
             get_graphs_available,
+            get_time_range,
             generate_and_save_excel,
             // utilitaires :
             get_documents_dir,

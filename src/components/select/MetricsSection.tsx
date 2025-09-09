@@ -12,7 +12,7 @@ export const MetricsSection: React.FC<MetricsSectionProps> = ({ title, children 
   return (
     <>
       <CardHeader>
-        <CardTitle className="text-lg font-medium text-gray-900">{title}</CardTitle>
+        <CardTitle className="text-lg font-semibold text-gray-900">{title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
         {children}

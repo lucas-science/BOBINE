@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { MetricsBySensor, SelectedMetricsBySensor } from "@/src/lib/utils/type";
 import { SensorCard } from "./SensorCard";
-import { useMetricsSelection } from "@/src/hooks/useMetricsSelection";
+import { useMetricsSelectionWithTimeRange } from "@/src/hooks/useMetricsSelectionWithTimeRange";
+import { Button } from "@/src/ui/button";
 
 interface MetricsSelectorProps {
   data: MetricsBySensor;
@@ -16,28 +17,55 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
   onSelectionChange,
   className = "",
 }) => {
-  const [selectedMetrics, setSelectedMetrics] = useState<Set<string>>(new Set());
-  const [onlineElements, setOnlineElements] = useState<Record<string, string[]>>({});
-
   const {
-    buildSelectedFrom,
+    selectedMetrics,
+    onlineElements,
+    timeRanges,
+    timeRangeData,
+    isLoadingTimeRange,
     handleMetricToggle,
+    handleTimeRangeChange,
     addOnlineElement,
     removeOnlineElement,
-  } = useMetricsSelection(data, onSelectionChange, setSelectedMetrics, setOnlineElements);
+    selectAll,
+    deselectAll,
+    isAllSelected,
+  } = useMetricsSelectionWithTimeRange(data, onSelectionChange);
+
+  const handleToggleAll = async () => {
+    if (isAllSelected()) {
+      deselectAll();
+    } else {
+      await selectAll();
+    }
+  };
 
   return (
     <div className={`w-full max-w-2xl mx-auto space-y-4 ${className}`}>
+      <div className="flex justify-center mb-6">
+        <Button 
+          onClick={handleToggleAll}
+          variant="outline"
+          size="sm"
+          disabled={isLoadingTimeRange}
+          className="px-6 py-2 text-sm font-medium"
+        >
+          {isLoadingTimeRange 
+            ? "Chargement..." 
+            : isAllSelected() 
+              ? "Désélectionner tout" 
+              : "Sélectionner tout"
+          }
+        </Button>
+      </div>
       <SensorCard
         sensorType="chromeleon_offline"
         data={data.chromeleon_offline}
         selectedMetrics={selectedMetrics}
         onlineElements={onlineElements}
-        onMetricToggle={(metricKey, available) => 
-          handleMetricToggle(metricKey, available, selectedMetrics, onlineElements)
-        }
-        onAddElement={(metricKey: string, value: string) => addOnlineElement(metricKey, value, selectedMetrics)}
-        onRemoveElement={(metricKey: string, value: string) => removeOnlineElement(metricKey, value, selectedMetrics)}
+        onMetricToggle={handleMetricToggle}
+        onAddElement={addOnlineElement}
+        onRemoveElement={removeOnlineElement}
       />
 
       <SensorCard
@@ -45,11 +73,9 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
         data={data.chromeleon_online}
         selectedMetrics={selectedMetrics}
         onlineElements={onlineElements}
-        onMetricToggle={(metricKey, available) => 
-          handleMetricToggle(metricKey, available, selectedMetrics, onlineElements)
-        }
-        onAddElement={(metricKey: string, value: string) => addOnlineElement(metricKey, value, selectedMetrics)}
-        onRemoveElement={(metricKey: string, value: string) => removeOnlineElement(metricKey, value, selectedMetrics)}
+        onMetricToggle={handleMetricToggle}
+        onAddElement={addOnlineElement}
+        onRemoveElement={removeOnlineElement}
       />
 
       <SensorCard
@@ -57,11 +83,9 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
         data={data.chromeleon_online_permanent_gas}
         selectedMetrics={selectedMetrics}
         onlineElements={onlineElements}
-        onMetricToggle={(metricKey, available) => 
-          handleMetricToggle(metricKey, available, selectedMetrics, onlineElements)
-        }
-        onAddElement={(metricKey: string, value: string) => addOnlineElement(metricKey, value, selectedMetrics)}
-        onRemoveElement={(metricKey: string, value: string) => removeOnlineElement(metricKey, value, selectedMetrics)}
+        onMetricToggle={handleMetricToggle}
+        onAddElement={addOnlineElement}
+        onRemoveElement={removeOnlineElement}
       />
 
       <SensorCard
@@ -69,11 +93,13 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
         data={data.pignat}
         selectedMetrics={selectedMetrics}
         onlineElements={onlineElements}
-        onMetricToggle={(metricKey, available) => 
-          handleMetricToggle(metricKey, available, selectedMetrics, onlineElements)
-        }
-        onAddElement={(metricKey: string, value: string) => addOnlineElement(metricKey, value, selectedMetrics)}
-        onRemoveElement={(metricKey: string, value: string) => removeOnlineElement(metricKey, value, selectedMetrics)}
+        timeRanges={timeRanges}
+        timeRangeData={timeRangeData}
+        isLoadingTimeRange={isLoadingTimeRange}
+        onMetricToggle={handleMetricToggle}
+        onTimeRangeChange={handleTimeRangeChange}
+        onAddElement={addOnlineElement}
+        onRemoveElement={removeOnlineElement}
       />
 
       <SensorCard
@@ -81,11 +107,9 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
         data={data.resume}
         selectedMetrics={selectedMetrics}
         onlineElements={onlineElements}
-        onMetricToggle={(metricKey, available) => 
-          handleMetricToggle(metricKey, available, selectedMetrics, onlineElements)
-        }
-        onAddElement={(metricKey: string, value: string) => addOnlineElement(metricKey, value, selectedMetrics)}
-        onRemoveElement={(metricKey: string, value: string) => removeOnlineElement(metricKey, value, selectedMetrics)}
+        onMetricToggle={handleMetricToggle}
+        onAddElement={addOnlineElement}
+        onRemoveElement={removeOnlineElement}
       />
     </div>
   );

@@ -50,6 +50,57 @@ class PignatData:
     def _select_columns(self, columns: list[str]) -> pd.DataFrame:
         return self.data_frame[columns]
 
+    def _filter_by_time_range(self, df: pd.DataFrame, start_time=None, end_time=None) -> pd.DataFrame:
+        """Filtre un DataFrame par plage temporelle"""
+        if start_time is None and end_time is None:
+            return df
+        
+        if TIME not in df.columns:
+            return df
+            
+        # Debug: Afficher les timestamps disponibles
+        if len(df) > 0:
+            print(f"Available timestamps: first={df[TIME].iloc[0]}, last={df[TIME].iloc[-1]}, total_rows={len(df)}", file=sys.stderr)
+            print(f"Filtering with: start_time={start_time}, end_time={end_time}", file=sys.stderr)
+        
+        # Vérifier le format des timestamps dans les données
+        sample_timestamp = df[TIME].iloc[0] if len(df) > 0 else None
+        
+        # Si les données sont au format HH:MM:SS uniquement, extraire la partie heure des filtres
+        if sample_timestamp and ':' in str(sample_timestamp) and len(str(sample_timestamp).split()) == 1:
+            print("Detected time-only format in data, extracting time from datetime filters", file=sys.stderr)
+            
+            mask = pd.Series([True] * len(df))
+            
+            if start_time is not None:
+                # Extraire la partie heure de start_time (format "YYYY-MM-DD HH:MM:SS" -> "HH:MM:SS")
+                try:
+                    start_time_only = str(start_time).split(' ')[1] if ' ' in str(start_time) else str(start_time)
+                    print(f"Extracted start time: {start_time_only}", file=sys.stderr)
+                    mask &= (df[TIME] >= start_time_only)
+                except Exception as e:
+                    print(f"Error extracting start time: {e}", file=sys.stderr)
+                    
+            if end_time is not None:
+                # Extraire la partie heure de end_time
+                try:
+                    end_time_only = str(end_time).split(' ')[1] if ' ' in str(end_time) else str(end_time)
+                    print(f"Extracted end time: {end_time_only}", file=sys.stderr)
+                    mask &= (df[TIME] <= end_time_only)
+                except Exception as e:
+                    print(f"Error extracting end time: {e}", file=sys.stderr)
+        else:
+            # Format datetime complet, comparaison directe
+            mask = pd.Series([True] * len(df))
+            if start_time is not None:
+                mask &= (df[TIME] >= start_time)
+            if end_time is not None:
+                mask &= (df[TIME] <= end_time)
+        
+        filtered_df = df[mask]
+        print(f"After filtering: {len(filtered_df)} rows remaining", file=sys.stderr)
+        return filtered_df
+
     # --------------------------------------------------
     # Export data et services manquants
     # --------------------------------------------------
@@ -66,6 +117,57 @@ class PignatData:
                 graph['available'] = False
             graphs.append(graph)
         return graphs
+
+    def get_time_range(self) -> dict:
+        """Récupère la plage temporelle disponible dans les données avec steps de 20 minutes"""
+        if TIME not in self.columns:
+            raise ValueError(f"Column {TIME} not found in data")
+        
+        time_column = self.data_frame[TIME]
+        all_times = sorted(time_column.dropna().unique().tolist())
+        
+        if not all_times:
+            return {
+                "min_time": None,
+                "max_time": None,
+                "unique_times": []
+            }
+        
+        # Créer des steps de 20 minutes
+        min_time = all_times[0]
+        max_time = all_times[-1]
+        
+        # Convertir en datetime si ce sont des strings
+        try:
+            import pandas as pd
+            min_dt = pd.to_datetime(min_time)
+            max_dt = pd.to_datetime(max_time)
+            
+            # Générer des timestamps par intervalles de 20 minutes
+            step_times = []
+            current_time = min_dt
+            while current_time <= max_dt:
+                # Convertir de retour au format original
+                time_str = current_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(current_time, 'strftime') else str(current_time)
+                step_times.append(time_str)
+                current_time += pd.Timedelta(minutes=20)
+            
+            return {
+                "min_time": min_time,
+                "max_time": max_time,
+                "unique_times": step_times
+            }
+            
+        except Exception:
+            # Fallback: si la conversion datetime échoue, prendre un échantillon des timestamps
+            step = max(1, len(all_times) // 100)  # Maximum 100 options
+            sampled_times = all_times[::step]
+            
+            return {
+                "min_time": min_time,
+                "max_time": max_time,
+                "unique_times": sampled_times
+            }
 
     # --------------------------------------------------
     # Gestion des données manquantes
@@ -87,25 +189,30 @@ class PignatData:
     # Extraction privé
     # --------------------------------------------------
 
-    def _get_temperature_over_time(self) -> pd.DataFrame:
+    def _get_temperature_over_time(self, start_time=None, end_time=None) -> pd.DataFrame:
         cols = [TIME, TT301, TT302, TT303]
-        return self._select_columns(cols).copy()
+        df = self._select_columns(cols).copy()
+        return self._filter_by_time_range(df, start_time, end_time)
 
-    def _get_debimetrique_response_over_time(self) -> pd.DataFrame:
+    def _get_debimetrique_response_over_time(self, start_time=None, end_time=None) -> pd.DataFrame:
         cols = [TIME, FT240]
-        return self._select_columns(cols).copy()
+        df = self._select_columns(cols).copy()
+        return self._filter_by_time_range(df, start_time, end_time)
 
-    def _get_pression_pyrolyseur_over_time(self) -> pd.DataFrame:
+    def _get_pression_pyrolyseur_over_time(self, start_time=None, end_time=None) -> pd.DataFrame:
         cols = [TIME, PI177]
-        return self._select_columns(cols).copy()
+        df = self._select_columns(cols).copy()
+        return self._filter_by_time_range(df, start_time, end_time)
 
-    def _get_pression_sortie_pompe_over_time(self) -> pd.DataFrame:
+    def _get_pression_sortie_pompe_over_time(self, start_time=None, end_time=None) -> pd.DataFrame:
         cols = [TIME, PT230]
-        return self._select_columns(cols).copy()
+        df = self._select_columns(cols).copy()
+        return self._filter_by_time_range(df, start_time, end_time)
 
-    def _get_delta_pression_over_time(self) -> pd.DataFrame:
+    def _get_delta_pression_over_time(self, start_time=None, end_time=None) -> pd.DataFrame:
         cols = [TIME, PI177, PT230]
         df_sel = self._select_columns(cols).copy()
+        df_sel = self._filter_by_time_range(df_sel, start_time, end_time)
         delta_name = f"Delta_Pression_{PI177}_minus_{PT230}"
         df_sel[delta_name] = df_sel[PI177] - df_sel[PT230]
         return df_sel.drop(columns=[PI177, PT230])
@@ -114,39 +221,39 @@ class PignatData:
     # Extraction publique
     # --------------------------------------------------
 
-    def get_json_metrics(self, metric: str):
+    def get_json_metrics(self, metric: str, start_time=None, end_time=None):
         if metric == TEMPERATURE_DEPENDING_TIME:
             return {
                 "name": TEMPERATURE_DEPENDING_TIME,
-                "data": self._get_temperature_over_time(),
+                "data": self._get_temperature_over_time(start_time, end_time),
                 "x_axis": TIME,
                 "y_axis": [TT301, TT302, TT303]
             }
         elif metric == DEBIMETRIC_RESPONSE_DEPENDING_TIME:
             return {
                 "name": DEBIMETRIC_RESPONSE_DEPENDING_TIME,
-                "data": self._get_debimetrique_response_over_time(),
+                "data": self._get_debimetrique_response_over_time(start_time, end_time),
                 "x_axis": TIME,
                 "y_axis": [FT240]
             }
         elif metric == PRESSURE_PYROLYSEUR_DEPENDING_TIME:
             return {
                 "name": PRESSURE_PYROLYSEUR_DEPENDING_TIME,
-                "data": self._get_pression_pyrolyseur_over_time(),
+                "data": self._get_pression_pyrolyseur_over_time(start_time, end_time),
                 "x_axis": TIME,
                 "y_axis": [PI177]
             }
         elif metric == PRESSURE_POMPE_DEPENDING_TIME:
             return {
                 "name": PRESSURE_POMPE_DEPENDING_TIME,
-                "data": self._get_pression_sortie_pompe_over_time(),
+                "data": self._get_pression_sortie_pompe_over_time(start_time, end_time),
                 "x_axis": TIME,
                 "y_axis": [PT230]
             }
         elif metric == DELTA_PRESSURE_DEPENDING_TIME:
             return {
                 "name": DELTA_PRESSURE_DEPENDING_TIME,
-                "data": self._get_delta_pression_over_time(),
+                "data": self._get_delta_pression_over_time(start_time, end_time),
                 "x_axis": TIME,
                 "y_axis": [f"Delta_Pression_{PI177}_minus_{PT230}"]
             }
@@ -155,7 +262,7 @@ class PignatData:
 
     def generate_workbook_with_charts(self,
         wb: Workbook,
-        metrics_wanted: list[str],
+        metrics_wanted: list,
         sheet_name: str = "Pignat"
     ) -> Workbook:
         # Création d'une seule feuille
@@ -172,10 +279,24 @@ class PignatData:
         
         current_col = 1  # Position de colonne actuelle
         
-        for i, metric in enumerate(metrics_wanted):
+        for i, metric_config in enumerate(metrics_wanted):
             try:
-                metric_data = self.get_json_metrics(metric)
+                # Handle both string and dict formats for backward compatibility
+                if isinstance(metric_config, dict):
+                    metric_name = metric_config.get("name")
+                    time_range = metric_config.get("timeRange", {})
+                    start_time = time_range.get("startTime")
+                    end_time = time_range.get("endTime")
+                else:
+                    # Backward compatibility: metric_config is just a string
+                    metric_name = metric_config
+                    start_time = None
+                    end_time = None
+                
+                print(f"Processing PIGNAT metric: {metric_name}, start_time: {start_time}, end_time: {end_time}", file=sys.stderr)
+                metric_data = self.get_json_metrics(metric_name, start_time, end_time)
                 df = metric_data['data']
+                print(f"DataFrame shape: {df.shape}, columns: {list(df.columns)}", file=sys.stderr)
                 
                 # === PLACEMENT DES DONNÉES ===
                 # Titre de la métrique (sans caractères spéciaux qui causent Err:509)
@@ -246,7 +367,8 @@ class PignatData:
                 current_col += data_width + chart_width + spacing
                 
             except Exception as e:
-                print(f"Erreur traitement métrique '{metric}': {e}", file=sys.stderr)
+                metric_name = metric_config.get("name") if isinstance(metric_config, dict) else metric_config
+                print(f"Erreur traitement métrique '{metric_name}': {e}", file=sys.stderr)
                 # En cas d'erreur, on passe au prochain métrique en décalant quand même les colonnes
                 current_col += 20  # Décalage pour éviter les chevauchements
         

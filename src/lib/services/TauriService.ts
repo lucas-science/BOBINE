@@ -22,6 +22,14 @@ class TauriService {
     return await invoke<MetricsBySensor>("get_graphs_available", { dirPath });
   }
 
+  async getTimeRange(dirPath: string): Promise<{
+    min_time: string;
+    max_time: string;
+    unique_times: string[];
+  }> {
+    return await invoke("get_time_range", { dirPath });
+  }
+
   async generateAndSaveExcel(
     dirPath: string,
     metrics: SelectedMetricsBySensor,
