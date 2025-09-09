@@ -3,7 +3,9 @@ import sys
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.chart import LineChart, Reference
-from openpyxl.styles import Font, Border, Side
+from openpyxl.styles import Font, Border, Side, Alignment
+
+
 
 from utils.pignat_constants import (
     TIME,
@@ -58,17 +60,12 @@ class PignatData:
         if TIME not in df.columns:
             return df
             
-        # Debug: Afficher les timestamps disponibles
-        if len(df) > 0:
-            print(f"Available timestamps: first={df[TIME].iloc[0]}, last={df[TIME].iloc[-1]}, total_rows={len(df)}", file=sys.stderr)
-            print(f"Filtering with: start_time={start_time}, end_time={end_time}", file=sys.stderr)
         
         # Vérifier le format des timestamps dans les données
         sample_timestamp = df[TIME].iloc[0] if len(df) > 0 else None
         
         # Si les données sont au format HH:MM:SS uniquement, extraire la partie heure des filtres
         if sample_timestamp and ':' in str(sample_timestamp) and len(str(sample_timestamp).split()) == 1:
-            print("Detected time-only format in data, extracting time from datetime filters", file=sys.stderr)
             
             mask = pd.Series([True] * len(df))
             
@@ -76,19 +73,17 @@ class PignatData:
                 # Extraire la partie heure de start_time (format "YYYY-MM-DD HH:MM:SS" -> "HH:MM:SS")
                 try:
                     start_time_only = str(start_time).split(' ')[1] if ' ' in str(start_time) else str(start_time)
-                    print(f"Extracted start time: {start_time_only}", file=sys.stderr)
                     mask &= (df[TIME] >= start_time_only)
-                except Exception as e:
-                    print(f"Error extracting start time: {e}", file=sys.stderr)
+                except:
+                    pass
                     
             if end_time is not None:
                 # Extraire la partie heure de end_time
                 try:
                     end_time_only = str(end_time).split(' ')[1] if ' ' in str(end_time) else str(end_time)
-                    print(f"Extracted end time: {end_time_only}", file=sys.stderr)
                     mask &= (df[TIME] <= end_time_only)
-                except Exception as e:
-                    print(f"Error extracting end time: {e}", file=sys.stderr)
+                except:
+                    pass
         else:
             # Format datetime complet, comparaison directe
             mask = pd.Series([True] * len(df))
@@ -98,7 +93,6 @@ class PignatData:
                 mask &= (df[TIME] <= end_time)
         
         filtered_df = df[mask]
-        print(f"After filtering: {len(filtered_df)} rows remaining", file=sys.stderr)
         return filtered_df
 
     # --------------------------------------------------
@@ -139,7 +133,6 @@ class PignatData:
         
         # Convertir en datetime si ce sont des strings
         try:
-            import pandas as pd
             min_dt = pd.to_datetime(min_time)
             max_dt = pd.to_datetime(max_time)
             
@@ -265,6 +258,7 @@ class PignatData:
         metrics_wanted: list,
         sheet_name: str = "Pignat"
     ) -> Workbook:
+        
         # Création d'une seule feuille
         ws = wb.create_sheet(title=sheet_name)
         
@@ -281,22 +275,76 @@ class PignatData:
         
         for i, metric_config in enumerate(metrics_wanted):
             try:
+                # Vérification que metric_config n'est pas None
+                if metric_config is None:
+                    continue
+                
                 # Handle both string and dict formats for backward compatibility
                 if isinstance(metric_config, dict):
                     metric_name = metric_config.get("name")
+                    if metric_name is None:
+                        continue
                     time_range = metric_config.get("timeRange", {})
-                    start_time = time_range.get("startTime")
-                    end_time = time_range.get("endTime")
+                    start_time = time_range.get("startTime") if time_range else None
+                    end_time = time_range.get("endTime") if time_range else None
                 else:
                     # Backward compatibility: metric_config is just a string
                     metric_name = metric_config
                     start_time = None
                     end_time = None
                 
-                print(f"Processing PIGNAT metric: {metric_name}, start_time: {start_time}, end_time: {end_time}", file=sys.stderr)
+                if not metric_name:
+                    continue
+                
+                #print(f"Processing PIGNAT metric: {metric_name}, start_time: {start_time}, end_time: {end_time}", file=sys.stderr)
                 metric_data = self.get_json_metrics(metric_name, start_time, end_time)
                 df = metric_data['data']
-                print(f"DataFrame shape: {df.shape}, columns: {list(df.columns)}", file=sys.stderr)
+                
+                # Optimiser la densité des données pour éviter la surcharge visuelle
+                if len(df) > 100:
+                    # Échantillonner les données pour les graphiques très denses
+                    step = max(1, len(df) // 80)  # Maximum 80 points dans le graphique
+                    df_display = df.iloc[::step].copy()
+                else:
+                    df_display = df.copy()
+                
+                # Formater les timestamps pour affichage avec espacement pour éviter le chevauchement
+                def format_time_for_display(time_str, index=0, total=1):
+                    """Convertit HH:MM:SS en format plus lisible avec espacement"""
+                    if isinstance(time_str, str) and ':' in time_str:
+                        parts = time_str.split(':')
+                        if len(parts) >= 2:
+                            hour = parts[0]
+                            minute = parts[1]
+                            
+                            # TOUJOURS garder le format heure:minute mais avec espacement intelligent
+                            # Plus il y a de données, plus on ajoute d'espaces pour éviter le chevauchement
+                            if total > 80:
+                                # Très haute densité: espacement maximal
+                                return f"     {hour}:{minute}     "
+                            elif total > 40:
+                                # Haute densité: espacement moyen
+                                return f"    {hour}:{minute}    "
+                            elif total > 20:
+                                # Densité moyenne: espacement normal
+                                return f"   {hour}:{minute}   "
+                            else:
+                                # Faible densité: espacement minimal
+                                return f"  {hour}:{minute}  "
+                    return f" {time_str} "
+                
+                # Créer une copie avec timestamps formatés pour le graphique
+                df_chart = df_display.copy()
+                df_table = df.copy()  # Garder toutes les données dans le tableau
+                
+                # Formater la colonne TIME dans les deux DataFrames
+                if TIME in df_chart.columns:
+                    total_points = len(df_chart)
+                    df_chart[TIME] = [format_time_for_display(time_val, i, total_points) 
+                                     for i, time_val in enumerate(df_chart[TIME])]
+                if TIME in df_table.columns:
+                    df_table[TIME] = [format_time_for_display(time_val, i, len(df_table)) 
+                                     for i, time_val in enumerate(df_table[TIME])]
                 
                 # === PLACEMENT DES DONNÉES ===
                 # Titre de la métrique (sans caractères spéciaux qui causent Err:509)
@@ -305,13 +353,19 @@ class PignatData:
                 title_cell.font = header_font
                 
                 # En-têtes des colonnes avec formatage
-                for j, col_name in enumerate(df.columns):
+                for j, col_name in enumerate(df_table.columns):
                     header_cell = ws.cell(row=2, column=current_col + j, value=col_name)
                     header_cell.font = header_font
                     header_cell.border = thin_border
+                    
+                    # Si c'est la colonne de temps, ajuster la largeur
+                    if col_name == TIME:
+                        # Ajuster la largeur de la colonne pour les timestamps
+                        col_letter = chr(65 + (current_col + j - 1) % 26) if current_col + j <= 26 else f"{chr(64 + (current_col + j - 1) // 26)}{chr(65 + (current_col + j - 1) % 26)}"
+                        ws.column_dimensions[col_letter].width = 12
                 
-                # Données avec bordures
-                for row_idx, row_data in enumerate(df.itertuples(index=False)):
+                # Données avec bordures (utiliser toutes les données pour le tableau)
+                for row_idx, row_data in enumerate(df_table.itertuples(index=False)):
                     for col_idx, value in enumerate(row_data):
                         data_cell = ws.cell(row=3 + row_idx, column=current_col + col_idx, value=value)
                         data_cell.border = thin_border
@@ -327,26 +381,102 @@ class PignatData:
                 )
                 chart.x_axis.title = metric_data['x_axis']
                 
-                max_row = 2 + len(df)
+                # Configuration de l'axe X pour éviter la superposition des labels
+                try:
+                    # Position des labels
+                    chart.x_axis.tickLblPos = "low"
+                    
+                    # **OPTIMISATION POUR ÉVITER LE CHEVAUCHEMENT DES LABELS**
+                    num_data_points = len(df_chart)
+                    
+                    # Stratégie 1: Largeur adaptative du graphique
+                    base_width = 15
+                    if num_data_points > 50:
+                        chart.width = min(25, base_width + (num_data_points / 20))  # Jusqu'à 25 unités
+                    elif num_data_points > 20:
+                        chart.width = base_width + 3  # 18 unités
+                    else:
+                        chart.width = base_width
+                    
+                    # Stratégie 2: Réduction intelligente du nombre de labels avec rotation fallback
+                    if num_data_points > 12:
+                        # Calculer l'intervalle pour avoir maximum 8-10 labels (plus agressif)
+                        tick_interval = max(1, num_data_points // 8)
+                        chart.x_axis.tickMarkSkip = tick_interval
+                        chart.x_axis.tickLblSkip = tick_interval
+                    
+                    # Stratégie 3: Rotation via propriétés d'axe directes
+                    try:
+                        # Méthode 1: Via l'objet axis directement
+                        if hasattr(chart.x_axis, 'txPr'):
+                            try:
+                                from openpyxl.chart.text import RichText
+                                from openpyxl.drawing.text import Paragraph, ParagraphProperties, CharacterProperties
+                                
+                                rich_text = RichText()
+                                p = Paragraph()
+                                p.pPr = ParagraphProperties()
+                                p.pPr.defRPr = CharacterProperties()
+                                p.pPr.defRPr.rot = -450000  # -45 degrés
+                                rich_text.p = [p]
+                                chart.x_axis.txPr = rich_text
+                            except:
+                                pass
+                                
+                        # Méthode 2: Via attributs numériques
+                        try:
+                            chart.x_axis.txPr = None  # Reset d'abord
+                            if hasattr(chart.x_axis, 'numFmt'):
+                                chart.x_axis.numFmt.formatCode = 'h:mm'  # Format heure
+                            chart.x_axis.textRotation = -45
+                        except:
+                            pass
+                            
+                    except:
+                        pass
+                    
+                    # Hauteur fixe pour tous les graphiques
+                    chart.height = 12  # Légèrement plus haut pour plus de lisibilité
+                    
+                except:
+                    pass
+
+                # Utiliser les dimensions du tableau pour les références Excel
+                max_row_table = 2 + len(df_table)
                 
-                # Référence des données (colonnes 2…n de ce bloc)
+                # Créer une feuille temporaire pour les données du graphique si différentes
+                if len(df_chart) != len(df_table):
+                    # Pour le graphique, on utilise les données échantillonnées mais référence les données du tableau
+                    # On ajuste les références pour pointer vers un sous-ensemble approprié
+                    chart_sample_step = max(1, len(df_table) // len(df_chart))
+                else:
+                    chart_sample_step = 1
+                
+                # Référence des données (colonnes 2…n de ce bloc) - utiliser les données du tableau
                 data_ref = Reference(ws,
                                     min_col=current_col + 1,
                                     min_row=2,
                                     max_col=current_col + len(metric_data['y_axis']),
-                                    max_row=max_row)
+                                    max_row=max_row_table)
                 chart.add_data(data_ref, titles_from_data=True)
                 
-                # Référence des catégories (colonne 1 de ce bloc)
-                cats = Reference(ws, 
-                                min_col=current_col, 
-                                min_row=3, 
-                                max_row=max_row)
+                # Référence des catégories (colonne 1 de ce bloc) - échantillonnage pour éviter la surcharge
+                if chart_sample_step > 1:
+                    # Créer des références ponctuelles pour éviter la surcharge visuelle
+                    cats = Reference(ws, 
+                                    min_col=current_col, 
+                                    min_row=3, 
+                                    max_row=3 + len(df_chart) * chart_sample_step - 1)
+                else:
+                    cats = Reference(ws, 
+                                    min_col=current_col, 
+                                    min_row=3, 
+                                    max_row=max_row_table)
                 chart.set_categories(cats)
                 
                 # === PLACEMENT DU GRAPHIQUE À DROITE DES DONNÉES ===
                 # Position du graphique : à droite des colonnes de données + 1 colonne d'espacement
-                chart_col = current_col + len(df.columns) + 1
+                chart_col = current_col + len(df_table.columns) + 1
                 
                 # Gestion des colonnes au-delà de Z (AA, AB, AC...)
                 if chart_col <= 26:
@@ -360,15 +490,23 @@ class PignatData:
                 
                 # === MISE À JOUR DE LA POSITION POUR LE PROCHAIN MÉTRIQUE ===
                 # Calculer la largeur totale utilisée : données + graphique + espacement
-                data_width = len(df.columns)
-                chart_width = 15  # Largeur standard d'un graphique Excel
+                data_width = len(df_table.columns)
+                chart_width = int(chart.width) if hasattr(chart, 'width') else 15  # Utiliser la largeur dynamique
                 spacing = 3       # Espacement entre les blocs
                 
                 current_col += data_width + chart_width + spacing
                 
             except Exception as e:
-                metric_name = metric_config.get("name") if isinstance(metric_config, dict) else metric_config
-                print(f"Erreur traitement métrique '{metric_name}': {e}", file=sys.stderr)
+                # Gestion sécurisée du nom de métrique en cas d'erreur
+                try:
+                    if metric_config is None:
+                        metric_name = "Unknown"
+                    elif isinstance(metric_config, dict):
+                        metric_name = metric_config.get("name", "Unknown")
+                    else:
+                        metric_name = str(metric_config)
+                except:
+                    metric_name = "Unknown"
                 # En cas d'erreur, on passe au prochain métrique en décalant quand même les colonnes
                 current_col += 20  # Décalage pour éviter les chevauchements
         
