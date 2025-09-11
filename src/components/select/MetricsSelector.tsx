@@ -59,6 +59,15 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
     sensorErrors.push({ sensorName: "Résumé", message: data.resume.error });
   }
 
+  // Check if no data is available at all
+  const hasAnyAvailableData = (
+    (!isSensorError(data.chromeleon_offline) && Array.isArray(data.chromeleon_offline) && data.chromeleon_offline.length > 0) ||
+    (!isSensorError(data.chromeleon_online) && Array.isArray(data.chromeleon_online) && data.chromeleon_online.length > 0) ||
+    (!isSensorError(data.chromeleon_online_permanent_gas) && Array.isArray(data.chromeleon_online_permanent_gas) && data.chromeleon_online_permanent_gas.length > 0) ||
+    (!isSensorError(data.pignat) && Array.isArray(data.pignat) && data.pignat.length > 0) ||
+    (!isSensorError(data.resume) && Array.isArray(data.resume) && data.resume.length > 0)
+  );
+
   return (
     <div className={`w-full max-w-2xl mx-auto space-y-4 ${className}`}>
       {/* Error messages section */}
@@ -86,24 +95,54 @@ export const MetricsSelector: React.FC<MetricsSelectorProps> = ({
         </div>
       )}
 
-      <div className="flex justify-center mb-6">
-        <Button 
-          onClick={handleToggleAll}
-          variant="outline"
-          size="sm"
-          disabled={isLoadingTimeRange}
-          className={`px-6 py-2 text-sm font-medium cursor-pointer ${
-            isAllSelected() ? "bg-secondary text-white hover:bg-secondary/80 hover:text-white" : "hover:bg-secondary/20"
-          }`}
-        >
-          {isLoadingTimeRange 
-            ? "Chargement..." 
-            : isAllSelected() 
-              ? "Désélectionner tout" 
-              : "Sélectionner tout"
-          }
-        </Button>
-      </div>
+      {/* No data available message */}
+      {!hasAnyAvailableData && (
+        <div className="bg-gray-50 border border-gray-200 text-gray-600 p-6 rounded-lg text-center">
+          <div className="flex flex-col items-center space-y-2">
+            <svg
+              className="h-12 w-12 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1}
+                d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2M4 13h2m13-8V4a1 1 0 00-1-1H6a1 1 0 00-1 1v1m16 0h-2M4 5h2"
+              />
+            </svg>
+            <div className="space-y-1">
+              <h3 className="text-lg font-medium text-gray-700">Aucune donnée disponible</h3>
+              <p className="text-sm text-gray-500">
+                Aucune métrique n&apos;est disponible pour les fichiers uploadés. 
+                Vérifiez que vos fichiers contiennent les données attendues.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {hasAnyAvailableData && (
+        <div className="flex justify-center mb-6">
+          <Button 
+            onClick={handleToggleAll}
+            variant="outline"
+            size="sm"
+            disabled={isLoadingTimeRange}
+            className={`px-6 py-2 text-sm font-medium cursor-pointer ${
+              isAllSelected() ? "bg-secondary text-white hover:bg-secondary/80 hover:text-white" : "hover:bg-secondary/20"
+            }`}
+          >
+            {isLoadingTimeRange 
+              ? "Chargement..." 
+              : isAllSelected() 
+                ? "Désélectionner tout" 
+                : "Sélectionner tout"
+            }
+          </Button>
+        </div>
+      )}
       {!isSensorError(data.chromeleon_offline) && Array.isArray(data.chromeleon_offline) && data.chromeleon_offline.length > 0 && (
         <SensorCard
           sensorType="chromeleon_offline"
