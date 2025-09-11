@@ -9,7 +9,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.chart import LineChart, BarChart, Reference, Series
 from openpyxl.chart.marker import Marker
 
-from .utils.GC_Online_constants import COMPOUND_MAPPING, CARBON_ROWS, FAMILIES, HVC_CATEGORIES
+from utils.GC_Online_constants import COMPOUND_MAPPING, CARBON_ROWS, FAMILIES, HVC_CATEGORIES
 
 
 class ChromeleonOnline:

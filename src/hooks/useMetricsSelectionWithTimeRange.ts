@@ -12,6 +12,7 @@ import {
   ChromeleonOnlinePermanentMetric,
   PignatMetric,
   ResumeMetric,
+  isSensorError,
 } from "@/src/lib/utils/type";
 
 export const useMetricsSelectionWithTimeRange = (
@@ -45,10 +46,10 @@ export const useMetricsSelectionWithTimeRange = (
       const [sensorType, indexStr] = key.split("-");
       const i = parseInt(indexStr, 10);
 
-      if (sensorType === "chromeleon_offline") {
+      if (sensorType === "chromeleon_offline" && !isSensorError(data.chromeleon_offline)) {
         const m = data.chromeleon_offline?.[i] as ChromeleonOfflineMetric | undefined;
         if (m) out.chromeleon_offline.push(m.name);
-      } else if (sensorType === "pignat") {
+      } else if (sensorType === "pignat" && !isSensorError(data.pignat)) {
         const m = data.pignat?.[i] as PignatMetric | undefined;
         if (m) {
           const globalTimeRange = timeRangeMap["pignat-global"];
@@ -57,10 +58,10 @@ export const useMetricsSelectionWithTimeRange = (
             timeRange: globalTimeRange || undefined, // Envoie undefined si pas de plage sélectionnée
           });
         }
-      } else if (sensorType === "resume") {
+      } else if (sensorType === "resume" && !isSensorError(data.resume)) {
         const m = data.resume?.[i] as ResumeMetric | undefined;
         if (m) out.resume.push(m.name);
-      } else if (sensorType === "chromeleon_online") {
+      } else if (sensorType === "chromeleon_online" && !isSensorError(data.chromeleon_online)) {
         const m = data.chromeleon_online?.[i] as ChromeleonOnlineMetric | undefined;
         if (m) {
           const hasElements = Array.isArray(m.chimicalElements) && m.chimicalElements.length > 0;
@@ -69,7 +70,7 @@ export const useMetricsSelectionWithTimeRange = (
             chimicalElementSelected: hasElements ? (onlineMap[key] ?? []) : [],
           });
         }
-      } else if (sensorType === "chromeleon_online_permanent_gas") {
+      } else if (sensorType === "chromeleon_online_permanent_gas" && !isSensorError(data.chromeleon_online_permanent_gas)) {
         const m = data.chromeleon_online_permanent_gas?.[i] as ChromeleonOnlinePermanentMetric | undefined;
         if (m) {
           const hasElements = Array.isArray(m.chimicalElements) && m.chimicalElements.length > 0;
@@ -162,39 +163,49 @@ export const useMetricsSelectionWithTimeRange = (
     const availableMetrics: string[] = [];
     
     // Chromeleon Offline
-    data.chromeleon_offline?.forEach((metric, index) => {
-      if (metric.available) {
-        availableMetrics.push(`chromeleon_offline-${index}`);
-      }
-    });
+    if (!isSensorError(data.chromeleon_offline)) {
+      data.chromeleon_offline?.forEach((metric, index) => {
+        if (metric.available) {
+          availableMetrics.push(`chromeleon_offline-${index}`);
+        }
+      });
+    }
     
     // Chromeleon Online
-    data.chromeleon_online?.forEach((metric, index) => {
-      if (metric.available) {
-        availableMetrics.push(`chromeleon_online-${index}`);
-      }
-    });
+    if (!isSensorError(data.chromeleon_online)) {
+      data.chromeleon_online?.forEach((metric, index) => {
+        if (metric.available) {
+          availableMetrics.push(`chromeleon_online-${index}`);
+        }
+      });
+    }
     
     // Chromeleon Online Permanent Gas
-    data.chromeleon_online_permanent_gas?.forEach((metric, index) => {
-      if (metric.available) {
-        availableMetrics.push(`chromeleon_online_permanent_gas-${index}`);
-      }
-    });
+    if (!isSensorError(data.chromeleon_online_permanent_gas)) {
+      data.chromeleon_online_permanent_gas?.forEach((metric, index) => {
+        if (metric.available) {
+          availableMetrics.push(`chromeleon_online_permanent_gas-${index}`);
+        }
+      });
+    }
     
     // PIGNAT
-    data.pignat?.forEach((metric, index) => {
-      if (metric.available) {
-        availableMetrics.push(`pignat-${index}`);
-      }
-    });
+    if (!isSensorError(data.pignat)) {
+      data.pignat?.forEach((metric, index) => {
+        if (metric.available) {
+          availableMetrics.push(`pignat-${index}`);
+        }
+      });
+    }
     
     // Resume
-    data.resume?.forEach((metric, index) => {
-      if (metric.available) {
-        availableMetrics.push(`resume-${index}`);
-      }
-    });
+    if (!isSensorError(data.resume)) {
+      data.resume?.forEach((metric, index) => {
+        if (metric.available) {
+          availableMetrics.push(`resume-${index}`);
+        }
+      });
+    }
     
     return availableMetrics;
   };

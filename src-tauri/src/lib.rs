@@ -176,6 +176,22 @@ fn get_context_b64(app: tauri::AppHandle, dir_path: String) -> Result<String, St
 }
 
 #[tauri::command]
+fn get_context_experience_name(app: tauri::AppHandle, dir_path: String) -> Result<String, String> {
+    let out = run_python(&app, &["GET_CONTEXT_EXPERIENCE_NAME", &dir_path])?;
+    if out.stdout.trim().is_empty() {
+        return Err(if out.stderr.trim().is_empty() {
+            "Empty stdout from Python".into()
+        } else {
+            out.stderr
+        });
+    }
+    let json = parse_python_json(&out.stdout)?;
+    json.as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Invalid JSON: expected string".into())
+}
+
+#[tauri::command]
 fn get_graphs_available(app: tauri::AppHandle, dir_path: String) -> Result<JsonValue, String> {
     let out = run_python(&app, &["GET_GRAPHS_AVAILABLE", &dir_path])?;
     if out.stdout.trim().is_empty() {
@@ -290,6 +306,7 @@ pub fn run() {
             context_is_correct,
             get_context_masses,
             get_context_b64,
+            get_context_experience_name,
             get_graphs_available,
             get_time_range,
             generate_and_save_excel,

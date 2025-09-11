@@ -21,12 +21,25 @@ export type PignatMetric = Metric & {
 
 export type ResumeMetric = Metric;
 
+// Error type for sensor initialization failures
+export type SensorError = {
+  error: string;
+};
+
+// Union type for sensor data: either array of metrics or error object
+export type SensorMetrics<T> = T[] | SensorError;
+
+// Type guard to check if sensor data is an error
+export function isSensorError<T>(data: SensorMetrics<T>): data is SensorError {
+  return typeof data === 'object' && data !== null && 'error' in data;
+}
+
 export interface MetricsBySensor {
-  chromeleon_offline: ChromeleonOfflineMetric[];
-  chromeleon_online: ChromeleonOnlineMetric[];
-  chromeleon_online_permanent_gas: ChromeleonOnlinePermanentMetric[];
-  pignat: PignatMetric[];
-  resume: ResumeMetric[];
+  chromeleon_offline: SensorMetrics<ChromeleonOfflineMetric>;
+  chromeleon_online: SensorMetrics<ChromeleonOnlineMetric>;
+  chromeleon_online_permanent_gas: SensorMetrics<ChromeleonOnlinePermanentMetric>;
+  pignat: SensorMetrics<PignatMetric>;
+  resume: SensorMetrics<ResumeMetric>;
 }
 
 // Time range selection for Pignat metrics

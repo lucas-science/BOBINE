@@ -8,7 +8,7 @@ from openpyxl.utils import get_column_letter
 from openpyxl.chart import LineChart, BarChart, Reference, Series
 from openpyxl.chart.marker import Marker
 
-from .utils.GC_Online_permanent_gas_constants import COMPOUND_MAPPING, CARBON_ROWS, FAMILIES
+from utils.GC_Online_permanent_gas_constants import COMPOUND_MAPPING, CARBON_ROWS, FAMILIES
 
 
 class ChromeleonOnlinePermanent:
