@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { FILE_ZONE } from "@/src/lib/utils/uploadFile.utils";
-import type { FilesByZoneKey } from "@/src/hooks/upload/useUploadState";
+import type { FilesByZoneKey } from "@/src/hooks/useUploadState";
 
 export async function copyAllFilesToDocuments(allFilesByZoneKey: FilesByZoneKey) {
   try {

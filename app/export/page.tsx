@@ -6,6 +6,7 @@ import BackButton from "@/src/components/shared/backButton";
 import { getIndexByPathname, getNavigationByIndex } from "@/src/lib/pathNavigation";
 import { useState } from "react";
 import { generateAndSaveExcel, getDocumentsDir } from "@/src/lib/utils/invoke.utils";
+import { tauriService } from "@/src/lib/services/TauriService";
 import { toast } from "sonner";
 import { Button } from "@/src/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/src/components/ui/card";
@@ -42,8 +43,17 @@ export default function Page() {
 
       const docsDir = await getDocumentsDir();
 
+      // Générer un nom de fichier basé sur l'expérience
+      let defaultName = "rapport.xlsx";
+      try {
+        const experienceName = await tauriService.getContextExperienceName(docsDir);
+        defaultName = `${experienceName}.xlsx`;
+      } catch (error) {
+        console.warn("Failed to get experience name, using default:", error);
+      }
+
       const absPath = await save({
-        defaultPath: "rapport.xlsx",
+        defaultPath: defaultName,
         filters: [{ name: "Excel", extensions: ["xlsx"] }],
       });
       if (!absPath) throw new Error("Enregistrement annulé");

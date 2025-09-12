@@ -2,7 +2,7 @@ use tauri::{command, AppHandle, Manager};
 use dirs::document_dir;
 use serde::{Serialize, Deserialize};
 use serde_json::Value as JsonValue;
-use std::{fs, path::{Path, PathBuf}};
+use std::path::{Path, PathBuf};
 
 #[derive(Serialize)]
 struct CommandOutput {
@@ -176,6 +176,22 @@ fn get_context_b64(app: tauri::AppHandle, dir_path: String) -> Result<String, St
 }
 
 #[tauri::command]
+fn get_context_experience_name(app: tauri::AppHandle, dir_path: String) -> Result<String, String> {
+    let out = run_python(&app, &["GET_CONTEXT_EXPERIENCE_NAME", &dir_path])?;
+    if out.stdout.trim().is_empty() {
+        return Err(if out.stderr.trim().is_empty() {
+            "Empty stdout from Python".into()
+        } else {
+            out.stderr
+        });
+    }
+    let json = parse_python_json(&out.stdout)?;
+    json.as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Invalid JSON: expected string".into())
+}
+
+#[tauri::command]
 fn get_graphs_available(app: tauri::AppHandle, dir_path: String) -> Result<JsonValue, String> {
     let out = run_python(&app, &["GET_GRAPHS_AVAILABLE", &dir_path])?;
     if out.stdout.trim().is_empty() {
@@ -243,33 +259,34 @@ fn get_documents_dir() -> Result<String, String> {
 }
 
 #[command]
-fn remove_dir(dir_path: String) -> Result<(), String> {
-    if Path::new(&dir_path).exists() {
-        fs::remove_dir_all(&dir_path)
+async fn remove_dir(dir_path: String) -> Result<(), String> {
+    if tokio::fs::try_exists(&dir_path).await
+        .map_err(|e| format!("Erreur vérification existence répertoire : {}", e))? {
+        tokio::fs::remove_dir_all(&dir_path).await
             .map_err(|e| format!("Erreur suppression répertoire : {}", e))?;
     }
     Ok(())
 }
 
 #[command]
-fn write_file(destination_path: String, contents: Vec<u8>) -> Result<(), String> {
+async fn write_file(destination_path: String, contents: Vec<u8>) -> Result<(), String> {
     if let Some(parent) = Path::new(&destination_path).parent() {
-        fs::create_dir_all(parent)
+        tokio::fs::create_dir_all(parent).await
             .map_err(|e| format!("Erreur création répertoire : {}", e))?;
     }
-    fs::write(&destination_path, contents)
+    tokio::fs::write(&destination_path, contents).await
         .map_err(|e| format!("Erreur lors de l'écriture : {}", e))?;
     println!("✅ Écriture de `{}` réussie", destination_path);
     Ok(())
 }
 
 #[command]
-fn copy_file(source_path: String, destination_path: String) -> Result<(), String> {
+async fn copy_file(source_path: String, destination_path: String) -> Result<(), String> {
     if let Some(parent) = Path::new(&destination_path).parent() {
-        fs::create_dir_all(parent)
+        tokio::fs::create_dir_all(parent).await
             .map_err(|e| format!("Erreur création répertoire : {}", e))?;
     }
-    fs::copy(&source_path, &destination_path)
+    tokio::fs::copy(&source_path, &destination_path).await
         .map_err(|e| format!("Erreur lors de la copie : {}", e))?;
     println!("✅ Copie de `{}` vers `{}` réussie", source_path, destination_path);
     Ok(())
@@ -290,6 +307,7 @@ pub fn run() {
             context_is_correct,
             get_context_masses,
             get_context_b64,
+            get_context_experience_name,
             get_graphs_available,
             get_time_range,
             generate_and_save_excel,

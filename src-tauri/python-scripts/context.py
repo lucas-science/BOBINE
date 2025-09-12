@@ -1,6 +1,8 @@
 import base64
 import io
 import os
+import re
+from datetime import datetime
 from typing import Union, Optional
 from copy import copy  # <<< pour cloner les styles sans DeprecationWarning
 import pandas as pd
@@ -57,6 +59,90 @@ class ExcelContextData:
 
     def is_valid(self) -> bool:
         return not any(v is None for v in self.get_masses().values())
+
+    def get_experience_name(self) -> str:
+        """
+        Extrait les informations d'expérience (date, heures) du fichier Excel
+        pour générer un nom de fichier approprié.
+        
+        Returns:
+            str: Nom formaté pour fichier (ex: "Rapport_experience_24-juin-25_08h15-16h15")
+                 ou fallback vers date du jour si informations manquantes
+        """
+        target_labels = {
+            "date": None,
+            "heure début": None, 
+            "heure fin": None
+        }
+        
+        data = list(self.sheet.values)
+        df = pd.DataFrame(data)
+        
+        # Parcourir toutes les cellules pour trouver les labels
+        for i in range(df.shape[0]):
+            for j in range(df.shape[1]):
+                val = df.iat[i, j]
+                if isinstance(val, str):
+                    val_clean = val.lower().strip()
+                    
+                    # Rechercher chaque label cible
+                    for key in target_labels.keys():
+                        if key in val_clean and target_labels[key] is None:
+                            # Récupérer la valeur dans la cellule suivante
+                            if j + 1 < df.shape[1]:
+                                next_val = df.iat[i, j + 1]
+                                if next_val is not None and str(next_val).strip():
+                                    target_labels[key] = str(next_val).strip()
+                                    break
+        
+        # Construire le nom si toutes les informations sont disponibles
+        if all(v is not None for v in target_labels.values()):
+            try:
+                date_str = str(target_labels["date"]).strip()
+                debut_str = str(target_labels["heure début"]).strip()
+                fin_str = str(target_labels["heure fin"]).strip()
+                
+                # Formatter la date proprement
+                def format_date(date_str):
+                    # Si c'est un timestamp datetime, extraire seulement la partie date
+                    if re.match(r'\d{4}-\d{2}-\d{2}', date_str):
+                        # Format ISO datetime, prendre seulement YYYY-MM-DD
+                        date_part = date_str.split()[0]  # Séparer date et heure
+                        date_part = date_part.split('T')[0]  # Au cas où format ISO avec T
+                        # Convertir en format plus lisible (optionnel)
+                        try:
+                            from datetime import datetime
+                            dt = datetime.strptime(date_part, '%Y-%m-%d')
+                            return dt.strftime('%d-%m-%Y')  # Format DD-MM-YYYY
+                        except:
+                            return date_part.replace('-', '-')
+                    else:
+                        # Format texte, nettoyer les caractères spéciaux
+                        return re.sub(r'[^\w\-]', '-', date_str)
+                
+                date_clean = format_date(date_str)
+                
+                # Formatter les heures : extraire HH:MM et convertir en HHhMM
+                def format_time(time_str):
+                    # Extraire les heures et minutes (format HH:MM)
+                    time_match = re.search(r'(\d{1,2}):(\d{2})', time_str)
+                    if time_match:
+                        hours = time_match.group(1).zfill(2)
+                        minutes = time_match.group(2)
+                        return f"{hours}h{minutes}"
+                    return time_str.replace(":", "h")
+                
+                debut_clean = format_time(debut_str)
+                fin_clean = format_time(fin_str)
+                
+                return f"Rapport_experience_{date_clean}_{debut_clean}-{fin_clean}"
+                
+            except Exception:
+                pass  # En cas d'erreur, utiliser le fallback
+        
+        # Fallback : utiliser la date du jour
+        today = datetime.now().strftime("%Y-%m-%d")
+        return f"Rapport_experience_{today}"
     
     def add_self_sheet_to(self, target_wb: Workbook, new_sheet_name: Optional[str] = None) -> Workbook:
         dst_ws = target_wb.create_sheet(title=self.sheet_name)

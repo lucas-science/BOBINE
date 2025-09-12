@@ -273,13 +273,22 @@ class Resume:
         
         # --- MASS BALANCE CALCULATIONS ---
         
+        # Calculer les wt% R1/R2 en utilisant la même logique que ChromeleonOffline
+        masse_recette_1 = self.masses.get("masse recette 1 (kg)", 0)
+        masse_recette_2 = self.masses.get("masse recette 2 (kg)", 0)
+        m_liquide = masse_recette_1 + masse_recette_2
+        
+        # Calculer wt% R1/R2 sur la fraction liquide uniquement (comme dans ChromeleonOffline)
+        wt_r1 = round(masse_recette_1 / m_liquide, 2) if m_liquide > 0 else 0.0
+        wt_r2 = round(masse_recette_2 / m_liquide, 2) if m_liquide > 0 else 0.0
+
         mass_balance_data = {
             "Flask 1 weight (kg)": [self.masses.get("masse recette 1 (kg)", None)],
             "Flask 2 weight (kg)": [self.masses.get("masse recette 2 (kg)", None)], 
             "Masse cendrier (kg)": [self.masses.get("masse cendrier (kg)", None)],
             "Intrant weight (kg)": [self.masses.get("masse injectée (kg)", None)],
-            "wt% R1": [0.0],  # Left at zero as requested
-            "wt% R2": [0.0],  # Left at zero as requested
+            "wt% R1": [wt_r1],  
+            "wt% R2": [wt_r2], 
             "Liquide (%)": [mass_percentages.get("Liquide (%)", None)],
             "Gas (%)": [mass_percentages.get("Gas (%)", None)],
             "Residue (%)": [mass_percentages.get("Residue (%)", None)],

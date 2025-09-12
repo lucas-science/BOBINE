@@ -9,6 +9,8 @@ from openpyxl.utils import get_column_letter
 from openpyxl.chart import LineChart, BarChart, Reference, Series
 from openpyxl.chart.marker import Marker
 
+from utils.GC_Online_constants import COMPOUND_MAPPING, CARBON_ROWS, FAMILIES, HVC_CATEGORIES
+
 
 class ChromeleonOnline:
     def __init__(self, dir_root: str):
@@ -317,35 +319,7 @@ class ChromeleonOnline:
 
         table1 = pd.DataFrame(final_rows, columns=['Peakname', 'RetentionTime', 'Relative Area'])
 
-        mapping = {
-            'Methane':             ('C1', 'Linear'),
-            'Ethane':              ('C2', 'Linear'),
-            'Ethylene':            ('C2', 'Olefin'),
-            'Propane':             ('C3', 'Linear'),
-            'Cyclopropane':        ('C3', 'Autres'),
-            'Propylene':           ('C3', 'Olefin'),
-            'Propadiene':          ('C3', 'Olefin'),
-            'iso-Butane':          ('C4', 'Linear'),
-            'Acetylene':           ('C2', 'Autres'),
-            'n-Butane':            ('C4', 'Linear'),
-            'trans-2-Butene':      ('C4', 'Olefin'),
-            '1-Butene':            ('C4', 'Olefin'),
-            'iso-Butylene':        ('C4', 'Olefin'),
-            'cis-2-Butene':        ('C4', 'Olefin'),
-            'iso-Pentane':         ('C5', 'Olefin'),
-            'n-Pentane':           ('C5', 'Linear'),
-            '1,3-Butadiene':       ('C4', 'Olefin'),
-            'trans-2-Pentene':     ('C5', 'Olefin'),
-            '2-methyl-2-Butene':   ('C4', 'Olefin'),
-            '1-Pentene':           ('C5', 'Olefin'),
-            'cis-2-Pentene':       ('C5', 'Olefin'),
-            'Other C5':            ('C5', 'Olefin'),
-            'n-Hexane':            ('C6', 'Linear'),
-            'Other C6':            ('C6', 'Olefin'),
-            'Benzene':             ('C6', 'BTX gas'),
-            'Other C7':            ('C7', 'Olefin'),
-            'Toluene':             ('C7', 'BTX gas'),
-        }
+        mapping = COMPOUND_MAPPING
 
         tbl = table1[table1['Peakname'] != 'Total:'] \
             .rename(columns={'Relative Area': 'Area'})
@@ -363,15 +337,13 @@ class ChromeleonOnline:
             aggfunc='sum',
             fill_value=0
         )
-        for fam in ['Linear', 'Olefin', 'BTX gas']:
+        for fam in FAMILIES:
             if fam not in table2.columns:
                 table2[fam] = 0
 
-        carbons = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8', 'Autres']
-        table2 = table2.reindex(index=carbons, fill_value=0)[
-            ['Linear', 'Olefin', 'BTX gas']]
+        table2 = table2.reindex(index=CARBON_ROWS, fill_value=0)[FAMILIES]
 
-        table2 = table2[['Linear', 'Olefin', 'BTX gas']]
+        table2 = table2[FAMILIES]
         table2['Total'] = table2.sum(axis=1)
         table2.loc['Total'] = table2.sum()
 
@@ -534,12 +506,7 @@ class ChromeleonOnline:
             c.fill = gray_fill
             c.alignment = center
             c.border = border
-        hvc_categories = [
-            ("C2 Olefin", "C2", "Olefin"),
-            ("C3 Olefin", "C3", "Olefin"), 
-            ("C4 Olefin", "C4", "Olefin"),
-            ("C6 BTX gas", "C6", "BTX gas")
-        ]
+        hvc_categories = HVC_CATEGORIES
         
         base = block1_row + 2
         for i, (display_name, carbon, family) in enumerate(hvc_categories):
@@ -653,7 +620,7 @@ class ChromeleonOnline:
                 bar.title = "Products repartition Gas phase"
 
                 # Colonnes de données dans le tableau pivot
-                cols_bar = ["Linear", "Olefin", "BTX gas"]
+                cols_bar = FAMILIES
 
                 # Pour chaque famille, créer une série référençant directement table2
                 for i, family in enumerate(cols_bar):

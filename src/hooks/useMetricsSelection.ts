@@ -33,31 +33,46 @@ export const useMetricsSelection = (
       const i = parseInt(indexStr, 10);
 
       if (sensorType === "chromeleon_offline") {
-        const m = data.chromeleon_offline?.[i] as ChromeleonOfflineMetric | undefined;
-        if (m) out.chromeleon_offline.push(m.name);
+        const sensorData = data.chromeleon_offline;
+        if (Array.isArray(sensorData)) {
+          const m = sensorData[i] as ChromeleonOfflineMetric | undefined;
+          if (m) out.chromeleon_offline.push(m.name);
+        }
       } else if (sensorType === "pignat") {
-        const m = data.pignat?.[i] as PignatMetric | undefined;
-        if (m) out.pignat.push({ name: m.name });
+        const sensorData = data.pignat;
+        if (Array.isArray(sensorData)) {
+          const m = sensorData[i] as PignatMetric | undefined;
+          if (m) out.pignat.push({ name: m.name });
+        }
       } else if (sensorType === "resume") {
-        const m = data.resume?.[i] as ResumeMetric | undefined;
-        if (m) out.resume.push(m.name);
+        const sensorData = data.resume;
+        if (Array.isArray(sensorData)) {
+          const m = sensorData[i] as ResumeMetric | undefined;
+          if (m) out.resume.push(m.name);
+        }
       } else if (sensorType === "chromeleon_online") {
-        const m = data.chromeleon_online?.[i] as ChromeleonOnlineMetric | undefined;
-        if (m) {
-          const hasElements = Array.isArray(m.chimicalElements) && m.chimicalElements.length > 0;
-          out.chromeleon_online.push({
-            name: m.name,
-            chimicalElementSelected: hasElements ? (onlineMap[key] ?? []) : [],
-          });
+        const sensorData = data.chromeleon_online;
+        if (Array.isArray(sensorData)) {
+          const m = sensorData[i] as ChromeleonOnlineMetric | undefined;
+          if (m) {
+            const hasElements = Array.isArray(m.chimicalElements) && m.chimicalElements.length > 0;
+            out.chromeleon_online.push({
+              name: m.name,
+              chimicalElementSelected: hasElements ? (onlineMap[key] ?? []) : [],
+            });
+          }
         }
       } else if (sensorType === "chromeleon_online_permanent_gas") {
-        const m = data.chromeleon_online_permanent_gas?.[i] as ChromeleonOnlinePermanentMetric | undefined;
-        if (m) {
-          const hasElements = Array.isArray(m.chimicalElements) && m.chimicalElements.length > 0;
-          out.chromeleon_online_permanent_gas.push({
-            name: m.name,
-            chimicalElementSelected: hasElements ? (onlineMap[key] ?? []) : [],
-          });
+        const sensorData = data.chromeleon_online_permanent_gas;
+        if (Array.isArray(sensorData)) {
+          const m = sensorData[i] as ChromeleonOnlinePermanentMetric | undefined;
+          if (m) {
+            const hasElements = Array.isArray(m.chimicalElements) && m.chimicalElements.length > 0;
+            out.chromeleon_online_permanent_gas.push({
+              name: m.name,
+              chimicalElementSelected: hasElements ? (onlineMap[key] ?? []) : [],
+            });
+          }
         }
       }
     });

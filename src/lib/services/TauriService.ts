@@ -18,6 +18,10 @@ class TauriService {
     return await invoke<string>("get_context_b64", { dirPath });
   }
 
+  async getContextExperienceName(dirPath: string): Promise<string> {
+    return await invoke<string>("get_context_experience_name", { dirPath });
+  }
+
   async getMetricsAvailable(dirPath: string): Promise<MetricsBySensor> {
     return await invoke<MetricsBySensor>("get_graphs_available", { dirPath });
   }

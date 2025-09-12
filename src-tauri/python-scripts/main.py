@@ -87,6 +87,17 @@ def get_context_b64(dir_path):
     return contextData.get_as_base64()
 
 
+def get_context_experience_name(dir_path):
+    DIR = getDirectories(dir_path)[CONTEXT]
+
+    if not os.path.exists(DIR):
+        raise FileNotFoundError(
+            f"Le fichier de contexte n'existe pas dans {DIR}")
+    contextData = ExcelContextData(DIR)
+
+    return contextData.get_experience_name()
+
+
 def get_graphs_available(dir_path):
     metrics_available = {
         PIGNAT:             [],
@@ -97,27 +108,41 @@ def get_graphs_available(dir_path):
     }
     directories = getDirectories(dir_path)
 
+    # Pignat data
     pignat_dir = directories[PIGNAT]
     if os.path.exists(pignat_dir):
-        pignat_data = PignatData(pignat_dir)
-        metrics_available[PIGNAT] = pignat_data.get_available_graphs()
+        try:
+            pignat_data = PignatData(pignat_dir)
+            metrics_available[PIGNAT] = pignat_data.get_available_graphs()
+        except Exception:
+            metrics_available[PIGNAT] = {"error": "Le fichier Pignat ne possède pas les données attendues"}
 
+    # Chromeleon Online data
     chromeleon_online_dir = directories[CHROMELEON_ONLINE]
     if os.path.exists(chromeleon_online_dir):
-        chromeleon_online_data = ChromeleonOnline(chromeleon_online_dir)
-        metrics_available[CHROMELEON_ONLINE] = chromeleon_online_data.get_graphs_available(
-        )
+        try:
+            chromeleon_online_data = ChromeleonOnline(chromeleon_online_dir)
+            metrics_available[CHROMELEON_ONLINE] = chromeleon_online_data.get_graphs_available()
+        except Exception:
+            metrics_available[CHROMELEON_ONLINE] = {"error": "Le fichier GC-Online ne possède pas les données attendues"}
 
+    # Chromeleon Offline data
     chromeleon_offline_dir = directories[CHROMELEON_OFFLINE]
     if os.path.exists(chromeleon_offline_dir):
-        chromeleon_offline_data = ChromeleonOffline(chromeleon_offline_dir)
-        metrics_available[CHROMELEON_OFFLINE] = chromeleon_offline_data.get_graphs_available(
-        )
+        try:
+            chromeleon_offline_data = ChromeleonOffline(chromeleon_offline_dir)
+            metrics_available[CHROMELEON_OFFLINE] = chromeleon_offline_data.get_graphs_available()
+        except Exception:
+            metrics_available[CHROMELEON_OFFLINE] = {"error": "Le fichier GC-Offline ne possède pas les données attendues"}
 
+    # Chromeleon Online Permanent Gas data
     chromeleon_online_permanent_gas_dir = directories[CHROMELEON_ONLINE_PERMANENT_GAS]
     if os.path.exists(chromeleon_online_permanent_gas_dir):
-        chromeleon_online_permanent_gas_data = ChromeleonOnlinePermanent(chromeleon_online_permanent_gas_dir)
-        metrics_available[CHROMELEON_ONLINE_PERMANENT_GAS] = chromeleon_online_permanent_gas_data.get_graphs_available()
+        try:
+            chromeleon_online_permanent_gas_data = ChromeleonOnlinePermanent(chromeleon_online_permanent_gas_dir)
+            metrics_available[CHROMELEON_ONLINE_PERMANENT_GAS] = chromeleon_online_permanent_gas_data.get_graphs_available()
+        except Exception:
+            metrics_available[CHROMELEON_ONLINE_PERMANENT_GAS] = {"error": "Le fichier GC-Online Permanent Gas ne possède pas les données attendues"}
 
     # Resume requires online, offline, and context directories
     try:
@@ -131,8 +156,7 @@ def get_graphs_available(dir_path):
             resume_data = Resume(dir_online, dir_offline, dir_context)
             metrics_available[RESUME] = resume_data.get_all_graphs_available()
     except Exception:
-        # If resume initialization fails, keep empty list
-        pass
+        metrics_available[RESUME] = {"error": "Le fichier Résumé ne possède pas les données attendues"}
 
     return metrics_available
 
@@ -226,6 +250,14 @@ if __name__ == "__main__":
                 response = {"result": result}
             except Exception as e:
                 print(f"[GET_CONTEXT_B64] {e}", file=sys.stderr)
+                response = {"error": str(e)}
+
+        elif action == "GET_CONTEXT_EXPERIENCE_NAME":
+            try:
+                result = get_context_experience_name(arg2)
+                response = {"result": result}
+            except Exception as e:
+                print(f"[GET_CONTEXT_EXPERIENCE_NAME] {e}", file=sys.stderr)
                 response = {"error": str(e)}
 
         elif action == "GET_GRAPHS_AVAILABLE":
