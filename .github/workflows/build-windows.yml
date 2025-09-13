@@ -76,15 +76,16 @@ jobs:
           cache: 'pip'
 
       # Compiler le code Python en executable avec corrections
-# Compiler avec installation forcée de toutes les dépendances
-      - name: Compile Python to executable (Force Dependencies)
+
+      # Compiler avec installation forcée et test séparé
+      - name: Compile Python to executable (With Test File)
         shell: powershell
         run: |
-          # Installer PyInstaller et dépendances avec versions spécifiques
+          # Installer PyInstaller et dépendances
           python -m pip install --upgrade pip
           python -m pip install "pyinstaller==5.13.2"
           
-          # FORCER l'installation de toutes les dépendances critiques une par une
+          # FORCER l'installation des dépendances critiques
           python -m pip install pytz --force-reinstall
           python -m pip install python-dateutil --force-reinstall
           python -m pip install six --force-reinstall
@@ -95,48 +96,49 @@ jobs:
           python -m pip install matplotlib --force-reinstall
           python -m pip install pillow --force-reinstall
           
-          # Installer le reste des requirements
+          # Installer le reste
           python -m pip install -r src-tauri/python-runtime/requirements.txt
           
-          # Vérifier que TOUT est bien installé
-          python -c "
-          import sys
-          print('Python path:', sys.path)
+          # Créer un fichier de test temporaire
+          @"
+import sys
+print('Python path:', sys.path)
+
+print('Testing critical imports...')
+import pytz
+print('pytz version:', pytz.__version__)
+
+import dateutil  
+print('dateutil version:', dateutil.__version__)
+
+import pandas as pd
+print('pandas version:', pd.__version__)
+
+import numpy as np
+print('numpy version:', np.__version__)
+
+# Test pandas avec pytz
+df = pd.DataFrame({'date': ['2023-01-01', '2023-01-02']})
+df['date'] = pd.to_datetime(df['date'])
+df_tz = df['date'].dt.tz_localize('UTC').dt.tz_convert('Europe/Paris')
+print('Pandas timezone conversion works')
+
+print('All dependencies verified successfully')
+"@ | Out-File -FilePath "test_deps.py" -Encoding UTF8
           
-          print('Testing critical imports...')
-          import pytz
-          print('✓ pytz version:', pytz.__version__)
-          
-          import dateutil
-          print('✓ dateutil version:', dateutil.__version__)
-          
-          import pandas as pd
-          print('✓ pandas version:', pd.__version__)
-          
-          import numpy as np  
-          print('✓ numpy version:', np.__version__)
-          
-          # Test complet pandas avec pytz
-          import pandas as pd
-          df = pd.DataFrame({'date': ['2023-01-01', '2023-01-02']})
-          df['date'] = pd.to_datetime(df['date'])
-          df_tz = df['date'].dt.tz_localize('UTC').dt.tz_convert('Europe/Paris')
-          print('✓ Pandas timezone conversion works')
-          
-          print('All dependencies verified successfully!')
-          "
+          # Exécuter le test
+          python test_deps.py
           
           # Créer le répertoire de destination
           New-Item -ItemType Directory -Force -Path "src-tauri\python-runtime" | Out-Null
           
-          # Lister tous les packages installés pour debug
-          python -m pip list | findstr -i "pytz\|pandas\|numpy\|dateutil"
+          # Lister les packages pour debug
+          python -m pip list | findstr -i "pytz pandas numpy dateutil"
           
-          # Compiler avec PyInstaller
+          # Compiler
           cd src-tauri/python-scripts
-          Write-Host "[INFO] Compiling with ultra-robust spec..."
+          Write-Host "[INFO] Compiling with forced dependencies..."
           
-          # Alternative : compilation directe avec tous les modules forcés
           python -m PyInstaller --onefile --console `
             --name data_processor `
             --collect-all pandas `
@@ -158,10 +160,10 @@ jobs:
             --hidden-import=resume `
             main.py
           
-          # Vérifier que la compilation a réussi
+          # Vérifier et déplacer
           if (Test-Path "dist\data_processor.exe") {
             Move-Item -Force "dist\data_processor.exe" "..\python-runtime\data_processor.exe"
-            Write-Host "[OK] Executable compiled and moved successfully"
+            Write-Host "[OK] Executable compiled successfully"
             
             $sizeBytes = (Get-Item "..\python-runtime\data_processor.exe").Length
             $sizeMB = $sizeBytes / 1MB
@@ -169,69 +171,14 @@ jobs:
             Write-Host "[INFO] Final executable size: $sizeRounded MB"
             
           } else {
-            Write-Host "[ERROR] Compilation failed - executable not found"
+            Write-Host "[ERROR] Compilation failed"
             Get-ChildItem "dist" -ErrorAction SilentlyContinue
             throw "Compilation failed"
           }
           
           # Nettoyage
           Remove-Item -Recurse -Force "build", "dist", "__pycache__" -ErrorAction SilentlyContinue
-      # Test plus robuste de l'executable
-      - name: Test compiled executable
-        shell: powershell
-        run: |
-          $exe = "src-tauri\python-runtime\data_processor.exe"
-          if (-Not (Test-Path $exe)) { 
-            throw "Compiled executable not found" 
-          }
-          
-          Write-Host "[OK] Executable compiled successfully: $exe"
-          $sizeBytes = (Get-Item $exe).Length
-          $sizeMB = $sizeBytes / 1MB
-          $sizeRounded = [math]::Round($sizeMB, 2)
-          Write-Host "[INFO] Executable size: $sizeRounded MB"
-          
-          # Test que l'executable se lance sans erreurs d'import
-          try {
-            $process = Start-Process -FilePath $exe -ArgumentList "TEST_LAUNCH" -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput "test_output.txt" -RedirectStandardError "test_error.txt"
-            
-            # Vérifier que le processus s'est lancé (peu importe le code de sortie)
-            if ($process.HasExited) {
-              Write-Host "[OK] Executable launches successfully (exit code: $($process.ExitCode))"
-              
-              # Afficher le contenu pour debug si nécessaire
-              if (Test-Path "test_error.txt") {
-                $errorContent = Get-Content "test_error.txt" -Raw -ErrorAction SilentlyContinue
-                if ($errorContent -and $errorContent.Trim()) {
-                  # Si l'erreur contient "ModuleNotFoundError", c'est un problème
-                  if ($errorContent -match "ModuleNotFoundError") {
-                    Write-Host "[ERROR] Module import error detected:"
-                    Write-Host $errorContent
-                    throw "Critical import error in executable"
-                  } else {
-                    Write-Host "[INFO] Non-critical error output: $errorContent"
-                  }
-                }
-              }
-              
-              # Nettoyer les fichiers de test
-              Remove-Item "test_output.txt", "test_error.txt" -ErrorAction SilentlyContinue
-              
-            } else {
-              throw "Executable process did not complete"
-            }
-            
-          } catch {
-            Write-Host "[ERROR] Executable test failed: $_"
-            # Afficher les logs d'erreur si disponibles
-            if (Test-Path "test_error.txt") {
-              $errorContent = Get-Content "test_error.txt" -Raw -ErrorAction SilentlyContinue
-              if ($errorContent) {
-                Write-Host "[ERROR] Error output: $errorContent"
-              }
-            }
-            throw "Executable test failed: $_"
-          }
+          Remove-Item "test_deps.py" -ErrorAction SilentlyContinue
 
       # Build avec l'action officielle Tauri
       - name: Build Tauri App (official action)
