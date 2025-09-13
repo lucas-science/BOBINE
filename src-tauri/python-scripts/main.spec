@@ -63,7 +63,7 @@ exe = EXE(
     a.datas,
     [],
     name='data_processor',
-    debug=False,
+    debug=True,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,

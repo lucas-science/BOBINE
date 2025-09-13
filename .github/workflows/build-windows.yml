@@ -87,10 +87,17 @@ jobs:
           
           # Compiler avec PyInstaller (mode compatible)
           cd src-tauri/python-scripts
-          python -m PyInstaller main.spec --clean --noconfirm --debug=imports
+          python -m PyInstaller main.spec --clean --noconfirm
           
-          # Déplacer l'executable vers le répertoire runtime
-          Move-Item -Force "dist\data_processor.exe" "..\python-runtime\data_processor.exe"
+          # Vérifier que la compilation a réussi et déplacer l'executable
+          if (Test-Path "dist\data_processor.exe") {
+            Move-Item -Force "dist\data_processor.exe" "..\python-runtime\data_processor.exe"
+            Write-Host "[OK] Executable moved successfully"
+          } else {
+            Write-Host "[ERROR] PyInstaller compilation failed - executable not found"
+            Get-ChildItem "dist" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "Found in dist: $($_.Name)" }
+            throw "PyInstaller compilation failed"
+          }
           
           # Nettoyage des fichiers temporaires
           Remove-Item -Recurse -Force "build", "dist", "__pycache__" -ErrorAction SilentlyContinue
