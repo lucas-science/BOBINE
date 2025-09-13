@@ -100,18 +100,22 @@ jobs:
         shell: powershell
         run: |
           $exe = "src-tauri\python-runtime\data_processor.exe"
-          if (-Not (Test-Path $exe)) { throw "Compiled executable not found" }
+          if (-Not (Test-Path $exe)) { 
+            throw "Compiled executable not found" 
+          }
           
-          Write-Host "✅ Executable compiled successfully: $exe"
-          $size = (Get-Item $exe).Length / 1MB
-          Write-Host "📊 Executable size: $([math]::Round($size, 2)) MB"
+          Write-Host "[OK] Executable compiled successfully: $exe"
+          $sizeBytes = (Get-Item $exe).Length
+          $sizeMB = $sizeBytes / 1MB
+          $sizeRounded = [math]::Round($sizeMB, 2)
+          Write-Host "[INFO] Executable size: $sizeRounded MB"
           
           # Test rapide de l'executable
-          & $exe "CONTEXT_IS_CORRECT" "test" 2>$null
+          $testOutput = & $exe "CONTEXT_IS_CORRECT" "test" 2>&1
           if ($LASTEXITCODE -eq 0) {
-            Write-Host "✅ Executable test passed"
+            Write-Host "[OK] Executable test passed"
           } else {
-            Write-Host "ℹ️ Executable responds to commands (expected behavior for test path)"
+            Write-Host "[NOTE] Executable responds to commands (expected behavior for test path)"
           }
 
       # Build avec l'action officielle Tauri
