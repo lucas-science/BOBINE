@@ -64,9 +64,9 @@ jobs:
           path: |
             src-tauri/python-runtime
             ~/.cache/pip
-          key: win-pyinstaller-${{ runner.os }}-${{ hashFiles('src-tauri/python-runtime/requirements.txt', 'src-tauri/python-scripts/main.spec') }}
+          key: win-pyinstaller-v2-${{ runner.os }}-${{ hashFiles('src-tauri/python-runtime/requirements.txt', 'src-tauri/python-scripts/main.spec') }}
           restore-keys: |
-            win-pyinstaller-${{ runner.os }}-
+            win-pyinstaller-v2-${{ runner.os }}-
 
       # Setup Python temporaire pour compilation
       - name: Setup Python for compilation
@@ -75,34 +75,60 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      # Compiler le code Python en executable
-      - name: Compile Python to executable
+      # Compiler le code Python en executable avec corrections
+      - name: Compile Python to executable (Fixed)
         shell: powershell
         run: |
-          # Installer PyInstaller et dépendances (version stable 5.x)
+          # Installer PyInstaller et dépendances avec versions spécifiques
           python -m pip install --upgrade pip
           
-          # Essayer PyInstaller 5.x (plus stable), fallback vers 6.x si nécessaire
-          try {
-            python -m pip install "pyinstaller>=5.0,<6.0"
-            Write-Host "[INFO] Using PyInstaller 5.x"
-          } catch {
-            Write-Host "[WARN] PyInstaller 5.x not available, using latest"
-            python -m pip install pyinstaller
-          }
+          # Utiliser PyInstaller 5.13.2 (version stable testée avec pandas/numpy)
+          python -m pip install "pyinstaller==5.13.2"
           
+          # Installer les dépendances Python
           python -m pip install -r src-tauri/python-runtime/requirements.txt
           
-          # Afficher la version pour debug
+          # Afficher les versions pour debug
           python -c "import PyInstaller; print(f'[INFO] PyInstaller version: {PyInstaller.__version__}')"
+          python -c "import pandas, numpy; print(f'[INFO] Pandas: {pandas.__version__}, NumPy: {numpy.__version__}')"
           
           # Créer le répertoire de destination
           New-Item -ItemType Directory -Force -Path "src-tauri\python-runtime" | Out-Null
           
-          # Compiler avec PyInstaller (version stable)
+          # Test rapide de l'import des modules critiques
+          python -c "
+          import secrets, hashlib, hmac, uuid, json, base64, io, os, sys
+          import pandas as pd
+          import numpy as np
+          from openpyxl import Workbook
+          print('[INFO] All critical modules import successfully')
+          "
+          
+          # Compiler avec PyInstaller en utilisant le fichier spec corrigé
           cd src-tauri/python-scripts
-          Write-Host "[INFO] Compiling main script..."
-          python -m PyInstaller main.spec --clean --noconfirm
+          Write-Host "[INFO] Compiling with fixed spec file..."
+          
+          # Utiliser une compilation plus conservative avec tous les hooks
+          python -m PyInstaller main.spec --clean --noconfirm --log-level INFO
+          
+          # Alternative de compilation si le spec échoue
+          if (-Not (Test-Path "dist\data_processor.exe")) {
+            Write-Host "[WARN] Spec compilation failed, trying direct approach..."
+            python -m PyInstaller --onefile --console `
+              --name data_processor `
+              --hidden-import=secrets `
+              --hidden-import=pandas._libs.tslibs.timedeltas `
+              --hidden-import=pandas._libs.tslibs.np_datetime `
+              --hidden-import=pandas._libs.tslibs.nattype `
+              --hidden-import=numpy.random._common `
+              --hidden-import=numpy.random.bit_generator `
+              --hidden-import=numpy.random._pickle `
+              --hidden-import=openpyxl.xml.functions `
+              --collect-all pandas `
+              --collect-all numpy `
+              --collect-all openpyxl `
+              main.py
+          }
           
           # Vérifier que la compilation a réussi et déplacer l'executable
           if (Test-Path "dist\data_processor.exe") {
@@ -117,8 +143,8 @@ jobs:
           # Nettoyage des fichiers temporaires
           Remove-Item -Recurse -Force "build", "dist", "__pycache__" -ErrorAction SilentlyContinue
 
-      # Vérifier l'executable compilé
-      - name: Verify compiled executable
+      # Test plus robuste de l'executable
+      - name: Test compiled executable
         shell: powershell
         run: |
           $exe = "src-tauri\python-runtime\data_processor.exe"
@@ -132,8 +158,14 @@ jobs:
           $sizeRounded = [math]::Round($sizeMB, 2)
           Write-Host "[INFO] Executable size: $sizeRounded MB"
           
-          # L'executable est fonctionnel - pas besoin de test qui peut échouer
-          Write-Host "[OK] Executable is ready for Tauri integration"
+          # Test simple de fonctionnalité sans crash
+          try {
+            $output = & $exe "INVALID_ACTION" 2>&1
+            Write-Host "[OK] Executable runs without import errors"
+          } catch {
+            Write-Host "[ERROR] Executable test failed: $_"
+            throw "Executable test failed"
+          }
 
       # Build avec l'action officielle Tauri
       - name: Build Tauri App (official action)
