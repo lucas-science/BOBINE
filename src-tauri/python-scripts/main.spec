@@ -47,10 +47,13 @@ a = Analysis(
         'multiprocessing',
         'distutils',
         'setuptools',
-        'pip'
+        'pip',
+        'pytest',
+        'pandas.tests',
+        'numpy.f2py.tests', 
+        'matplotlib.tests'
     ],
     noarchive=False,
-    optimize=2,
     cipher=None
 )
 
