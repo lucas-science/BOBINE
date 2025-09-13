@@ -199,6 +199,9 @@ fn resolve_embedded_python(app: &AppHandle) -> Option<PathBuf> {
         if compiled_exe.exists() {
             return Some(compiled_exe);
         }
+        // Fallback vers python3 système pour Windows
+        let system_python = PathBuf::from("python");
+        return Some(system_python);
     }
     
     #[cfg(target_os = "linux")]
@@ -224,6 +227,9 @@ fn resolve_embedded_python(app: &AppHandle) -> Option<PathBuf> {
         let system_python = PathBuf::from("python3");
         return Some(system_python);
     }
+    
+    // Fallback ultime pour les plateformes non supportées
+    None
 }
 
 fn resolve_python_main(app: &AppHandle) -> Result<PathBuf, String> {
