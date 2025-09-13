@@ -76,73 +76,106 @@ jobs:
           cache: 'pip'
 
       # Compiler le code Python en executable avec corrections
-      - name: Compile Python to executable (Fixed)
+# Compiler avec installation forcée de toutes les dépendances
+      - name: Compile Python to executable (Force Dependencies)
         shell: powershell
         run: |
           # Installer PyInstaller et dépendances avec versions spécifiques
           python -m pip install --upgrade pip
-          
-          # Utiliser PyInstaller 5.13.2 (version stable testée avec pandas/numpy)
           python -m pip install "pyinstaller==5.13.2"
           
-          # Installer les dépendances Python
+          # FORCER l'installation de toutes les dépendances critiques une par une
+          python -m pip install pytz --force-reinstall
+          python -m pip install python-dateutil --force-reinstall
+          python -m pip install six --force-reinstall
+          python -m pip install packaging --force-reinstall
+          python -m pip install numpy --force-reinstall
+          python -m pip install pandas --force-reinstall
+          python -m pip install openpyxl --force-reinstall
+          python -m pip install matplotlib --force-reinstall
+          python -m pip install pillow --force-reinstall
+          
+          # Installer le reste des requirements
           python -m pip install -r src-tauri/python-runtime/requirements.txt
           
-          # Afficher les versions pour debug
-          python -c "import PyInstaller; print(f'[INFO] PyInstaller version: {PyInstaller.__version__}')"
-          python -c "import pandas, numpy; print(f'[INFO] Pandas: {pandas.__version__}, NumPy: {numpy.__version__}')"
+          # Vérifier que TOUT est bien installé
+          python -c "
+          import sys
+          print('Python path:', sys.path)
+          
+          print('Testing critical imports...')
+          import pytz
+          print('✓ pytz version:', pytz.__version__)
+          
+          import dateutil
+          print('✓ dateutil version:', dateutil.__version__)
+          
+          import pandas as pd
+          print('✓ pandas version:', pd.__version__)
+          
+          import numpy as np  
+          print('✓ numpy version:', np.__version__)
+          
+          # Test complet pandas avec pytz
+          import pandas as pd
+          df = pd.DataFrame({'date': ['2023-01-01', '2023-01-02']})
+          df['date'] = pd.to_datetime(df['date'])
+          df_tz = df['date'].dt.tz_localize('UTC').dt.tz_convert('Europe/Paris')
+          print('✓ Pandas timezone conversion works')
+          
+          print('All dependencies verified successfully!')
+          "
           
           # Créer le répertoire de destination
           New-Item -ItemType Directory -Force -Path "src-tauri\python-runtime" | Out-Null
           
-          # Test rapide de l'import des modules critiques
-          python -c "
-          import secrets, hashlib, hmac, uuid, json, base64, io, os, sys
-          import pandas as pd
-          import numpy as np
-          from openpyxl import Workbook
-          print('[INFO] All critical modules import successfully')
-          "
+          # Lister tous les packages installés pour debug
+          python -m pip list | findstr -i "pytz\|pandas\|numpy\|dateutil"
           
-          # Compiler avec PyInstaller en utilisant le fichier spec corrigé
+          # Compiler avec PyInstaller
           cd src-tauri/python-scripts
-          Write-Host "[INFO] Compiling with fixed spec file..."
+          Write-Host "[INFO] Compiling with ultra-robust spec..."
           
-          # Utiliser une compilation plus conservative avec tous les hooks
-          python -m PyInstaller main.spec --clean --noconfirm --log-level INFO
+          # Alternative : compilation directe avec tous les modules forcés
+          python -m PyInstaller --onefile --console `
+            --name data_processor `
+            --collect-all pandas `
+            --collect-all pytz `
+            --collect-all dateutil `
+            --collect-all numpy `
+            --collect-all openpyxl `
+            --hidden-import=pytz `
+            --hidden-import=dateutil `
+            --hidden-import=dateutil.tz `
+            --hidden-import=pandas `
+            --hidden-import=numpy `
+            --hidden-import=secrets `
+            --hidden-import=context `
+            --hidden-import=pignat `
+            --hidden-import=chromeleon_online `
+            --hidden-import=chromeleon_offline `
+            --hidden-import=chromeleon_online_permanent `
+            --hidden-import=resume `
+            main.py
           
-          # Alternative de compilation si le spec échoue
-          if (-Not (Test-Path "dist\data_processor.exe")) {
-            Write-Host "[WARN] Spec compilation failed, trying direct approach..."
-            python -m PyInstaller --onefile --console `
-              --name data_processor `
-              --hidden-import=secrets `
-              --hidden-import=pandas._libs.tslibs.timedeltas `
-              --hidden-import=pandas._libs.tslibs.np_datetime `
-              --hidden-import=pandas._libs.tslibs.nattype `
-              --hidden-import=numpy.random._common `
-              --hidden-import=numpy.random.bit_generator `
-              --hidden-import=numpy.random._pickle `
-              --hidden-import=openpyxl.xml.functions `
-              --collect-all pandas `
-              --collect-all numpy `
-              --collect-all openpyxl `
-              main.py
-          }
-          
-          # Vérifier que la compilation a réussi et déplacer l'executable
+          # Vérifier que la compilation a réussi
           if (Test-Path "dist\data_processor.exe") {
             Move-Item -Force "dist\data_processor.exe" "..\python-runtime\data_processor.exe"
-            Write-Host "[OK] Executable moved successfully"
+            Write-Host "[OK] Executable compiled and moved successfully"
+            
+            $sizeBytes = (Get-Item "..\python-runtime\data_processor.exe").Length
+            $sizeMB = $sizeBytes / 1MB
+            $sizeRounded = [math]::Round($sizeMB, 2)
+            Write-Host "[INFO] Final executable size: $sizeRounded MB"
+            
           } else {
-            Write-Host "[ERROR] PyInstaller compilation failed - executable not found"
-            Get-ChildItem "dist" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "Found in dist: $($_.Name)" }
-            throw "PyInstaller compilation failed"
+            Write-Host "[ERROR] Compilation failed - executable not found"
+            Get-ChildItem "dist" -ErrorAction SilentlyContinue
+            throw "Compilation failed"
           }
           
-          # Nettoyage des fichiers temporaires
+          # Nettoyage
           Remove-Item -Recurse -Force "build", "dist", "__pycache__" -ErrorAction SilentlyContinue
-
       # Test plus robuste de l'executable
       - name: Test compiled executable
         shell: powershell
