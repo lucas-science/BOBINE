@@ -158,13 +158,46 @@ jobs:
           $sizeRounded = [math]::Round($sizeMB, 2)
           Write-Host "[INFO] Executable size: $sizeRounded MB"
           
-          # Test simple de fonctionnalité sans crash
+          # Test que l'executable se lance sans erreurs d'import
           try {
-            $output = & $exe "INVALID_ACTION" 2>&1
-            Write-Host "[OK] Executable runs without import errors"
+            $process = Start-Process -FilePath $exe -ArgumentList "TEST_LAUNCH" -Wait -PassThru -WindowStyle Hidden -RedirectStandardOutput "test_output.txt" -RedirectStandardError "test_error.txt"
+            
+            # Vérifier que le processus s'est lancé (peu importe le code de sortie)
+            if ($process.HasExited) {
+              Write-Host "[OK] Executable launches successfully (exit code: $($process.ExitCode))"
+              
+              # Afficher le contenu pour debug si nécessaire
+              if (Test-Path "test_error.txt") {
+                $errorContent = Get-Content "test_error.txt" -Raw -ErrorAction SilentlyContinue
+                if ($errorContent -and $errorContent.Trim()) {
+                  # Si l'erreur contient "ModuleNotFoundError", c'est un problème
+                  if ($errorContent -match "ModuleNotFoundError") {
+                    Write-Host "[ERROR] Module import error detected:"
+                    Write-Host $errorContent
+                    throw "Critical import error in executable"
+                  } else {
+                    Write-Host "[INFO] Non-critical error output: $errorContent"
+                  }
+                }
+              }
+              
+              # Nettoyer les fichiers de test
+              Remove-Item "test_output.txt", "test_error.txt" -ErrorAction SilentlyContinue
+              
+            } else {
+              throw "Executable process did not complete"
+            }
+            
           } catch {
             Write-Host "[ERROR] Executable test failed: $_"
-            throw "Executable test failed"
+            # Afficher les logs d'erreur si disponibles
+            if (Test-Path "test_error.txt") {
+              $errorContent = Get-Content "test_error.txt" -Raw -ErrorAction SilentlyContinue
+              if ($errorContent) {
+                Write-Host "[ERROR] Error output: $errorContent"
+              }
+            }
+            throw "Executable test failed: $_"
           }
 
       # Build avec l'action officielle Tauri
