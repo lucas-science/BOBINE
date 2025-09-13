@@ -64,9 +64,9 @@ jobs:
           path: |
             src-tauri/python-runtime
             ~/.cache/pip
-          key: win-pyinstaller-v2-${{ runner.os }}-${{ hashFiles('src-tauri/python-runtime/requirements.txt', 'src-tauri/python-scripts/main.spec') }}
+          key: win-pyinstaller-v4-${{ runner.os }}-${{ hashFiles('src-tauri/python-runtime/requirements.txt', 'src-tauri/python-scripts/main.spec') }}
           restore-keys: |
-            win-pyinstaller-v2-${{ runner.os }}-
+            win-pyinstaller-v4-${{ runner.os }}-
 
       # Setup Python temporaire pour compilation
       - name: Setup Python for compilation
@@ -75,10 +75,8 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      # Compiler le code Python en executable avec corrections
-
-      # Compiler avec installation forcée et test séparé
-      - name: Compile Python to executable (With Test File)
+      # Compiler avec installation forcée
+      - name: Compile Python to executable
         shell: powershell
         run: |
           # Installer PyInstaller et dépendances
@@ -99,32 +97,34 @@ jobs:
           # Installer le reste
           python -m pip install -r src-tauri/python-runtime/requirements.txt
           
-          # Créer un fichier de test temporaire
-          @"
-import sys
-print('Python path:', sys.path)
-
-print('Testing critical imports...')
-import pytz
-print('pytz version:', pytz.__version__)
-
-import dateutil  
-print('dateutil version:', dateutil.__version__)
-
-import pandas as pd
-print('pandas version:', pd.__version__)
-
-import numpy as np
-print('numpy version:', np.__version__)
-
-# Test pandas avec pytz
-df = pd.DataFrame({'date': ['2023-01-01', '2023-01-02']})
-df['date'] = pd.to_datetime(df['date'])
-df_tz = df['date'].dt.tz_localize('UTC').dt.tz_convert('Europe/Paris')
-print('Pandas timezone conversion works')
-
-print('All dependencies verified successfully')
-"@ | Out-File -FilePath "test_deps.py" -Encoding UTF8
+          # Créer un fichier de test temporaire (syntaxe PowerShell correcte)
+          $testScript = @'
+          import sys
+          print("Python path:", sys.path)
+          
+          print("Testing critical imports...")
+          import pytz
+          print("pytz version:", pytz.__version__)
+          
+          import dateutil
+          print("dateutil version:", dateutil.__version__)
+          
+          import pandas as pd
+          print("pandas version:", pd.__version__)
+          
+          import numpy as np
+          print("numpy version:", np.__version__)
+          
+          # Test pandas avec pytz
+          df = pd.DataFrame({"date": ["2023-01-01", "2023-01-02"]})
+          df["date"] = pd.to_datetime(df["date"])
+          df_tz = df["date"].dt.tz_localize("UTC").dt.tz_convert("Europe/Paris")
+          print("Pandas timezone conversion works")
+          
+          print("All dependencies verified successfully")
+          '@
+          
+          $testScript | Out-File -FilePath "test_deps.py" -Encoding UTF8
           
           # Exécuter le test
           python test_deps.py
