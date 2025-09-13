@@ -9,7 +9,6 @@ interface ButtonLoadingProps {
 export function ButtonLoading({ className }: ButtonLoadingProps) {
   return (
     <Button
-      size="sm"
       disabled
       className={cn(
         "w-full justify-center space-x-2 rounded-lg",
