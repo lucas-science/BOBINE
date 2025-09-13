@@ -12,14 +12,21 @@ hiddenimports += collect_submodules('matplotlib')
 hiddenimports += collect_submodules('PIL')
 hiddenimports += collect_submodules('contourpy')
 
-# Add custom modules
+# Add custom modules and critical dependencies
 hiddenimports += [
     'context',
     'pignat', 
     'chromeleon_online',
     'chromeleon_offline',
     'chromeleon_online_permanent',
-    'resume'
+    'resume',
+    # Critical runtime dependencies
+    '_ctypes',
+    '_decimal',
+    '_multiprocessing',
+    '_socket',
+    '_ssl',
+    'select'
 ]
 
 a = Analysis(
@@ -58,8 +65,8 @@ exe = EXE(
     name='data_processor',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=True,
-    upx=True,
+    strip=False,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,  # Keep console for debugging output via stdout/stderr
