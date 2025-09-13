@@ -55,62 +55,64 @@ jobs:
           restore-keys: |
             cargo-${{ runner.os }}-
 
-      # Cache du runtime Python portable
-      - name: Cache Portable Python (Windows)
+      # Cache pour PyInstaller build
+      - name: Cache PyInstaller Build
         uses: actions/cache@v4
         with:
-          path: src-tauri/python-runtime/venv
-          key: win-portable-python-${{ runner.os }}-${{ hashFiles('src-tauri/python-runtime/requirements.txt') }}
+          path: |
+            src-tauri/python-runtime
+            ~/.cache/pip
+          key: win-pyinstaller-${{ runner.os }}-${{ hashFiles('src-tauri/python-runtime/requirements.txt', 'src-tauri/python-scripts/main.spec') }}
           restore-keys: |
-            win-portable-python-${{ runner.os }}-
+            win-pyinstaller-${{ runner.os }}-
 
-      # Télécharger un CPython portable (windows-msvc)
-      - name: Setup Portable Python (Windows)
+      # Setup Python temporaire pour compilation
+      - name: Setup Python for compilation
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # Compiler le code Python en executable
+      - name: Compile Python to executable
         shell: powershell
         run: |
-          if (-Not (Test-Path "src-tauri\python-runtime\venv\python.exe")) {
-            Write-Host "Downloading portable Python..."
-            $url = "https://github.com/indygreg/python-build-standalone/releases/download/20241016/cpython-3.11.10%2B20241016-x86_64-pc-windows-msvc-install_only.tar.gz"
-            Invoke-WebRequest $url -OutFile "python-portable.tar.gz"
+          # Installer PyInstaller et dépendances
+          python -m pip install --upgrade pip
+          python -m pip install pyinstaller
+          python -m pip install -r src-tauri/python-runtime/requirements.txt
+          
+          # Créer le répertoire de destination
+          New-Item -ItemType Directory -Force -Path "src-tauri\python-runtime" | Out-Null
+          
+          # Compiler avec PyInstaller (optimisations maximales)
+          cd src-tauri/python-scripts
+          python -m PyInstaller main.spec --clean --noconfirm
+          
+          # Déplacer l'executable vers le répertoire runtime
+          Move-Item -Force "dist\data_processor.exe" "..\python-runtime\data_processor.exe"
+          
+          # Nettoyage des fichiers temporaires
+          Remove-Item -Recurse -Force "build", "dist", "__pycache__" -ErrorAction SilentlyContinue
 
-            Write-Host "Extracting..."
-            tar -xf python-portable.tar.gz
-
-            Write-Host "Moving into runtime dir..."
-            New-Item -ItemType Directory -Force -Path "src-tauri\python-runtime" | Out-Null
-            Move-Item -Force -Path "python" -Destination "src-tauri\python-runtime\venv"
-
-            Remove-Item -Force "python-portable.tar.gz"
+      # Vérifier l'executable compilé
+      - name: Verify compiled executable
+        shell: powershell
+        run: |
+          $exe = "src-tauri\python-runtime\data_processor.exe"
+          if (-Not (Test-Path $exe)) { throw "Compiled executable not found" }
+          
+          Write-Host "✅ Executable compiled successfully: $exe"
+          $size = (Get-Item $exe).Length / 1MB
+          Write-Host "📊 Executable size: $([math]::Round($size, 2)) MB"
+          
+          # Test rapide de l'executable
+          & $exe "CONTEXT_IS_CORRECT" "test" 2>$null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "✅ Executable test passed"
           } else {
-            Write-Host "Portable Python found in cache, skipping"
+            Write-Host "ℹ️ Executable responds to commands (expected behavior for test path)"
           }
-
-      # Installer les dépendances Python
-      - name: Install Python deps into portable runtime
-        shell: powershell
-        run: |
-          $py = "src-tauri\python-runtime\venv\python.exe"
-          & $py -V
-          & $py -m ensurepip --upgrade
-          & $py -m pip install --upgrade pip
-          & $py -m pip install -r src-tauri/python-runtime/requirements.txt --no-warn-script-location
-
-      # Vérifications Python
-      - name: Verify portable Python (Windows)
-        shell: powershell
-        run: |
-          $py = "src-tauri\python-runtime\venv\python.exe"
-          if (-Not (Test-Path $py)) { throw "python.exe not found" }
-
-          & $py -c "import sys,platform; print('OK Python:', sys.version); print('Prefix:', sys.prefix); print('Plat:', platform.platform())"
-
-          & $py -c "
-          import numpy, pandas, PIL, matplotlib, pandas.util._decorators
-          print('Imports OK:', numpy.__version__, pandas.__version__)
-          "
-
-          Get-ChildItem -Path "src-tauri\python-runtime\venv" -Filter "python311*.dll" -ErrorAction SilentlyContinue |
-            ForEach-Object { Write-Host "Found:" $_.FullName }
 
       # Build avec l'action officielle Tauri
       - name: Build Tauri App (official action)

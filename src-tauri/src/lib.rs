@@ -43,34 +43,39 @@ struct SelectedMetricsBySensor {
 
 fn resolve_embedded_python(app: &AppHandle) -> Option<PathBuf> {
     let resource_dir = app.path().resource_dir().ok()?;
-    let base = resource_dir.join("python-runtime").join("venv");
+    let runtime_dir = resource_dir.join("python-runtime");
     
     #[cfg(target_os = "windows")]
     {
-        // Essayer d'abord le Python portable (racine)
-        let portable_bin = base.join("python.exe");
-        if portable_bin.exists() {
-            return Some(portable_bin);
-        }
-        // Fallback vers le venv classique
-        let venv_bin = base.join("Scripts").join("python.exe");
-        if venv_bin.exists() {
-            return Some(venv_bin);
+        // Utiliser l'executable compilé avec PyInstaller
+        let compiled_exe = runtime_dir.join("data_processor.exe");
+        if compiled_exe.exists() {
+            return Some(compiled_exe);
         }
     }
     
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "linux")]
     {
-        // Essayer d'abord le Python portable (racine)
-        let portable_bin = base.join("python3");
-        if portable_bin.exists() {
-            return Some(portable_bin);
-        }
-        // Fallback vers le venv classique
-        let venv_bin = base.join("bin").join("python3");
+        // Pour Linux, utiliser le venv intégré comme précédemment
+        let venv_bin = runtime_dir.join("venv").join("bin").join("python3");
         if venv_bin.exists() {
             return Some(venv_bin);
         }
+        // Fallback vers python3 système
+        let system_python = PathBuf::from("python3");
+        return Some(system_python);
+    }
+    
+    #[cfg(target_os = "macos")]
+    {
+        // Pour macOS, utiliser le venv intégré
+        let venv_bin = runtime_dir.join("venv").join("bin").join("python3");
+        if venv_bin.exists() {
+            return Some(venv_bin);
+        }
+        // Fallback vers python3 système
+        let system_python = PathBuf::from("python3");
+        return Some(system_python);
     }
     
     None
@@ -88,16 +93,30 @@ fn resolve_python_main(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn run_python(app: &AppHandle, args: &[&str]) -> Result<CommandOutput, String> {
-    let script = resolve_python_main(app)?;
     let python_bin = resolve_embedded_python(app)
         .unwrap_or_else(|| PathBuf::from("python3"));
 
-    let output = std::process::Command::new(&python_bin)
-        .arg("-u")
-        .arg(&script)
-        .args(args)
-        .output()
-        .map_err(|e| format!("Failed to execute Python ({:?}): {}", python_bin, e))?;
+    // Vérifier si on utilise l'executable compilé ou le script Python
+    let output = if python_bin.file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.starts_with("data_processor"))
+        .unwrap_or(false)
+    {
+        // Utiliser l'executable compilé directement
+        std::process::Command::new(&python_bin)
+            .args(args)
+            .output()
+            .map_err(|e| format!("Failed to execute compiled Python ({:?}): {}", python_bin, e))?
+    } else {
+        // Fallback vers le script Python traditionnel pour les autres plateformes
+        let script = resolve_python_main(app)?;
+        std::process::Command::new(&python_bin)
+            .arg("-u")
+            .arg(&script)
+            .args(args)
+            .output()
+            .map_err(|e| format!("Failed to execute Python ({:?}): {}", python_bin, e))?
+    };
 
     let stdout = String::from_utf8(output.stdout)
         .map_err(|e| format!("Invalid UTF-8 in stdout: {}", e))?;
