@@ -85,18 +85,41 @@ jobs:
           # Créer le répertoire de destination
           New-Item -ItemType Directory -Force -Path "src-tauri\python-runtime" | Out-Null
           
-          # Compiler avec PyInstaller (mode compatible)
+          # Étape 1: Test PyInstaller avec script minimal
           cd src-tauri/python-scripts
-          python -m PyInstaller main.spec --clean --noconfirm
+          Write-Host "[INFO] Testing PyInstaller with minimal script..."
+          python -m PyInstaller test_minimal.spec --clean --noconfirm
           
-          # Vérifier que la compilation a réussi et déplacer l'executable
-          if (Test-Path "dist\data_processor.exe") {
-            Move-Item -Force "dist\data_processor.exe" "..\python-runtime\data_processor.exe"
-            Write-Host "[OK] Executable moved successfully"
+          if (Test-Path "dist\test_minimal.exe") {
+            Write-Host "[OK] Minimal test compilation successful"
+            # Test rapide du minimal
+            $testResult = & "dist\test_minimal.exe" "CONTEXT_IS_CORRECT" 2>&1
+            Write-Host "[DEBUG] Minimal test output: $testResult"
+            
+            # Nettoyer le test
+            Remove-Item -Recurse -Force "build", "dist" -ErrorAction SilentlyContinue
+            
+            # Étape 2: Compiler le script principal avec spec simplifié
+            Write-Host "[INFO] Compiling main script with simplified spec..."
+            python -m PyInstaller main_simple.spec --clean --noconfirm
+            
+            if (Test-Path "dist\data_processor_simple.exe") {
+              Move-Item -Force "dist\data_processor_simple.exe" "..\python-runtime\data_processor.exe"
+              Write-Host "[OK] Simplified executable created successfully"
+            } else {
+              Write-Host "[WARN] Simplified compilation failed, trying full spec..."
+              python -m PyInstaller main.spec --clean --noconfirm
+              if (Test-Path "dist\data_processor.exe") {
+                Move-Item -Force "dist\data_processor.exe" "..\python-runtime\data_processor.exe"
+                Write-Host "[OK] Full executable created successfully"
+              } else {
+                throw "All PyInstaller compilation attempts failed"
+              }
+            }
           } else {
-            Write-Host "[ERROR] PyInstaller compilation failed - executable not found"
+            Write-Host "[ERROR] Even minimal PyInstaller test failed"
             Get-ChildItem "dist" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "Found in dist: $($_.Name)" }
-            throw "PyInstaller compilation failed"
+            throw "PyInstaller is not working on this system"
           }
           
           # Nettoyage des fichiers temporaires
