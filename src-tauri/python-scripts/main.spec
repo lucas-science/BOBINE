@@ -1,12 +1,72 @@
 # -*- mode: python ; coding: utf-8 -*-
 import sys
-from PyInstaller.utils.hooks import collect_submodules, collect_data_files
+from PyInstaller.utils.hooks import collect_all, collect_submodules, collect_data_files
 
-# Collect all submodules for data processing libraries
+# Approche ultra-robuste : collecter TOUT de pandas et ses dépendances
+datas = []
+binaries = []
 hiddenimports = []
 
-# Core Python modules that might not be detected
+# Collecter ABSOLUMENT TOUT de pandas (plus lourd mais plus sûr)
+pandas_datas, pandas_binaries, pandas_hiddenimports = collect_all('pandas')
+datas.extend(pandas_datas)
+binaries.extend(pandas_binaries) 
+hiddenimports.extend(pandas_hiddenimports)
+
+# Collecter TOUT de pytz
+try:
+    pytz_datas, pytz_binaries, pytz_hiddenimports = collect_all('pytz')
+    datas.extend(pytz_datas)
+    binaries.extend(pytz_binaries)
+    hiddenimports.extend(pytz_hiddenimports)
+except:
+    # Fallback si collect_all échoue
+    hiddenimports.extend(collect_submodules('pytz'))
+
+# Collecter TOUT de dateutil
+try:
+    dateutil_datas, dateutil_binaries, dateutil_hiddenimports = collect_all('dateutil')
+    datas.extend(dateutil_datas)
+    binaries.extend(dateutil_binaries)
+    hiddenimports.extend(dateutil_hiddenimports)
+except:
+    hiddenimports.extend(collect_submodules('dateutil'))
+
+# Collecter les autres librairies normalement
+hiddenimports.extend(collect_submodules('numpy'))
+hiddenimports.extend(collect_submodules('openpyxl'))
+hiddenimports.extend(collect_submodules('matplotlib'))
+hiddenimports.extend(collect_submodules('PIL'))
+
+# Ajouter explicitement TOUS les modules pytz possibles
 hiddenimports += [
+    # PyTZ complet
+    'pytz',
+    'pytz.tzinfo',
+    'pytz.tzfile',
+    'pytz.lazy',
+    'pytz._FixedOffset',
+    'pytz._DstTzInfo',
+    'pytz._StaticTzInfo',
+    'pytz._UTCclass',
+    'pytz.reference',
+    'pytz.exceptions',
+    
+    # DateUtil complet
+    'dateutil',
+    'dateutil.tz',
+    'dateutil.tz.tz',
+    'dateutil.tz.tzfile',
+    'dateutil.tz.tzlocal',
+    'dateutil.tz.tzwin',
+    'dateutil.tz.gettz',
+    'dateutil.parser',
+    'dateutil.parser._parser',
+    'dateutil.relativedelta',
+    'dateutil.rrule',
+    'dateutil.utils',
+    
+    # Modules Python standard critiques
     'secrets',
     'hashlib',
     'hmac',
@@ -30,13 +90,11 @@ hiddenimports += [
     'random',
     'threading',
     'queue',
-    'concurrent.futures',
-]
-
-# Critical runtime dependencies  
-hiddenimports += [
+    'zoneinfo',
+    
+    # Runtime dependencies
     '_ctypes',
-    '_decimal', 
+    '_decimal',
     '_multiprocessing',
     '_socket',
     '_ssl',
@@ -50,134 +108,55 @@ hiddenimports += [
     '_thread',
     '_locale',
     '_codecs',
-]
-
-# Collect comprehensive submodules
-hiddenimports += collect_submodules('pandas')
-hiddenimports += collect_submodules('numpy')
-hiddenimports += collect_submodules('openpyxl')
-hiddenimports += collect_submodules('matplotlib')
-hiddenimports += collect_submodules('PIL')
-hiddenimports += collect_submodules('contourpy')
-
-# Specific pandas/numpy modules that often cause issues
-hiddenimports += [
-    'pandas._libs.tslibs.timedeltas',
-    'pandas._libs.tslibs.np_datetime', 
-    'pandas._libs.tslibs.nattype',
-    'pandas._libs.skiplist',
-    'pandas._libs.hashtable',
-    'pandas._libs.lib',
-    'pandas._libs.properties',
-    'pandas._libs.algos',
-    'pandas._libs.parsers',
-    'pandas._libs.writers',
-    'pandas._libs.reduction',
-    'pandas._libs.testing',
-    'pandas._libs.sparse',
-    'pandas._libs.ops',
-    'pandas._libs.join',
-    'pandas._libs.groupby',
-    'pandas._libs.window',
-    'pandas._libs.reshape',
-    'pandas._libs.internals',
-    'pandas._libs.interval',
-    'pandas._libs.tslib',
-    'pandas._libs.json',
-    'pandas._libs.index',
-    'pandas.util._decorators',
-    'pandas.compat.numpy',
-    'pandas.core.dtypes.common',
-    'pandas.core.dtypes.generic',
-    'pandas.core.dtypes.inference',
-]
-
-# NumPy random modules (fix for the specific error)
-hiddenimports += [
-    'numpy.random._common',
-    'numpy.random._bounded_integers',
-    'numpy.random._mt19937',
-    'numpy.random._pcg64', 
-    'numpy.random._philox',
-    'numpy.random._sfc64',
-    'numpy.random.bit_generator',
-    'numpy.random._pickle',
-    'numpy.random._generator',
-    'numpy.core._multiarray_umath',
-    'numpy.core._multiarray_tests',
-    'numpy.linalg._umath_linalg',
-    'numpy.fft._pocketfft_internal',
-]
-
-# OpenPyXL specific modules
-hiddenimports += [
-    'openpyxl.xml.functions',
-    'openpyxl.workbook.external_link.external',
-    'openpyxl.formatting.rule',
-    'openpyxl.packaging.manifest',
-    'openpyxl.packaging.extended',
-]
-
-# Add custom modules
-hiddenimports += [
+    
+    # Modules customs
     'context',
     'pignat',
-    'chromeleon_online', 
-    'chromeleon_offline',
+    'chromeleon_online',
+    'chromeleon_offline', 
     'chromeleon_online_permanent',
     'resume',
+    
+    # Autres dépendances pandas souvent manquées
+    'six',
+    'packaging',
+    'packaging.version',
+    'packaging.specifiers',
+    'packaging.requirements',
 ]
 
-# Collect data files for libraries that need them
-datas = []
+# Données additionnelles pour pytz (fuseaux horaires)
 try:
-    datas += collect_data_files('pandas')
-except:
-    pass
-try:
-    datas += collect_data_files('numpy')
-except:
-    pass
-try:
-    datas += collect_data_files('matplotlib')
+    import pytz
+    pytz_data_path = pytz.__path__[0]
+    datas.append((pytz_data_path, 'pytz'))
 except:
     pass
 
 a = Analysis(
     ['main.py'],
     pathex=['.'],
-    binaries=[],
+    binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
+        # Exclure seulement les modules vraiment inutiles
         'tkinter',
         'test',
         'unittest',
         'pdb',
-        'doctest', 
-        'multiprocessing',
-        'distutils',
-        'setuptools',
-        'pip',
-        'pytest',
-        'pandas.tests',
-        'numpy.f2py.tests',
-        'matplotlib.tests',
+        'doctest',
         'IPython',
         'jupyter',
         'notebook',
         'sphinx',
-        'alabaster',
-        'babel',
-        'jinja2',
-        'markupsafe',
-        'pygments',
-        'pytz',
-        'tornado',
-        'zmq',
+        'pytest',
+        'pandas.tests',
+        'numpy.f2py.tests',
+        'matplotlib.tests',
     ],
     noarchive=False,
     cipher=None,
@@ -197,10 +176,10 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=False,  # Désactiver UPX car il peut causer des problèmes avec NumPy/Pandas
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,  # Keep console for debugging output via stdout/stderr
+    console=True,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
