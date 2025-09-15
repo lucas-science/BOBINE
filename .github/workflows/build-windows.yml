@@ -121,6 +121,11 @@ jobs:
           df_tz = df["date"].dt.tz_localize("UTC").dt.tz_convert("Europe/Paris")
           print("Pandas timezone conversion works")
           
+          # Test du mode interactif
+          import sys
+          if "--interactive" in sys.argv:
+              print("Interactive mode detected - ready for stdin commands")
+          
           print("All dependencies verified successfully")
           '@
           
@@ -139,7 +144,7 @@ jobs:
           cd src-tauri/python-scripts
           Write-Host "[INFO] Compiling with forced dependencies..."
           
-          python -m PyInstaller --onefile --console `
+          python -m PyInstaller --onefile --noconsole `
             --name data_processor `
             --collect-all pandas `
             --collect-all pytz `
@@ -169,6 +174,15 @@ jobs:
             $sizeMB = $sizeBytes / 1MB
             $sizeRounded = [math]::Round($sizeMB, 2)
             Write-Host "[INFO] Final executable size: $sizeRounded MB"
+            
+            # Test de l'exécutable avec mode interactif
+            Write-Host "[INFO] Testing compiled executable with interactive mode..."
+            $testResult = Start-Process -FilePath "..\python-runtime\data_processor.exe" -ArgumentList "--interactive" -Wait -PassThru -WindowStyle Hidden
+            if ($testResult.ExitCode -eq 0) {
+                Write-Host "[OK] Interactive mode supported"
+            } else {
+                Write-Host "[WARNING] Interactive mode test failed, but continuing build"
+            }
             
           } else {
             Write-Host "[ERROR] Compilation failed"

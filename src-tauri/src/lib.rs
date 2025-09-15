@@ -73,6 +73,14 @@ impl PythonProcess {
             cmd
         };
 
+        // Configuration spécifique pour Windows pour masquer le terminal
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
         let mut child = cmd
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -490,6 +498,17 @@ pub fn run() {
             let python_bin = resolve_embedded_python(&app.handle())
                 .unwrap_or_else(|| PathBuf::from("python3"));
             let python_service = Arc::new(PythonService::new(python_bin, app.handle().clone()));
+            
+            // Pré-lancer le processus Python pour réduire la latence
+            let service_clone = python_service.clone();
+            std::thread::spawn(move || {
+                // Démarrer le processus Python en arrière-plan
+                match service_clone.execute(&["CONTEXT_IS_CORRECT", "/tmp"]) {
+                    Ok(_) => println!("✅ Service Python pré-lancé avec succès"),
+                    Err(e) => println!("⚠️  Échec du pré-lancement Python (normal si pas de données): {}", e),
+                }
+            });
+            
             app.manage(python_service);
             Ok(())
         })
