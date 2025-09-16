@@ -10,8 +10,9 @@ export function ButtonLoading({ className }: ButtonLoadingProps) {
   return (
     <Button
       disabled
+      variant="secondary"
       className={cn(
-        "w-full justify-center space-x-2 rounded-lg",
+        "w-full justify-center space-x-2 rounded-lg opacity-80",
         className
       )}
     >

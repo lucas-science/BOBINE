@@ -69,7 +69,7 @@ export default function Page() {
 
       if (!is_context_ok) {
         setOverlayOpen(false);
-        setError("Le contexte des fichiers est invalide. Vérifiez vos fichiers et réessayez.");
+        setError("Le fichier context est invalide. Vérifiez vos fichiers et réessayez.");
         return;
       }
 
