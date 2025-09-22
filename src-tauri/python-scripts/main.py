@@ -35,11 +35,11 @@ dataFromMetricsSensor = {
 
 def getDirectories(dir_path):
     return {
-        CONTEXT:            f"{dir_path}/context/context",
-        PIGNAT:             f"{dir_path}/pignat/pignat",
-        CHROMELEON_ONLINE:  f"{dir_path}/chromeleon/online",
-        CHROMELEON_OFFLINE: f"{dir_path}/chromeleon/offline",
-        CHROMELEON_ONLINE_PERMANENT_GAS: f"{dir_path}/chromeleon_online_permanent_gas/chromeleon_online_permanent_gas",
+        CONTEXT:            f"{dir_path}/Bobine_data/context/context",
+        PIGNAT:             f"{dir_path}/Bobine_data/pignat/pignat",
+        CHROMELEON_ONLINE:  f"{dir_path}/Bobine_data/chromeleon/online",
+        CHROMELEON_OFFLINE: f"{dir_path}/Bobine_data/chromeleon/offline",
+        CHROMELEON_ONLINE_PERMANENT_GAS: f"{dir_path}/Bobine_data/chromeleon_online_permanent_gas/chromeleon_online_permanent_gas",
         RESUME:             f"{dir_path}",  # Resume uses multiple subdirectories
     }
 
@@ -147,9 +147,9 @@ def get_graphs_available(dir_path):
     # Resume requires online, offline, and context directories
     try:
         resume_root_dir = directories[RESUME]
-        dir_online = f"{resume_root_dir}/chromeleon/online"
-        dir_offline = f"{resume_root_dir}/chromeleon/offline"
-        dir_context = f"{resume_root_dir}/context/context"
+        dir_online = f"{resume_root_dir}/Bobine_data/chromeleon/online"
+        dir_offline = f"{resume_root_dir}/Bobine_data/chromeleon/offline"
+        dir_context = f"{resume_root_dir}/Bobine_data/context/context"
         
         # Check if required directories exist
         if os.path.exists(dir_online) and os.path.exists(dir_offline) and os.path.exists(dir_context):
@@ -200,9 +200,9 @@ def save_to_excel_with_charts(
     if metrics_wanted.get(RESUME):
         try:
             resume_root_dir = getDirectories(dir_root)[RESUME]
-            dir_online = f"{resume_root_dir}/chromeleon/online"
-            dir_offline = f"{resume_root_dir}/chromeleon/offline"
-            dir_context = f"{resume_root_dir}/context/context"
+            dir_online = f"{resume_root_dir}/Bobine_data/chromeleon/online"
+            dir_offline = f"{resume_root_dir}/Bobine_data/chromeleon/offline"
+            dir_context = f"{resume_root_dir}/Bobine_data/context/context"
             
             # Check if required directories exist
             if os.path.exists(dir_online) and os.path.exists(dir_offline) and os.path.exists(dir_context):

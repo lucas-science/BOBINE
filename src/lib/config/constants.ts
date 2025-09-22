@@ -10,6 +10,8 @@ export const STORAGE_KEYS = {
   SELECTED_METRICS: "selectedMetrics",
 } as const;
 
+export const BOBINE_DATA_FOLDER = "Bobine_data" as const;
+
 export const API_ENDPOINTS = {
   GET_DOCUMENTS_DIR: "get_documents_dir",
   CONTEXT_IS_CORRECT: "context_is_correct",

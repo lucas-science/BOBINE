@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { FILE_ZONE } from "@/src/lib/utils/uploadFile.utils";
+import { BOBINE_DATA_FOLDER } from "@/src/lib/config/constants";
 import type { FilesByZoneKey } from "@/src/hooks/useUploadState";
 
 export async function copyAllFilesToDocuments(allFilesByZoneKey: FilesByZoneKey) {
@@ -8,7 +9,7 @@ export async function copyAllFilesToDocuments(allFilesByZoneKey: FilesByZoneKey)
 
     // reset des répertoires racine de chaque zone
     for (const zoneKey of Object.keys(FILE_ZONE)) {
-      await invoke("remove_dir", { dirPath: `${docsDir}/${zoneKey}` });
+      await invoke("remove_dir", { dirPath: `${docsDir}/${BOBINE_DATA_FOLDER}/${zoneKey}` });
     }
 
     for (const [zoneKey, zoneFilesArray] of Object.entries(allFilesByZoneKey)) {
@@ -18,7 +19,7 @@ export async function copyAllFilesToDocuments(allFilesByZoneKey: FilesByZoneKey)
       for (let zoneIndex = 0; zoneIndex < zoneDefs.length; zoneIndex++) {
         const files = (zoneFilesArray as Array<Array<File>>)[zoneIndex] || [];
         const zoneName = zoneDefs[zoneIndex].zone;
-        const zonePath = `${docsDir}/${zoneKey}/${zoneName}`;
+        const zonePath = `${docsDir}/${BOBINE_DATA_FOLDER}/${zoneKey}/${zoneName}`;
 
         for (const file of files) {
           const destName = `${zoneKey}_${zoneName}_${Date.now()}_${file.name}`;
