@@ -3,7 +3,9 @@ name: Build Windows (Tauri v2)
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ windows_build ]
+  pull_request:
+    branches: [ windows_build ]
 
 jobs:
   build-windows:
@@ -62,9 +64,9 @@ jobs:
           path: |
             src-tauri/python-runtime
             ~/.cache/pip
-          key: win-pyinstaller-${{ runner.os }}-${{ hashFiles('src-tauri/python-runtime/requirements.txt', 'src-tauri/python-scripts/main.spec') }}
+          key: win-pyinstaller-v4-${{ runner.os }}-${{ hashFiles('src-tauri/python-runtime/requirements.txt', 'src-tauri/python-scripts/main.spec') }}
           restore-keys: |
-            win-pyinstaller-${{ runner.os }}-
+            win-pyinstaller-v4-${{ runner.os }}-
 
       # Setup Python temporaire pour compilation
       - name: Setup Python for compilation
@@ -73,87 +75,116 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      # Compiler le code Python en executable
+      # Compiler avec installation forcée
       - name: Compile Python to executable
         shell: powershell
         run: |
           # Installer PyInstaller et dépendances
           python -m pip install --upgrade pip
-          python -m pip install pyinstaller
+          python -m pip install "pyinstaller==5.13.2"
+          
+          # FORCER l'installation des dépendances critiques
+          python -m pip install pytz --force-reinstall
+          python -m pip install python-dateutil --force-reinstall
+          python -m pip install six --force-reinstall
+          python -m pip install packaging --force-reinstall
+          python -m pip install numpy --force-reinstall
+          python -m pip install pandas --force-reinstall
+          python -m pip install openpyxl --force-reinstall
+          python -m pip install matplotlib --force-reinstall
+          python -m pip install pillow --force-reinstall
+          
+          # Installer le reste
           python -m pip install -r src-tauri/python-runtime/requirements.txt
+          
+          # Créer un fichier de test temporaire (syntaxe PowerShell correcte)
+          $testScript = @'
+          import sys
+          print("Python path:", sys.path)
+          
+          print("Testing critical imports...")
+          import pytz
+          print("pytz version:", pytz.__version__)
+          
+          import dateutil
+          print("dateutil version:", dateutil.__version__)
+          
+          import pandas as pd
+          print("pandas version:", pd.__version__)
+          
+          import numpy as np
+          print("numpy version:", np.__version__)
+          
+          # Test pandas avec pytz
+          df = pd.DataFrame({"date": ["2023-01-01", "2023-01-02"]})
+          df["date"] = pd.to_datetime(df["date"])
+          df_tz = df["date"].dt.tz_localize("UTC").dt.tz_convert("Europe/Paris")
+          print("Pandas timezone conversion works")
+          
+          # Test du mode interactif
+          import sys
+          if "--interactive" in sys.argv:
+              print("Interactive mode detected - ready for stdin commands")
+          
+          print("All dependencies verified successfully")
+          '@
+          
+          $testScript | Out-File -FilePath "test_deps.py" -Encoding UTF8
+          
+          # Exécuter le test
+          python test_deps.py
           
           # Créer le répertoire de destination
           New-Item -ItemType Directory -Force -Path "src-tauri\python-runtime" | Out-Null
           
-          # Étape 1: Test PyInstaller avec script minimal
+          # Lister les packages pour debug
+          python -m pip list | findstr -i "pytz pandas numpy dateutil"
+          
+          # Compiler
           cd src-tauri/python-scripts
-          Write-Host "[INFO] Testing PyInstaller with minimal script..."
-          python -m PyInstaller test_minimal.spec --clean --noconfirm
+          Write-Host "[INFO] Compiling with forced dependencies..."
           
-          if (Test-Path "dist\test_minimal.exe") {
-            Write-Host "[OK] Minimal test compilation successful"
-            # Test rapide du minimal
-            $testResult = & "dist\test_minimal.exe" "CONTEXT_IS_CORRECT" 2>&1
-            Write-Host "[DEBUG] Minimal test output: $testResult"
+          python -m PyInstaller --onefile --noconsole `
+            --name data_processor `
+            --collect-all pandas `
+            --collect-all pytz `
+            --collect-all dateutil `
+            --collect-all numpy `
+            --collect-all openpyxl `
+            --hidden-import=pytz `
+            --hidden-import=dateutil `
+            --hidden-import=dateutil.tz `
+            --hidden-import=pandas `
+            --hidden-import=numpy `
+            --hidden-import=secrets `
+            --hidden-import=context `
+            --hidden-import=pignat `
+            --hidden-import=chromeleon_online `
+            --hidden-import=chromeleon_offline `
+            --hidden-import=chromeleon_online_permanent `
+            --hidden-import=resume `
+            main.py
+          
+          # Vérifier et déplacer
+          if (Test-Path "dist\data_processor.exe") {
+            Move-Item -Force "dist\data_processor.exe" "..\python-runtime\data_processor.exe"
+            Write-Host "[OK] Executable compiled successfully"
             
-            # Nettoyer le test
-            Remove-Item -Recurse -Force "build", "dist" -ErrorAction SilentlyContinue
+            $sizeBytes = (Get-Item "..\python-runtime\data_processor.exe").Length
+            $sizeMB = $sizeBytes / 1MB
+            $sizeRounded = [math]::Round($sizeMB, 2)
+            Write-Host "[INFO] Final executable size: $sizeRounded MB"
+            Write-Host "[OK] Python executable compiled successfully with interactive mode support"
             
-            # Étape 2: Compiler le script principal avec spec simplifié
-            Write-Host "[INFO] Compiling main script with simplified spec..."
-            python -m PyInstaller main_simple.spec --clean --noconfirm
-            
-            if (Test-Path "dist\data_processor_simple.exe") {
-              Move-Item -Force "dist\data_processor_simple.exe" "..\python-runtime\data_processor.exe"
-              Write-Host "[OK] Simplified executable created successfully"
-            } else {
-              Write-Host "[WARN] Simplified compilation failed, trying full spec..."
-              python -m PyInstaller main.spec --clean --noconfirm
-              if (Test-Path "dist\data_processor.exe") {
-                Move-Item -Force "dist\data_processor.exe" "..\python-runtime\data_processor.exe"
-                Write-Host "[OK] Full executable created successfully"
-              } else {
-                throw "All PyInstaller compilation attempts failed"
-              }
-            }
           } else {
-            Write-Host "[ERROR] Even minimal PyInstaller test failed"
-            Get-ChildItem "dist" -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "Found in dist: $($_.Name)" }
-            throw "PyInstaller is not working on this system"
+            Write-Host "[ERROR] Compilation failed"
+            Get-ChildItem "dist" -ErrorAction SilentlyContinue
+            throw "Compilation failed"
           }
           
-          # Nettoyage des fichiers temporaires
+          # Nettoyage
           Remove-Item -Recurse -Force "build", "dist", "__pycache__" -ErrorAction SilentlyContinue
-
-      # Vérifier l'executable compilé
-      - name: Verify compiled executable
-        shell: powershell
-        run: |
-          $exe = "src-tauri\python-runtime\data_processor.exe"
-          if (-Not (Test-Path $exe)) { 
-            throw "Compiled executable not found" 
-          }
-          
-          Write-Host "[OK] Executable compiled successfully: $exe"
-          $sizeBytes = (Get-Item $exe).Length
-          $sizeMB = $sizeBytes / 1MB
-          $sizeRounded = [math]::Round($sizeMB, 2)
-          Write-Host "[INFO] Executable size: $sizeRounded MB"
-          
-          # Test rapide de l'executable
-          Write-Host "[INFO] Testing executable..."
-          try {
-            $testOutput = & $exe "CONTEXT_IS_CORRECT" "test" 2>&1
-            if ($LASTEXITCODE -eq 0) {
-              Write-Host "[OK] Executable test passed"
-            } else {
-              Write-Host "[NOTE] Executable responds but returns error (expected for test path)"
-              Write-Host "[DEBUG] Output: $testOutput"
-            }
-          } catch {
-            Write-Host "[ERROR] Executable test failed: $_"
-            Write-Host "[INFO] This may be expected for missing test data"
-          }
+          Remove-Item "test_deps.py" -ErrorAction SilentlyContinue
 
       # Build avec l'action officielle Tauri
       - name: Build Tauri App (official action)

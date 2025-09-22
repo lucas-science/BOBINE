@@ -1,11 +1,15 @@
-use tauri::{command, AppHandle, Manager};
+use tauri::{command, AppHandle, Manager, State};
 use dirs::document_dir;
 use serde::{Serialize, Deserialize};
 use serde_json::Value as JsonValue;
 use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::io::{BufRead, BufReader, Write};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 #[derive(Serialize)]
-struct CommandOutput {
+pub struct CommandOutput {
     stdout: String,
     stderr: String,
 }
@@ -41,6 +45,157 @@ struct SelectedMetricsBySensor {
     resume: Vec<String>,
 }
 
+struct PythonProcess {
+    child: Child,
+    stdin: std::process::ChildStdin,
+    stdout: BufReader<std::process::ChildStdout>,
+    last_used: Instant,
+}
+
+impl PythonProcess {
+    fn new(python_bin: &PathBuf, app: &AppHandle) -> Result<Self, String> {
+        let mut cmd = if python_bin.file_name()
+            .and_then(|name| name.to_str())
+            .map(|name| name.starts_with("data_processor"))
+            .unwrap_or(false)
+        {
+            // Executable compilé - mode interactif
+            let mut cmd = Command::new(python_bin);
+            cmd.arg("--interactive"); // On va modifier le Python pour supporter ce mode
+            cmd
+        } else {
+            // Script Python traditionnel
+            let script = app.path().resource_dir()
+                .map_err(|e| format!("Cannot get resource directory: {}", e))?
+                .join("python-scripts").join("main.py");
+            let mut cmd = Command::new(python_bin);
+            cmd.arg("-u").arg(&script).arg("--interactive");
+            cmd
+        };
+
+        // Configuration spécifique pour Windows pour masquer le terminal
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        let mut child = cmd
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to spawn Python process: {}", e))?;
+
+        let stdin = child.stdin.take()
+            .ok_or_else(|| "Failed to get stdin handle".to_string())?;
+        let stdout = child.stdout.take()
+            .ok_or_else(|| "Failed to get stdout handle".to_string())?;
+
+        Ok(PythonProcess {
+            child,
+            stdin,
+            stdout: BufReader::new(stdout),
+            last_used: Instant::now(),
+        })
+    }
+
+    fn send_command(&mut self, args: &[&str]) -> Result<CommandOutput, String> {
+        self.last_used = Instant::now();
+        
+        // Envoyer la commande au processus Python
+        let command = args.join("\t");
+        writeln!(self.stdin, "{}", command)
+            .map_err(|e| format!("Failed to write to Python stdin: {}", e))?;
+        self.stdin.flush()
+            .map_err(|e| format!("Failed to flush Python stdin: {}", e))?;
+
+        // Lire la réponse
+        let mut response = String::new();
+        let stderr = String::new();
+        
+        // Lire ligne par ligne jusqu'à voir notre marqueur de fin
+        loop {
+            let mut line = String::new();
+            match self.stdout.read_line(&mut line) {
+                Ok(0) => return Err("Python process ended unexpectedly".to_string()),
+                Ok(_) => {
+                    if line.trim() == "<<<END_RESPONSE>>>" {
+                        break;
+                    }
+                    response.push_str(&line);
+                }
+                Err(e) => return Err(format!("Failed to read from Python stdout: {}", e)),
+            }
+        }
+
+        Ok(CommandOutput {
+            stdout: response.trim().to_string(),
+            stderr,
+        })
+    }
+
+    fn is_healthy(&mut self) -> bool {
+        match self.child.try_wait() {
+            Ok(Some(_)) => false, // Process has exited
+            Ok(None) => true,     // Process is still running
+            Err(_) => false,      // Error checking process status
+        }
+    }
+
+    fn should_restart(&self) -> bool {
+        // Redémarrer après 10 minutes d'inactivité pour éviter les fuites mémoire
+        self.last_used.elapsed() > Duration::from_secs(600)
+    }
+}
+
+pub struct PythonService {
+    process: Arc<Mutex<Option<PythonProcess>>>,
+    python_bin: PathBuf,
+    app_handle: AppHandle,
+}
+
+impl PythonService {
+    pub fn new(python_bin: PathBuf, app_handle: AppHandle) -> Self {
+        Self {
+            process: Arc::new(Mutex::new(None)),
+            python_bin,
+            app_handle,
+        }
+    }
+
+    pub fn execute(&self, args: &[&str]) -> Result<CommandOutput, String> {
+        let mut process_guard = self.process.lock()
+            .map_err(|e| format!("Failed to lock Python service: {}", e))?;
+
+        // Vérifier si on a besoin de créer/recréer le processus
+        let need_new_process = match process_guard.as_mut() {
+            None => true,
+            Some(process) => !process.is_healthy() || process.should_restart(),
+        };
+
+        if need_new_process {
+            // Nettoyer l'ancien processus si nécessaire
+            if let Some(mut old_process) = process_guard.take() {
+                let _ = old_process.child.kill();
+                let _ = old_process.child.wait();
+            }
+
+            // Créer un nouveau processus
+            let new_process = PythonProcess::new(&self.python_bin, &self.app_handle)?;
+            *process_guard = Some(new_process);
+        }
+
+        // Exécuter la commande
+        process_guard.as_mut()
+            .unwrap()
+            .send_command(args)
+    }
+}
+
+pub type PythonServiceState = Arc<PythonService>;
+
 fn resolve_embedded_python(app: &AppHandle) -> Option<PathBuf> {
     let resource_dir = app.path().resource_dir().ok()?;
     let runtime_dir = resource_dir.join("python-runtime");
@@ -52,6 +207,9 @@ fn resolve_embedded_python(app: &AppHandle) -> Option<PathBuf> {
         if compiled_exe.exists() {
             return Some(compiled_exe);
         }
+        // Fallback vers python3 système pour Windows
+        let system_python = PathBuf::from("python");
+        return Some(system_python);
     }
     
     #[cfg(target_os = "linux")]
@@ -78,6 +236,7 @@ fn resolve_embedded_python(app: &AppHandle) -> Option<PathBuf> {
         return Some(system_python);
     }
     
+    // Fallback ultime pour les plateformes non supportées
     None
 }
 
@@ -93,6 +252,7 @@ fn resolve_python_main(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn run_python(app: &AppHandle, args: &[&str]) -> Result<CommandOutput, String> {
+    // Fallback pour compatibilité - utilise l'ancien système si le service persistant échoue
     let python_bin = resolve_embedded_python(app)
         .unwrap_or_else(|| PathBuf::from("python3"));
 
@@ -139,6 +299,18 @@ fn run_python(app: &AppHandle, args: &[&str]) -> Result<CommandOutput, String> {
     Ok(CommandOutput { stdout, stderr })
 }
 
+fn run_python_with_service(python_service: &PythonService, args: &[&str]) -> Result<CommandOutput, String> {
+    // Tenter d'utiliser le service persistant
+    match python_service.execute(args) {
+        Ok(output) => Ok(output),
+        Err(e) => {
+            eprintln!("Python service failed, falling back to direct execution: {}", e);
+            // Fallback vers l'exécution directe si le service échoue
+            run_python(&python_service.app_handle, args)
+        }
+    }
+}
+
 fn parse_python_json(stdout: &str) -> Result<JsonValue, String> {
     if stdout.trim().is_empty() {
         return Err("Empty stdout from Python".into());
@@ -155,16 +327,16 @@ fn parse_python_json(stdout: &str) -> Result<JsonValue, String> {
 /// ---------- Commandes par action ----------
 
 #[tauri::command]
-fn context_is_correct(app: tauri::AppHandle, dir_path: String) -> Result<bool, String> {
-    let out = run_python(&app, &["CONTEXT_IS_CORRECT", &dir_path])?;
+fn context_is_correct(python_service: State<PythonServiceState>, dir_path: String) -> Result<bool, String> {
+    let out = run_python_with_service(&python_service, &["CONTEXT_IS_CORRECT", &dir_path])?;
     let json = parse_python_json(&out.stdout)?;
     json.as_bool()
         .ok_or_else(|| "Invalid JSON: expected boolean".into())
 }
 
 #[tauri::command]
-fn get_context_masses(app: tauri::AppHandle, dir_path: String) -> Result<JsonValue, String> {
-    let out = run_python(&app, &["GET_CONTEXT_MASSES", &dir_path])?;
+fn get_context_masses(python_service: State<PythonServiceState>, dir_path: String) -> Result<JsonValue, String> {
+    let out = run_python_with_service(&python_service, &["GET_CONTEXT_MASSES", &dir_path])?;
     if out.stdout.trim().is_empty() {
         return Err(if out.stderr.trim().is_empty() {
             "Empty stdout from Python".into()
@@ -179,8 +351,8 @@ fn get_context_masses(app: tauri::AppHandle, dir_path: String) -> Result<JsonVal
 }
 
 #[tauri::command]
-fn get_context_b64(app: tauri::AppHandle, dir_path: String) -> Result<String, String> {
-    let out = run_python(&app, &["GET_CONTEXT_B64", &dir_path])?;
+fn get_context_b64(python_service: State<PythonServiceState>, dir_path: String) -> Result<String, String> {
+    let out = run_python_with_service(&python_service, &["GET_CONTEXT_B64", &dir_path])?;
     if out.stdout.trim().is_empty() {
         return Err(if out.stderr.trim().is_empty() {
             "Empty stdout from Python".into()
@@ -195,8 +367,8 @@ fn get_context_b64(app: tauri::AppHandle, dir_path: String) -> Result<String, St
 }
 
 #[tauri::command]
-fn get_context_experience_name(app: tauri::AppHandle, dir_path: String) -> Result<String, String> {
-    let out = run_python(&app, &["GET_CONTEXT_EXPERIENCE_NAME", &dir_path])?;
+fn get_context_experience_name(python_service: State<PythonServiceState>, dir_path: String) -> Result<String, String> {
+    let out = run_python_with_service(&python_service, &["GET_CONTEXT_EXPERIENCE_NAME", &dir_path])?;
     if out.stdout.trim().is_empty() {
         return Err(if out.stderr.trim().is_empty() {
             "Empty stdout from Python".into()
@@ -211,8 +383,8 @@ fn get_context_experience_name(app: tauri::AppHandle, dir_path: String) -> Resul
 }
 
 #[tauri::command]
-fn get_graphs_available(app: tauri::AppHandle, dir_path: String) -> Result<JsonValue, String> {
-    let out = run_python(&app, &["GET_GRAPHS_AVAILABLE", &dir_path])?;
+fn get_graphs_available(python_service: State<PythonServiceState>, dir_path: String) -> Result<JsonValue, String> {
+    let out = run_python_with_service(&python_service, &["GET_GRAPHS_AVAILABLE", &dir_path])?;
     if out.stdout.trim().is_empty() {
         return Err(if out.stderr.trim().is_empty() {
             "Empty stdout from Python".into()
@@ -224,8 +396,8 @@ fn get_graphs_available(app: tauri::AppHandle, dir_path: String) -> Result<JsonV
 }
 
 #[tauri::command]
-fn get_time_range(app: tauri::AppHandle, dir_path: String) -> Result<JsonValue, String> {
-    let out = run_python(&app, &["GET_TIME_RANGE", &dir_path])?;
+fn get_time_range(python_service: State<PythonServiceState>, dir_path: String) -> Result<JsonValue, String> {
+    let out = run_python_with_service(&python_service, &["GET_TIME_RANGE", &dir_path])?;
     if out.stdout.trim().is_empty() {
         return Err(if out.stderr.trim().is_empty() {
             "Empty stdout from Python".into()
@@ -238,7 +410,7 @@ fn get_time_range(app: tauri::AppHandle, dir_path: String) -> Result<JsonValue, 
 
 #[tauri::command(rename_all = "camelCase")]
 async fn generate_and_save_excel(
-    app: tauri::AppHandle,
+    python_service: State<'_, PythonServiceState>,
     dir_path: String,
     metric_wanted: SelectedMetricsBySensor,
     destination_path: String,
@@ -258,7 +430,7 @@ async fn generate_and_save_excel(
             .map_err(|e| format!("Cannot create output directory {}: {e}", parent.display()))?;
     }
 
-    let out = run_python(&app, &[
+    let out = run_python_with_service(&python_service, &[
         "GENERATE_EXCEL_TO_FILE",
         &metrics_json,
         &dir_path,
@@ -321,6 +493,25 @@ pub fn run() {
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .setup(|app| {
+            // Initialiser le service Python persistant au démarrage
+            let python_bin = resolve_embedded_python(&app.handle())
+                .unwrap_or_else(|| PathBuf::from("python3"));
+            let python_service = Arc::new(PythonService::new(python_bin, app.handle().clone()));
+            
+            // Pré-lancer le processus Python pour réduire la latence
+            let service_clone = python_service.clone();
+            std::thread::spawn(move || {
+                // Démarrer le processus Python en arrière-plan
+                match service_clone.execute(&["CONTEXT_IS_CORRECT", "/tmp"]) {
+                    Ok(_) => println!("✅ Service Python pré-lancé avec succès"),
+                    Err(e) => println!("⚠️  Échec du pré-lancement Python (normal si pas de données): {}", e),
+                }
+            });
+            
+            app.manage(python_service);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             // Python actions exposées une par une :
             context_is_correct,

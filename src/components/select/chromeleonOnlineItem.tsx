@@ -61,7 +61,7 @@ export const ChromeleonOnlineItem: React.FC<ChromeleonOnlineItemProps> = ({
 
   return (
     <div className={`flex flex-col space-y-3 p-3 rounded-lg border transition-colors ${available ? "cursor-pointer" : "cursor-not-allowed"
-      } ${selected ? "bg-blue-50 hover:bg-blue-100 border-blue-300" : "hover:bg-gray-50"}`}
+      } ${selected ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-gray-50"}`}
     >
       <div className="flex items-start space-x-3" onClick={handleClick}>
         <Checkbox
@@ -91,13 +91,13 @@ export const ChromeleonOnlineItem: React.FC<ChromeleonOnlineItemProps> = ({
                   variant="outline"
                   role="combobox"
                   aria-expanded={open}
-                  className="w-64 justify-between text-sm"
+                  className="justify-between text-sm"
                 >
                   Sélectionner éléments chimiques...
                   <ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent className="w-64 p-0">
+              <PopoverContent className="w-64 p-0 bg-card">
                 <Command>
                   <CommandInput placeholder="Rechercher..." />
                   <CommandList>

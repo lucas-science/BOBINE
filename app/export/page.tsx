@@ -87,7 +87,7 @@ export default function Page() {
           </CardHeader>
 
           {loading ? (
-            <ButtonLoading className="bg-secondary/80 text-white" />
+            <ButtonLoading />
           ) : (
             <Button
               onClick={handleGenerateExcel}

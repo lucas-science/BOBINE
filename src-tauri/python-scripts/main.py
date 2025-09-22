@@ -222,15 +222,15 @@ def excel_to_base64(wb):
     return base64.b64encode(excel_binary.getvalue()).decode('utf-8')
 
 
-if __name__ == "__main__":
-    # Valeur par défaut qui sera *toujours* imprimée
+def process_command(args):
+    """Process a single command and return response"""
     response = {"error": "Invalid action specified."}
 
     try:
-        action = sys.argv[1] if len(sys.argv) > 1 else None
-        arg2 = sys.argv[2] if len(sys.argv) > 2 else None
-        arg3 = sys.argv[3] if len(sys.argv) > 3 else None
-        arg4 = sys.argv[4] if len(sys.argv) > 4 else None
+        action = args[0] if len(args) > 0 else None
+        arg2 = args[1] if len(args) > 1 else None
+        arg3 = args[2] if len(args) > 2 else None
+        arg4 = args[3] if len(args) > 3 else None
 
         if action == "CONTEXT_IS_CORRECT":
             result = context_is_correct(dir_path=arg2)
@@ -303,8 +303,51 @@ if __name__ == "__main__":
                 response = {"error": str(e)}
 
     except Exception as e:
-        print(f"[MAIN] {e}", file=sys.stderr)
+        print(f"[PROCESS_COMMAND] {e}", file=sys.stderr)
         response = {"error": str(e)}
-    finally:
-        # Toujours imprimer un JSON valide
+
+    return response
+
+
+def run_interactive_mode():
+    """Run in interactive mode, processing commands from stdin"""
+    print("Python data processor started in interactive mode", file=sys.stderr)
+    sys.stderr.flush()
+    
+    while True:
+        try:
+            # Lire une ligne de commande
+            line = sys.stdin.readline().strip()
+            
+            if not line:
+                # EOF, sortir proprement
+                break
+                
+            # Diviser par tabulations (comme dans le code Rust)
+            args = line.split('\t')
+            
+            # Traiter la commande
+            response = process_command(args)
+            
+            # Renvoyer la réponse
+            print(json.dumps(response, ensure_ascii=False, default=str), flush=True)
+            print("<<<END_RESPONSE>>>", flush=True)
+            
+        except EOFError:
+            break
+        except Exception as e:
+            print(f"[INTERACTIVE] Error: {e}", file=sys.stderr)
+            error_response = {"error": str(e)}
+            print(json.dumps(error_response, ensure_ascii=False, default=str), flush=True)
+            print("<<<END_RESPONSE>>>", flush=True)
+
+
+if __name__ == "__main__":
+    # Vérifier si on est en mode interactif
+    if len(sys.argv) > 1 and sys.argv[1] == "--interactive":
+        run_interactive_mode()
+    else:
+        # Mode traditionnel (backward compatibility)
+        args = sys.argv[1:] if len(sys.argv) > 1 else []
+        response = process_command(args)
         print(json.dumps(response, ensure_ascii=False, default=str), flush=True)
