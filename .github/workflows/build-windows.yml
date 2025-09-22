@@ -3,9 +3,9 @@ name: Build Windows (Tauri v2)
 on:
   workflow_dispatch:
   push:
-    branches: [ windows_build ]
+    branches: [ main ]
   pull_request:
-    branches: [ windows_build ]
+    branches: [ main ]
 
 jobs:
   build-windows:
