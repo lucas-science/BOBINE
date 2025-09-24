@@ -7,7 +7,7 @@ from openpyxl.chart import LineChart, Reference
 from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.chart.text import RichText
 from openpyxl.drawing.text import Paragraph, ParagraphProperties, CharacterProperties
-
+from openpyxl.chart.axis import ChartLines
 
 
 from utils.pignat_constants import (
@@ -236,29 +236,30 @@ class PignatData:
 
 
     def get_json_metrics(self, metric: str, start_time=None, end_time=None):
-        print(f"[PIGNAT DEBUG] Getting JSON metrics for: {metric}", file=sys.stderr)
-        
+        print(f"[PIGNAT DEBUG] Getting JSON metrics for: '{metric}'", file=sys.stderr)
+
         try:
-            if metric == TEMPERATURE_DEPENDING_TIME:
-                # Verify required columns exist before processing
+            # Support both new names (no accents) and legacy names (with accents)
+            if metric == TEMPERATURE_DEPENDING_TIME or metric == 'Température par rapport au temps':
+                print(f"[PIGNAT DEBUG] ✅ Processing TEMPERATURE metric", file=sys.stderr)
                 required_cols = [TIME, TT301, TT302, TT303]
                 missing_cols = [col for col in required_cols if col not in self.columns]
                 if missing_cols:
                     raise ValueError(f"Missing columns for temperature metric: {missing_cols}")
-                
+
                 return {
                     "name": TEMPERATURE_DEPENDING_TIME,
                     "data": self._get_temperature_over_time(start_time, end_time),
                     "x_axis": TIME,
                     "y_axis": [TT301, TT302, TT303]
                 }
-            elif metric == DEBIMETRIC_RESPONSE_DEPENDING_TIME:
-                # Verify required columns exist before processing
+            elif metric == DEBIMETRIC_RESPONSE_DEPENDING_TIME or metric == 'Réponse débimétrique par rapport au temps' or metric == 'Réponsse débimétrique par rapport au temps':
+                print(f"[PIGNAT DEBUG] ✅ Processing DEBIMETRIC metric", file=sys.stderr)
                 required_cols = [TIME, FT240]
                 missing_cols = [col for col in required_cols if col not in self.columns]
                 if missing_cols:
                     raise ValueError(f"Missing columns for debimetric metric: {missing_cols}")
-                
+
                 return {
                     "name": DEBIMETRIC_RESPONSE_DEPENDING_TIME,
                     "data": self._get_debimetrique_response_over_time(start_time, end_time),
@@ -266,12 +267,12 @@ class PignatData:
                     "y_axis": [FT240]
                 }
             elif metric == PRESSURE_PYROLYSEUR_DEPENDING_TIME:
-                # Verify required columns exist before processing
+                print(f"[PIGNAT DEBUG] ✅ Processing PRESSURE_PYROLYSEUR metric", file=sys.stderr)
                 required_cols = [TIME, PI177]
                 missing_cols = [col for col in required_cols if col not in self.columns]
                 if missing_cols:
                     raise ValueError(f"Missing columns for pyrolyseur pressure metric: {missing_cols}")
-                
+
                 return {
                     "name": PRESSURE_PYROLYSEUR_DEPENDING_TIME,
                     "data": self._get_pression_pyrolyseur_over_time(start_time, end_time),
@@ -279,12 +280,12 @@ class PignatData:
                     "y_axis": [PI177]
                 }
             elif metric == PRESSURE_POMPE_DEPENDING_TIME:
-                # Verify required columns exist before processing
+                print(f"[PIGNAT DEBUG] ✅ Processing PRESSURE_POMPE metric", file=sys.stderr)
                 required_cols = [TIME, PT230]
                 missing_cols = [col for col in required_cols if col not in self.columns]
                 if missing_cols:
                     raise ValueError(f"Missing columns for pump pressure metric: {missing_cols}")
-                
+
                 return {
                     "name": PRESSURE_POMPE_DEPENDING_TIME,
                     "data": self._get_pression_sortie_pompe_over_time(start_time, end_time),
@@ -292,12 +293,12 @@ class PignatData:
                     "y_axis": [PT230]
                 }
             elif metric == DELTA_PRESSURE_DEPENDING_TIME:
-                # Verify required columns exist before processing
+                print(f"[PIGNAT DEBUG] ✅ Processing DELTA_PRESSURE metric", file=sys.stderr)
                 required_cols = [TIME, PI177, PT230]
                 missing_cols = [col for col in required_cols if col not in self.columns]
                 if missing_cols:
                     raise ValueError(f"Missing columns for delta pressure metric: {missing_cols}")
-                
+
                 return {
                     "name": DELTA_PRESSURE_DEPENDING_TIME,
                     "data": self._get_delta_pression_over_time(start_time, end_time),
@@ -305,10 +306,13 @@ class PignatData:
                     "y_axis": [f"Delta_Pression_{PI177}_minus_{PT230}"]
                 }
             else:
+                print(f"[PIGNAT ERROR] Metric '{metric}' is NOT RECOGNIZED!", file=sys.stderr)
+                print(f"[PIGNAT ERROR] Check exact string matching - no extra spaces or characters", file=sys.stderr)
                 raise ValueError(f"Metric '{metric}' is not recognized.")
         except Exception as e:
             print(f"[PIGNAT ERROR] Failed to get JSON metrics for {metric}: {str(e)}", file=sys.stderr)
             print(f"[PIGNAT ERROR] Available columns: {self.columns}", file=sys.stderr)
+            print(f"[PIGNAT ERROR] Missing columns: {self.missing_columns}", file=sys.stderr)
             raise
 
     def generate_workbook_with_charts(self,
@@ -354,10 +358,14 @@ class PignatData:
                 if not metric_name:
                     print(f"[PIGNAT DEBUG] Metric {i+1} has no name, skipping", file=sys.stderr)
                     continue
-                
-                print(f"[PIGNAT DEBUG] Processing metric: {metric_name} with time range {start_time} to {end_time}", file=sys.stderr)
-                
+
+                print(f"[PIGNAT DEBUG] ===== STARTING METRIC PROCESSING =====", file=sys.stderr)
+                print(f"[PIGNAT DEBUG] Metric name: '{metric_name}'", file=sys.stderr)
+                print(f"[PIGNAT DEBUG] Time range: {start_time} to {end_time}", file=sys.stderr)
+                print(f"[PIGNAT DEBUG] About to call get_json_metrics...", file=sys.stderr)
+
                 metric_data = self.get_json_metrics(metric_name, start_time, end_time)
+                print(f"[PIGNAT DEBUG] ✅ SUCCESS: get_json_metrics returned data", file=sys.stderr)
                 print(f"[PIGNAT DEBUG] Retrieved metric data for {metric_name}: {len(metric_data['data'])} rows", file=sys.stderr)
                 df = metric_data['data']
                 
@@ -367,33 +375,8 @@ class PignatData:
                 else:
                     df_display = df.copy()
                 
-                def format_time_for_display(time_str, _, total=1):
-                    if isinstance(time_str, str) and ':' in time_str:
-                        parts = time_str.split(':')
-                        if len(parts) >= 2:
-                            hour = parts[0]
-                            minute = parts[1]
-                            
-                            if total > 80:
-                                return f"     {hour}:{minute}     "
-                            elif total > 40:
-                                return f"    {hour}:{minute}    "
-                            elif total > 20:
-                                return f"   {hour}:{minute}   "
-                            else:
-                                return f"  {hour}:{minute}  "
-                    return f" {time_str} "
-                
-                df_chart = df_display.copy()
-                df_table = df.copy()
-                
-                if TIME in df_chart.columns:
-                    total_points = len(df_chart)
-                    df_chart[TIME] = [format_time_for_display(time_val, i, total_points) 
-                                     for i, time_val in enumerate(df_chart[TIME])]
-                if TIME in df_table.columns:
-                    df_table[TIME] = [format_time_for_display(time_val, i, len(df_table)) 
-                                     for i, time_val in enumerate(df_table[TIME])]
+                # Utiliser df_display pour les données Excel
+                df_table = df_display.copy()
                 
                 title = metric_data['name'].replace('=', '-')
                 title_cell = ws.cell(row=1, column=current_col, value=title)
@@ -413,9 +396,12 @@ class PignatData:
                         data_cell = ws.cell(row=3 + row_idx, column=current_col + col_idx, value=value)
                         data_cell.border = thin_border
                 
+                # Configuration du graphique améliorée
                 chart = LineChart()
                 chart.title = title
-                chart.style = 13
+                chart.style = 2
+                
+                # Configuration de base des axes (compatible avec toutes les versions d'openpyxl)
                 chart.y_axis.title = (
                     ', '.join(metric_data['y_axis'])
                     if len(metric_data['y_axis']) > 1
@@ -423,79 +409,70 @@ class PignatData:
                 )
                 chart.x_axis.title = metric_data['x_axis']
                 
-                try:
-                    chart.x_axis.tickLblPos = "low"
-                    
-                    num_data_points = len(df_chart)
-                    
-                    base_width = 15
-                    if num_data_points > 50:
-                        chart.width = min(25, base_width + (num_data_points / 20))
-                    elif num_data_points > 20:
-                        chart.width = base_width + 3
-                    else:
-                        chart.width = base_width
-                    
-                    if num_data_points > 12:
-                        tick_interval = max(1, num_data_points // 8)
-                        chart.x_axis.tickMarkSkip = tick_interval
-                        chart.x_axis.tickLblSkip = tick_interval
-                    
-                    try:
-                        if hasattr(chart.x_axis, 'txPr'):
-                            try:
-                                rich_text = RichText()
-                                p = Paragraph()
-                                p.pPr = ParagraphProperties()
-                                p.pPr.defRPr = CharacterProperties()
-                                p.pPr.defRPr.rot = -450000
-                                rich_text.p = [p]
-                                chart.x_axis.txPr = rich_text
-                            except:
-                                pass
-                                
-                        try:
-                            chart.x_axis.txPr = None
-                            if hasattr(chart.x_axis, 'numFmt'):
-                                chart.x_axis.numFmt.formatCode = 'h:mm'
-                            chart.x_axis.textRotation = -45
-                        except:
-                            pass
-                            
-                    except:
-                        pass
-                    
-                    chart.height = 12
-                    
-                except:
-                    pass
-
+                # CORRECTIONS PRINCIPALES POUR LES AXES
+                
+                # 1. Forcer l'affichage des étiquettes sur les axes
+                chart.x_axis.tickLblPos = "low"  # Position des étiquettes X
+                chart.y_axis.tickLblPos = "low"  # Position des étiquettes Y
+                
+                # 2. Définir les intervalles d'affichage
+                num_data_points = len(df_table)
+                if num_data_points > 20:
+                    # Afficher une étiquette sur 3 ou 4 points pour éviter l'encombrement
+                    tick_interval = max(1, num_data_points // 8)
+                    chart.x_axis.tickMarkSkip = tick_interval - 1
+                    chart.x_axis.tickLblSkip = tick_interval - 1
+                
+                # 3. Configuration des grilles pour mieux voir les valeurs
+                from openpyxl.chart.axis import ChartLines
+                chart.x_axis.majorGridlines = ChartLines()
+                chart.y_axis.majorGridlines = ChartLines()
+                
+                # 4. Rotation du texte pour l'axe X (temps)
+                chart.x_axis.textRotation = -45
+                
+                # 5. Format des nombres - version simplifiée et robuste
+                # Note: Le formatage des axes peut ne pas être disponible dans toutes les versions
+                # Les graphiques fonctionneront quand même avec les formats par défaut
+                
+                # 6. Format de l'axe X (temps) - optionnel
+                # Le formatage sera géré automatiquement par Excel
+                
+                # 9. Taille du graphique adaptée - AGRANDIE POUR LA LÉGENDE À CÔTÉ
+                chart.width = 22  # Plus large pour accommoder la légende à droite
+                chart.height = 14  # Plus haut pour plus de lisibilité
+                
                 max_row_table = 2 + len(df_table)
                 
-                if len(df_chart) != len(df_table):
-                    chart_sample_step = max(1, len(df_table) // len(df_chart))
-                else:
-                    chart_sample_step = 1
-                
+                # Références de données - CORRIGÉES pour forcer l'affichage des axes
                 data_ref = Reference(ws,
-                                    min_col=current_col + 1,
-                                    min_row=2,
+                                    min_col=current_col + 1,  # Commence après la colonne Time
+                                    min_row=2,                # Ligne des en-têtes
                                     max_col=current_col + len(metric_data['y_axis']),
                                     max_row=max_row_table)
                 chart.add_data(data_ref, titles_from_data=True)
                 
-                if chart_sample_step > 1:
-                    cats = Reference(ws, 
-                                    min_col=current_col, 
-                                    min_row=3, 
-                                    max_row=3 + len(df_chart) * chart_sample_step - 1)
-                else:
-                    cats = Reference(ws, 
-                                    min_col=current_col, 
-                                    min_row=3, 
-                                    max_row=max_row_table)
+                # Catégories (axe X - Time) - FORCÉ POUR AFFICHER LES VALEURS
+                cats = Reference(ws,
+                                min_col=current_col,      # Colonne Time
+                                min_row=3,                # Première ligne de données (pas l'en-tête)
+                                max_row=max_row_table)
                 chart.set_categories(cats)
                 
+                # FORCER la visibilité des axes - AJOUT CRUCIAL
+                chart.x_axis.crosses = "autoZero"  # Forcer l'intersection
+                chart.y_axis.crosses = "autoZero"  # Forcer l'intersection
+                
+                # 8. Configuration supplémentaire des axes pour garantir l'affichage
+                # Forcer l'affichage des valeurs min/max sur l'axe Y (auto-scaling)
+                try:
+                    if hasattr(chart.y_axis, 'scaling'):
+                        chart.y_axis.scaling.min = None  # Auto-scaling
+                        chart.y_axis.scaling.max = None  # Auto-scaling
+                except AttributeError:
+                    print(f"[PIGNAT DEBUG] Y-axis scaling configuration not available", file=sys.stderr)
+                
+                # Position du graphique
                 chart_col = current_col + len(df_table.columns) + 1
                 
                 if chart_col <= 26:
@@ -508,7 +485,7 @@ class PignatData:
                 ws.add_chart(chart, f"{chart_col_letter}2")
                 
                 data_width = len(df_table.columns)
-                chart_width = int(chart.width) if hasattr(chart, 'width') else 15
+                chart_width = int(chart.width) if hasattr(chart, 'width') else 18
                 spacing = 3
                 
                 print(f"[PIGNAT DEBUG] Successfully processed metric {metric_name} at column {current_col}", file=sys.stderr)
@@ -522,22 +499,19 @@ class PignatData:
                         metric_name = metric_config.get("name", "Unknown")
                     else:
                         metric_name = str(metric_config)
-                except:
+                except Exception:
                     metric_name = "Unknown"
-                
+
                 print(f"[PIGNAT ERROR] Failed to process metric {i+1} ({metric_name}): {str(e)}", file=sys.stderr)
                 print(f"[PIGNAT ERROR] Traceback: {traceback.format_exc()}", file=sys.stderr)
-                
-                # Don't increment current_col when there's an error to avoid creating empty space
-                # Instead, continue to next metric without affecting layout
-                print(f"[PIGNAT DEBUG] Skipping failed metric without adding space", file=sys.stderr)
+
+                print(f"[PIGNAT DEBUG] Skipping failed metric '{metric_name}', continuing with next", file=sys.stderr)
         
         return wb
 
-
 if __name__ == "__main__":
     try:
-        test_dir = "/home/lucaslhm/Bureau/test_Pignat"
+        test_dir = "C:/Users/lucas/OneDrive/Documents"
         print(f"📁 Chargement des données depuis: {test_dir}")
         pignat = PignatData(test_dir)
         
@@ -602,7 +576,7 @@ if __name__ == "__main__":
         print(f"📋 Métriques à inclure dans l'Excel: {[m['name'] for m in metrics_wanted]}")
         
         wb = pignat.generate_workbook_with_charts(wb, metrics_wanted)
-        wb.save("/home/lucaslhm/Bureau/test_pignat_output.xlsx")
+        wb.save("C:/Users/lucas/Desktop/test_pignat_output.xlsx")
         print("✅ Excel généré: /home/lucaslhm/Bureau/test_pignat_output.xlsx")
         
     except Exception as e:
