@@ -335,6 +335,15 @@ fn context_is_correct(python_service: State<PythonServiceState>, dir_path: Strin
 }
 
 #[tauri::command]
+fn validate_context(python_service: State<PythonServiceState>, dir_path: String) -> Result<JsonValue, String> {
+    let out = run_python_with_service(&python_service, &["VALIDATE_CONTEXT", &dir_path])?;
+    let json = parse_python_json(&out.stdout)?;
+    json.as_object()
+        .map(|obj| serde_json::to_value(obj).unwrap())
+        .ok_or_else(|| "Invalid JSON: expected object".into())
+}
+
+#[tauri::command]
 fn get_context_masses(python_service: State<PythonServiceState>, dir_path: String) -> Result<JsonValue, String> {
     let out = run_python_with_service(&python_service, &["GET_CONTEXT_MASSES", &dir_path])?;
     if out.stdout.trim().is_empty() {
@@ -515,6 +524,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             // Python actions exposées une par une :
             context_is_correct,
+            validate_context,
             get_context_masses,
             get_context_b64,
             get_context_experience_name,

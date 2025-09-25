@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { PyResp, SelectedMetricsBySensor } from "./type";
+import { PyResp, SelectedMetricsBySensor, ContextValidationResult } from "./type";
 import { MetricsBySensor } from "./type";
 
 export async function getDocumentsDir(): Promise<string> {
@@ -8,6 +8,10 @@ export async function getDocumentsDir(): Promise<string> {
 
 export async function checkContext(dirPath: string): Promise<boolean> {
   return await invoke<boolean>("context_is_correct", { dirPath });
+}
+
+export async function validateContext(dirPath: string): Promise<ContextValidationResult> {
+  return await invoke<ContextValidationResult>("validate_context", { dirPath });
 }
 
 export async function getContextMasses(dirPath: string): Promise<Record<string, number | null>> {
