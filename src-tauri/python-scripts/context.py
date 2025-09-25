@@ -59,6 +59,80 @@ class ExcelContextData:
 
     def is_valid(self) -> bool:
         return not any(v is None for v in self.get_masses().values())
+    
+    def validate(self) -> dict:
+        """
+        Valide les données du contexte avec des messages d'erreur spécifiques.
+        
+        Returns:
+            dict: {
+                "valid": bool,
+                "error_type": str,  # "missing_experience_data" | "missing_masses" | "invalid_format" | None
+                "error_message": str
+            }
+        """
+        try:
+            # Test 1: Vérifier les masses
+            masses = self.get_masses()
+            missing_masses = [k for k, v in masses.items() if v is None]
+            
+            if missing_masses:
+                return {
+                    "valid": False,
+                    "error_type": "missing_masses",
+                    "error_message": f"Les masses requises sont incomplètes dans le fichier context. Champs manquants: {', '.join(missing_masses)}. Vérifiez que tous les champs de masse sont renseignés."
+                }
+            
+            # Test 2: Vérifier les informations d'expérience
+            target_labels = {
+                "date": None,
+                "heure début": None, 
+                "heure fin": None
+            }
+            
+            data = list(self.sheet.values)
+            df = pd.DataFrame(data)
+            
+            # Parcourir toutes les cellules pour trouver les labels
+            for i in range(df.shape[0]):
+                for j in range(df.shape[1]):
+                    val = df.iat[i, j]
+                    if isinstance(val, str):
+                        val_clean = val.lower().strip()
+                        
+                        # Rechercher chaque label cible
+                        for key in target_labels.keys():
+                            if key in val_clean and target_labels[key] is None:
+                                # Récupérer la valeur dans la cellule suivante
+                                if j + 1 < df.shape[1]:
+                                    next_val = df.iat[i, j + 1]
+                                    if next_val is not None and str(next_val).strip():
+                                        target_labels[key] = str(next_val).strip()
+                                        break
+            
+            missing_experience_data = [k for k, v in target_labels.items() if v is None]
+            
+            if missing_experience_data:
+                return {
+                    "valid": False,
+                    "error_type": "missing_experience_data",
+                    "error_message": f"Les informations d'expérience sont manquantes dans le fichier context. Champs manquants: {', '.join(missing_experience_data)}. Vérifiez que les champs date, heure début et heure fin sont bien renseignés."
+                }
+            
+            # Si tout est valide
+            return {
+                "valid": True,
+                "error_type": None,
+                "error_message": ""
+            }
+            
+        except Exception as e:
+            # Test 3: Format invalide (erreur de lecture Excel, etc.)
+            return {
+                "valid": False,
+                "error_type": "invalid_format",
+                "error_message": f"Le format du fichier context n'est pas valide: {str(e)}. Vérifiez qu'il s'agit bien d'un fichier Excel correctement structuré."
+            }
 
     def get_experience_name(self) -> str:
         """
