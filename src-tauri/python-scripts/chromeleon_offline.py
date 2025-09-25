@@ -1,4 +1,5 @@
 from typing import Tuple
+import re
 import os
 import pandas as pd
 import numpy as np
@@ -13,9 +14,6 @@ MASSE_RECETTE="masse recette 1 (kg)"
 MASSE_RECETTE2="masse recette 2 (kg)"
 MASSE_CENDRIER="masse cendrier (kg)"
 
-import os
-import re
-import pandas as pd
 
 class ChromeleonOffline:
     """
@@ -42,7 +40,7 @@ class ChromeleonOffline:
         if not files:
             raise FileNotFoundError(f"Aucun fichier .xlsx trouvé dans {dir_root}")
 
-        found = {}          # ex: {'R1': {'df': df, 'file': path, 'inj_name': '240625-R1'}, ...}
+        found = {}      
         errors = []
 
         for fname in files:
@@ -126,11 +124,12 @@ class ChromeleonOffline:
 
                     if not value:
                         return None, None
-
+        
                     up = value.upper()
-                    if re.search(r'\bR1\b', up) or "-R1" in up or " R1" in up:
+    
+                    if re.search(r'\bR1\b', up) or "-R1" in up or "_R1" in up or " R1" in up:
                         return value, "R1"
-                    if re.search(r'\bR2\b', up) or "-R2" in up or " R2" in up:
+                    if re.search(r'\bR2\b', up) or "-R2" in up or "_R2" in up or " R2" in up:
                         return value, "R2"
                     return value, None
 
@@ -626,7 +625,7 @@ class ChromeleonOffline:
         # Créer les données du tableau dans le style de resume.py
         def fmt2(x):
             try:
-                return f"{float(x):.2f}"
+                return f"{float(x):.2f}".replace(".", ",")
             except Exception:
                 return ""
 
@@ -858,7 +857,7 @@ if __name__ == "__main__":
     try:
         # Test avec le répertoire de données
         print("=== Test de ChromeleonOffline ===")
-        off = ChromeleonOffline("/home/lucaslhm/Bureau/test_Offline")
+        off = ChromeleonOffline("/home/lucaslhm/Bureau/test")
         print("✓ Chargement des fichiers R1 et R2 réussi")
         
         # Test 1: Affichage des données brutes

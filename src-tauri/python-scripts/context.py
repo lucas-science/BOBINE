@@ -277,3 +277,31 @@ class ExcelContextData:
             for c in range(1, source_ws.max_column + 1):
                 target_ws.column_dimensions[get_column_letter(c)].width = 10
 
+
+if __name__ == "__main__":
+
+    dir_path = "/home/lucaslhm/Bureau/test"
+
+    try:
+        ctx = ExcelContextData(dir_path)
+        print(f"✅ Fichier trouvé : {ctx.file_path}")
+        print(f"➡️  Feuille active : {ctx.sheet_name}")
+
+        # masses
+        masses = ctx.get_masses()
+        print("\n📊 Masses extraites :")
+        for k, v in masses.items():
+            print(f"  - {k} : {v}")
+
+        # validité
+        print("\n✔️ Données valides :", ctx.is_valid())
+
+        # nom d'expérience
+        print("\n📄 Nom d'expérience généré :", ctx.get_experience_name())
+
+        # dataframe
+        print("\n🔎 Aperçu du DataFrame :")
+        print(ctx.get_as_dataframe().head())
+
+    except Exception as e:
+        print(f"❌ Erreur : {e}")

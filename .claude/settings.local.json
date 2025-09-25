@@ -5,7 +5,9 @@
       "Bash(where link)",
       "Bash(node:*)",
       "Bash(npm run tauri-version:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(python:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []

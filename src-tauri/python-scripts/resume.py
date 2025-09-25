@@ -60,18 +60,26 @@ class Resume:
             pass
 
     def _get_pourcentage_by_mass(self):
-        masse_1 = self.masses.get("masse recette 1 (kg)", 0)
-        masse_2 = self.masses.get("masse recette 2 (kg)", 0)
-        mass_cendrier = self.masses.get("masse cendrier (kg)", 0)
-        mass_total = self.masses.get("masse injectée (kg)", 0)
+        masse_1 = self.masses.get("masse recette 1 (kg)", 0) or 0
+        masse_2 = self.masses.get("masse recette 2 (kg)", 0) or 0
+        mass_cendrier = self.masses.get("masse cendrier (kg)", 0) or 0
+        mass_total = self.masses.get("masse injectée (kg)", 0) or 0
 
-        liquide_pourcent = (masse_1+masse_2)/mass_total * \
-            100 if masse_1 and masse_2 and mass_total else None
-        Residue_pourcent = mass_cendrier/mass_total * \
-            100 if mass_cendrier and mass_total else None
-        Gas_pourcent = 100 - \
-            (liquide_pourcent +
-             Residue_pourcent) if liquide_pourcent and Residue_pourcent else None
+        # Conversion en float pour éviter les problèmes
+        try:
+            masse_1 = float(masse_1)
+            masse_2 = float(masse_2)
+            mass_cendrier = float(mass_cendrier)
+            mass_total = float(mass_total)
+        except (ValueError, TypeError):
+            return {"Liquide (%)": None, "Gas (%)": None, "Residue (%)": None}
+
+        if mass_total <= 0:
+            return {"Liquide (%)": None, "Gas (%)": None, "Residue (%)": None}
+
+        liquide_pourcent = (masse_1 + masse_2) / mass_total * 100
+        Residue_pourcent = mass_cendrier / mass_total * 100
+        Gas_pourcent = 100 - (liquide_pourcent + Residue_pourcent)
 
         return {
             "Liquide (%)": liquide_pourcent,
@@ -112,7 +120,6 @@ class Resume:
             return pd.DataFrame()
         
         liquid_phase_df = self.offline_relative_area_by_carbon.copy()
-        
 
         liquid_phase_df = liquid_phase_df.rename(columns={
             'Linear': 'iCn',
@@ -1107,7 +1114,7 @@ class Resume:
 
 if __name__ == "__main__":
     try:
-        resume = Resume("/home/lucaslhm/Documents/chromeleon/online","/home/lucaslhm/Documents/chromeleon/offline","/home/lucaslhm/Documents/context/context")
+        resume = Resume("/home/lucaslhm/Bureau/online","/home/lucaslhm/Bureau/offline","/home/lucaslhm/Bureau/context")
         
         # Test mass percentages
         mass_percentages = resume._get_pourcentage_by_mass()
@@ -1146,7 +1153,7 @@ if __name__ == "__main__":
             print(f"  {status} {graph['name']}")
         
         # Test new chart-enabled Excel creation
-        excel_path = input("Enter Excel output path (or press Enter to skip): ").strip()
+        excel_path = "/home/lucaslhm/Bureau/resume_with_charts.xlsx"
         if excel_path:
             # Create workbook
             wb = Workbook()
