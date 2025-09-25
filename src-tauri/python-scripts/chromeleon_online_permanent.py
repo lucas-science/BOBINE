@@ -1045,7 +1045,7 @@ if __name__ == "__main__":
         data_path = sys.argv[1]
     else:
         # Exemple local : remplace par ton dossier
-        data_path = "/home/lucaslhm/Bureau/test_Perm"
+        data_path = "/home/lucaslhm/Bureau/test"
 
     try:
         # Initialisation avec système de diagnostic enrichi

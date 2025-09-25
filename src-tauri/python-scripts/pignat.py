@@ -610,7 +610,7 @@ class PignatData:
 
 if __name__ == "__main__":
     try:
-        test_dir = "C:/Users/lucas/OneDrive/Documents"
+        test_dir = "/home/lucaslhm/Bureau/test"
         print(f"📁 Chargement des données depuis: {test_dir}")
         pignat = PignatData(test_dir)
         
@@ -675,7 +675,7 @@ if __name__ == "__main__":
         print(f"📋 Métriques à inclure dans l'Excel: {[m['name'] for m in metrics_wanted]}")
         
         wb = pignat.generate_workbook_with_charts(wb, metrics_wanted)
-        wb.save("C:/Users/lucas/Desktop/test_pignat_output.xlsx")
+        wb.save("/home/lucaslhm/Bureau/test_pignat_output.xlsx")
         print("✅ Excel généré: /home/lucaslhm/Bureau/test_pignat_output.xlsx")
         
     except Exception as e:

@@ -106,7 +106,6 @@ class ChromeleonOnline:
 
         for i in range(start_row, end_row):
             injection_name = self.overview_df.iloc[i, 1]
-            print(self.overview_df.iloc[i, 5])
             injection_time = self.overview_df.iloc[i, 5].split()[1]
             if pd.isna(injection_name):
                 continue
