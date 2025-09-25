@@ -8,6 +8,7 @@ from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.chart.text import RichText
 from openpyxl.drawing.text import Paragraph, ParagraphProperties, CharacterProperties
 from openpyxl.chart.axis import ChartLines
+from openpyxl.chart.layout import Layout, ManualLayout
 
 
 from utils.pignat_constants import (
@@ -154,38 +155,44 @@ class PignatData:
         
         time_column = self.data_frame[TIME]
         all_times = sorted(time_column.dropna().unique().tolist())
-        
+
         if not all_times:
             return {
                 "min_time": None,
                 "max_time": None,
                 "unique_times": []
             }
-        
+
         min_time = all_times[0]
         max_time = all_times[-1]
-        
+
         try:
             min_dt = pd.to_datetime(min_time)
             max_dt = pd.to_datetime(max_time)
-            
+            duration_minutes = (max_dt - min_dt).total_seconds() / 60
+
+            # Objectif : ~72 points de temps
+            target_points = 72
+            # Calcul du pas dynamique (au minimum 1 minute)
+            delta_minutes = max(1, int(duration_minutes / target_points))
+            delta = pd.Timedelta(minutes=delta_minutes)
+
             step_times = []
             current_time = min_dt
             while current_time <= max_dt:
-                time_str = current_time.strftime('%Y-%m-%d %H:%M:%S') if hasattr(current_time, 'strftime') else str(current_time)
-                step_times.append(time_str)
-                current_time += pd.Timedelta(minutes=20)
-            
+                step_times.append(current_time.strftime('%Y-%m-%d %H:%M:%S'))
+                current_time += delta
+
             return {
                 "min_time": min_time,
                 "max_time": max_time,
                 "unique_times": step_times
             }
-            
+
         except Exception:
+            # Fallback si les dates ne sont pas utilisables
             step = max(1, len(all_times) // 100)
             sampled_times = all_times[::step]
-            
             return {
                 "min_time": min_time,
                 "max_time": max_time,
@@ -400,7 +407,10 @@ class PignatData:
                 chart = LineChart()
                 chart.title = title
                 chart.style = 2
-                
+
+                # === DÉTECTION MONO-SÉRIE POUR CAMOUFLAGE ===
+                is_mono_series = len(metric_data['y_axis']) == 1
+
                 # Configuration de base des axes (compatible avec toutes les versions d'openpyxl)
                 chart.y_axis.title = (
                     ', '.join(metric_data['y_axis'])
@@ -409,38 +419,68 @@ class PignatData:
                 )
                 chart.x_axis.title = metric_data['x_axis']
                 
-                # CORRECTIONS PRINCIPALES POUR LES AXES
-                
-                # 1. Forcer l'affichage des étiquettes sur les axes
-                chart.x_axis.tickLblPos = "low"  # Position des étiquettes X
-                chart.y_axis.tickLblPos = "low"  # Position des étiquettes Y
-                
-                # 2. Définir les intervalles d'affichage
+                # === CONFIGURATION AMÉLIORÉE DES AXES AVEC VALEURS VISIBLES ===
+
+                # 1. Configuration initiale des étiquettes (sera redéfinie plus tard pour positionnement final)
+                chart.x_axis.tickLblPos = "low"  # Position en dessous pour l'axe X
+                chart.y_axis.tickLblPos = "low"  # Position à gauche pour l'axe Y
+
+                # 2. Espacement intelligent des étiquettes pour éviter la superposition
                 num_data_points = len(df_table)
-                if num_data_points > 20:
-                    # Afficher une étiquette sur 3 ou 4 points pour éviter l'encombrement
+                if num_data_points > 100:
+                    # Pour beaucoup de points, espacement plus large mais pas trop
+                    tick_interval = max(1, num_data_points // 20)
+                elif num_data_points > 30:
+                    # Pour moyennement de points, espacement modéré
                     tick_interval = max(1, num_data_points // 8)
-                    chart.x_axis.tickMarkSkip = tick_interval - 1
-                    chart.x_axis.tickLblSkip = tick_interval - 1
+                else:
+                    # Pour peu de points, afficher plus de valeurs
+                    tick_interval = max(1, num_data_points // 5)
+
+                # Réduire le skip pour afficher plus de valeurs
+                chart.x_axis.tickLblSkip = max(0, tick_interval - 1) if tick_interval > 2 else 0
+
+                # 3. Forcer l'affichage des valeurs sur l'axe Y
+                chart.y_axis.tickLblSkip = 0  # Afficher toutes les valeurs importantes sur Y
+
+                # 4. Grilles pour meilleure lisibilité des valeurs
+                chart.y_axis.majorGridlines = ChartLines()  # Grilles horizontales pour lire les valeurs Y
+                chart.x_axis.majorGridlines = ChartLines()  # Grilles verticales légères pour l'axe X
+
+                # 5. Rotation réduite pour meilleure lisibilité
+                chart.x_axis.textRotation = -30  # Rotation moins agressive
+
+                # 6. Forcer l'affichage des valeurs min/max sur les axes
+                chart.x_axis.delete = False  # S'assurer que l'axe X n'est pas supprimé
+                chart.y_axis.delete = False  # S'assurer que l'axe Y n'est pas supprimé
                 
-                # 3. Configuration des grilles pour mieux voir les valeurs
-                from openpyxl.chart.axis import ChartLines
-                chart.x_axis.majorGridlines = ChartLines()
-                chart.y_axis.majorGridlines = ChartLines()
-                
-                # 4. Rotation du texte pour l'axe X (temps)
-                chart.x_axis.textRotation = -45
-                
-                # 5. Format des nombres - version simplifiée et robuste
-                # Note: Le formatage des axes peut ne pas être disponible dans toutes les versions
-                # Les graphiques fonctionneront quand même avec les formats par défaut
-                
-                # 6. Format de l'axe X (temps) - optionnel
-                # Le formatage sera géré automatiquement par Excel
-                
-                # 9. Taille du graphique adaptée - AGRANDIE POUR LA LÉGENDE À CÔTÉ
-                chart.width = 22  # Plus large pour accommoder la légende à droite
-                chart.height = 14  # Plus haut pour plus de lisibilité
+                # === LAYOUT OPTIMISÉ POUR TITRE X EN BAS ===
+                if not is_mono_series:
+                    chart.layout = Layout(
+                        manualLayout=ManualLayout(
+                            xMode="edge",
+                            yMode="edge",
+                            x=0.10,
+                            y=0.10,
+                            w=0.80,
+                            h=0.85
+                        )
+                    )
+                else:
+                    chart.layout = Layout(
+                        manualLayout=ManualLayout(
+                            xMode="edge",
+                            yMode="edge",
+                            x=0.05,
+                            y=0.10,
+                            w=0.95,
+                            h=0.85
+                        )
+                    )
+
+                # 7. Taille augmentée pour contenir valeurs et titres en dehors de la zone
+                chart.width = 23  # Plus large pour espace valeurs Y + titre Y + graphique
+                chart.height = 13  # Plus haut pour espace graphique + valeurs X + titre X
                 
                 max_row_table = 2 + len(df_table)
                 
@@ -451,6 +491,33 @@ class PignatData:
                                     max_col=current_col + len(metric_data['y_axis']),
                                     max_row=max_row_table)
                 chart.add_data(data_ref, titles_from_data=True)
+
+                # === CAMOUFLAGE POUR MÉTRIQUES MONO-SÉRIE ===
+                if is_mono_series:
+                    # Supprimer la légende pour les mono-séries (évite l'affichage de 8000+ entrées)
+                    chart.legend = None
+
+                    # Appliquer la même couleur à toutes les séries pour un effet visuel uniforme
+                    uniform_color = "1f77b4"  # Bleu moderne uniforme
+
+                    for series in chart.series:
+                        try:
+                            # Couleur de ligne identique
+                            series.graphicalProperties.line.solidFill = uniform_color
+                            series.graphicalProperties.line.width = 25000  # Ligne légèrement plus épaisse
+
+                            # Pas de marqueurs pour une ligne continue propre
+                            if hasattr(series, 'marker'):
+                                series.marker.symbol = "none"
+
+                            # Lissage pour une courbe plus propre
+                            series.smooth = True
+                        except Exception:
+                            pass  # Ignorer les erreurs de style pour compatibilité
+                else:
+                    # Configuration légende pour multi-séries
+                    chart.legend.position = 'r'
+                    chart.legend.overlay = False
                 
                 # Catégories (axe X - Time) - FORCÉ POUR AFFICHER LES VALEURS
                 cats = Reference(ws,
@@ -459,18 +526,47 @@ class PignatData:
                                 max_row=max_row_table)
                 chart.set_categories(cats)
                 
-                # FORCER la visibilité des axes - AJOUT CRUCIAL
-                chart.x_axis.crosses = "autoZero"  # Forcer l'intersection
-                chart.y_axis.crosses = "autoZero"  # Forcer l'intersection
-                
-                # 8. Configuration supplémentaire des axes pour garantir l'affichage
-                # Forcer l'affichage des valeurs min/max sur l'axe Y (auto-scaling)
+                # CONFIGURATION AVANCÉE POUR POSITIONNER L'AXE X EN DEHORS DU GRAPHIQUE
+                chart.x_axis.crosses = "min"  # Positionner l'axe X en bas du graphique (valeur max)
+                chart.y_axis.crosses = "min"  # Positionner l'axe Y à gauche (valeur min)
+
+                # 8. Configuration avancée des axes pour garantir l'affichage des valeurs
                 try:
+                    # Forcer l'affichage des valeurs sur l'axe Y (auto-scaling)
                     if hasattr(chart.y_axis, 'scaling'):
                         chart.y_axis.scaling.min = None  # Auto-scaling
                         chart.y_axis.scaling.max = None  # Auto-scaling
-                except AttributeError:
-                    print(f"[PIGNAT DEBUG] Y-axis scaling configuration not available", file=sys.stderr)
+
+                    # Configuration pour afficher plus de valeurs sur l'axe Y
+                    if hasattr(chart.y_axis, 'majorUnit'):
+                        chart.y_axis.majorUnit = None  # Auto pour les unités principales
+
+                    # Positionner les axes pour que les valeurs soient en dehors de la zone graphique
+                    chart.x_axis.axPos = "b"  # Titre et valeurs X en bas
+                    chart.y_axis.axPos = "l"  # Valeurs Y à gauche
+                    chart.x_axis.tickLblPos = "low"  # Valeurs X en bas
+                    chart.y_axis.tickLblPos = "low"  # Valeurs Y à gauche
+                    # Configuration avancée des titres d'axes
+                    if hasattr(chart.x_axis, 'title') and chart.x_axis.title:
+                        chart.x_axis.title.tx.rich.p[0].r.rPr.sz = 1200  # Taille titre axe X
+                        # Positionner le titre X en dessous du graphique
+                        if hasattr(chart.x_axis.title, 'layout'):
+                            chart.x_axis.title.layout = Layout(
+                                manualLayout=ManualLayout(
+                                    xMode="edge",
+                                    yMode="edge",
+                                    x=0.5,    # Centré horizontalement
+                                    y=0.95,   # Tout en bas du graphique
+                                    w=0.3,    # Largeur du titre
+                                    h=0.05    # Hauteur du titre
+                                )
+                            )
+
+                    if hasattr(chart.y_axis, 'title') and chart.y_axis.title:
+                        chart.y_axis.title.tx.rich.p[0].r.rPr.sz = 1200  # Taille titre axe Y
+
+                except AttributeError as e:
+                    print(f"[PIGNAT DEBUG] Advanced axis configuration not available: {e}", file=sys.stderr)
                 
                 # Position du graphique
                 chart_col = current_col + len(df_table.columns) + 1
@@ -484,12 +580,15 @@ class PignatData:
                     
                 ws.add_chart(chart, f"{chart_col_letter}2")
                 
+                # === CALCUL D'ESPACEMENT OPTIMISÉ POUR ÉVITER LES SUPERPOSITIONS ===
                 data_width = len(df_table.columns)
-                chart_width = int(chart.width) if hasattr(chart, 'width') else 18
-                spacing = 3
-                
+                chart_width = int(chart.width) if hasattr(chart, 'width') else 22
+
+
                 print(f"[PIGNAT DEBUG] Successfully processed metric {metric_name} at column {current_col}", file=sys.stderr)
-                current_col += data_width + chart_width + spacing
+
+                # Calcul de la colonne suivante avec espacement optimisé
+                current_col += data_width + chart_width 
                 
             except Exception as e:
                 try:
