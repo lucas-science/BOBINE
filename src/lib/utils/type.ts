@@ -72,3 +72,9 @@ export interface TimeRangeData {
   max_time: string;
   unique_times: string[];
 }
+
+export interface ContextValidationResult {
+  valid: boolean;
+  error_type: "missing_experience_data" | "missing_masses" | "invalid_format" | "missing_directory" | null;
+  error_message: string;
+}

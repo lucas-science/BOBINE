@@ -260,6 +260,31 @@ def process_command(args):
                 print(f"[GET_CONTEXT_EXPERIENCE_NAME] {e}", file=sys.stderr)
                 response = {"error": str(e)}
 
+        elif action == "VALIDATE_CONTEXT":
+            try:
+                DIR = getDirectories(arg2)[CONTEXT]
+                if not os.path.exists(DIR):
+                    response = {
+                        "result": {
+                            "valid": False,
+                            "error_type": "missing_directory",
+                            "error_message": f"Le répertoire de contexte n'existe pas dans {DIR}. Vérifiez que les fichiers ont été correctement importés."
+                        }
+                    }
+                else:
+                    contextData = ExcelContextData(DIR)
+                    result = contextData.validate()
+                    response = {"result": result}
+            except Exception as e:
+                print(f"[VALIDATE_CONTEXT] {e}", file=sys.stderr)
+                response = {
+                    "result": {
+                        "valid": False,
+                        "error_type": "invalid_format",
+                        "error_message": f"Erreur lors de la validation du contexte: {str(e)}"
+                    }
+                }
+
         elif action == "GET_GRAPHS_AVAILABLE":
             try:
                 result = get_graphs_available(arg2)

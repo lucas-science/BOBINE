@@ -11,7 +11,6 @@ from openpyxl.chart.marker import Marker
 
 from utils.GC_Online_constants import COMPOUND_MAPPING, CARBON_ROWS, FAMILIES, HVC_CATEGORIES
 
-
 class ChromeleonOnline:
     def __init__(self, dir_root: str):
         self.first_file = ""
@@ -53,16 +52,19 @@ class ChromeleonOnline:
             rel = self.get_relative_area_by_injection()
             times = pd.to_datetime(rel['Injection Time'], errors='coerce')
             is_data_row = (rel['Injection Name'] != 'Moyennes') & times.notna()
-            rel_cols = [c for c in rel.columns if c.startswith('Rel. Area (%)')]
-            
+            rel_cols = [
+                c for c in rel.columns if c.startswith('Rel. Area (%)')]
+
             has_enough_timepoints = is_data_row.sum() >= 2
             has_any_numeric_rel = any(
-                pd.to_numeric(rel.loc[is_data_row, c], errors='coerce').notna().any()
+                pd.to_numeric(rel.loc[is_data_row, c],
+                              errors='coerce').notna().any()
                 for c in rel_cols
             ) if rel_cols else False
 
-            chimicalElements = [c.replace('Rel. Area (%) : ', '') for c in rel_cols]
-            
+            chimicalElements = [
+                c.replace('Rel. Area (%) : ', '') for c in rel_cols]
+
             graphs.append({
                 'name': '%mass gaz en fonction du temps',
                 'available': bool(has_enough_timepoints and has_any_numeric_rel),
@@ -75,9 +77,11 @@ class ChromeleonOnline:
             })
         try:
             _, table2 = self.make_summary_tables()
-            fam_cols = [c for c in ['Linear', 'Olefin', 'BTX gas'] if c in table2.columns]
-            has_nonzero = (table2[fam_cols].to_numpy().sum() > 0) if fam_cols else False
-            
+            fam_cols = [c for c in ['Linear', 'Olefin',
+                                    'BTX gas'] if c in table2.columns]
+            has_nonzero = (table2[fam_cols].to_numpy().sum()
+                           > 0) if fam_cols else False
+
             graphs.append({
                 'name': 'products repartition gaz phase',
                 'available': bool(has_nonzero)
@@ -92,10 +96,14 @@ class ChromeleonOnline:
 
     def _get_time_by_injection(self) -> dict:
         time_by_injection = {}
+
         start_row = self.overview_df[self.overview_df[0].str.startswith(
-            'Injection Details', na=False)].index.tolist()[0]
-        start_row += 5
-        for i in range(start_row, start_row + 24):
+            # we add 5 to skip header rows
+            'Injection Details', na=False)].index.tolist()[0] + 5
+
+        end_row = len(self.overview_df)
+
+        for i in range(start_row, end_row):
             injection_name = self.overview_df.iloc[i, 1]
             injection_time = self.overview_df.iloc[i, 5].split()[1]
             if pd.isna(injection_name):
@@ -151,7 +159,8 @@ class ChromeleonOnline:
                 injection_name_col = row_data.iloc[2] if num_columns > 2 else None
 
                 no_empty = pd.isna(no_col) or str(no_col).strip() == ''
-                injection_empty = pd.isna(injection_name_col) or str(injection_name_col).strip() == ''
+                injection_empty = pd.isna(injection_name_col) or str(
+                    injection_name_col).strip() == ''
 
                 if no_empty and injection_empty:
                     return row_index
@@ -190,14 +199,17 @@ class ChromeleonOnline:
             if actual_columns < 6:
                 continue
 
-            data_end_row = self._find_data_end_row(data_start_row, actual_columns)
-            temp_df = self.df.iloc[data_start_row:data_end_row, 0:actual_columns].copy()
+            data_end_row = self._find_data_end_row(
+                data_start_row, actual_columns)
+            temp_df = self.df.iloc[data_start_row:data_end_row,
+                                   0:actual_columns].copy()
             temp_df.reset_index(drop=True, inplace=True)
             real_headers = header_data.iloc[0:actual_columns].tolist()
             standardized_columns = []
 
             for real_header in real_headers:
-                standardized_name = self._standardize_column_name(real_header, injection_element)
+                standardized_name = self._standardize_column_name(
+                    real_header, injection_element)
                 standardized_columns.append(standardized_name)
 
             temp_df.columns = standardized_columns
@@ -217,15 +229,17 @@ class ChromeleonOnline:
         times = self._get_time_by_injection()
         data_by_elements = self._get_data_by_elements()
 
-        first_df = list(data_by_elements.values())[0][['Injection Name']].copy()
+        first_df = list(data_by_elements.values())[
+            0][['Injection Name']].copy()
         first_element_df = list(data_by_elements.values())[0]
-        
+
         if 'Injection Time' in first_element_df.columns:
-            result = first_element_df[['Injection Name', 'Injection Time']].copy()
+            result = first_element_df[[
+                'Injection Name', 'Injection Time']].copy()
         else:
             injection_times = [
-                "hh/mm/ss" if i == 0
-                else times.get(" ".join(first_df['Injection Name'].iloc[i].split()[1:]), np.nan)
+                times.get(
+                    " ".join(first_df['Injection Name'].iloc[i].split()[1:]), np.nan)
                 for i in range(len(first_df))
             ]
             first_df['Injection Time'] = injection_times
@@ -236,26 +250,33 @@ class ChromeleonOnline:
             if col in df.columns:
                 result[col] = pd.to_numeric(df[col], errors='coerce').values
 
-        times_parsed = pd.to_datetime(result['Injection Time'], errors='coerce')
-        deltas = times_parsed.dropna().diff()
-        mean_delta = deltas.mean()
+        times_for_sort = pd.to_datetime(result['Injection Time'], errors='coerce')
+        if times_for_sort.notna().any():
+            result = result.sort_values('Injection Time', key=lambda x: pd.to_datetime(x, errors='coerce'))
+            result = result.reset_index(drop=True)
 
-        if not pd.isna(mean_delta):
-            total_secs = int(mean_delta.total_seconds())
+        times_parsed = pd.to_datetime(
+            result['Injection Time'], errors='coerce')
+        times_clean = times_parsed.dropna()
+        total_time = times_clean.iloc[-1] - times_clean.iloc[0]
+
+        if not pd.isna(total_time):
+            total_secs = int(total_time.total_seconds())
             h, rem = divmod(total_secs, 3600)
             m, s = divmod(rem, 60)
-            mean_delta_str = f"{h:02d}:{m:02d}:{s:02d}"
+            total_time_str = f"{h:02d}:{m:02d}:{s:02d}"
 
         summary = {
             'Injection Name': 'Moyennes',
-            'Injection Time': mean_delta_str or "n.a."
+            'Injection Time': total_time_str or "n.a."
         }
         for col in result.columns:
             if col.startswith('Rel. Area (%)'):
                 mean_val = result[col].mean(skipna=True)
                 summary[col] = 0.0 if pd.isna(mean_val) else mean_val
 
-        result = pd.concat([result, pd.DataFrame([summary])], ignore_index=True)
+        result = pd.concat(
+            [result, pd.DataFrame([summary])], ignore_index=True)
         return result
 
     def make_summary_tables(self):
@@ -266,7 +287,8 @@ class ChromeleonOnline:
         data_by_el = self._get_data_by_elements()
         rows = []
         for peak, df in data_by_el.items():
-            col_rt = df['Ret. Time (min)'].replace("n.a.", np.nan).infer_objects(copy=False)
+            col_rt = df['Ret. Time (min)'].replace("n.a.", np.nan)
+            col_rt = col_rt.infer_objects(copy=False)
             col_rt = pd.to_numeric(col_rt, errors="coerce")
             mean_rt = col_rt.mean()
             area = summary_row[f'Rel. Area (%) : {peak}']
@@ -285,31 +307,32 @@ class ChromeleonOnline:
             return name
 
         table1['Group'] = table1['Peakname'].apply(normalize_peakname)
-        
+
         seen_groups = set()
         final_rows = []
 
         for _, row in table1.iterrows():
-                group = row['Group']
-                if group.startswith("Other C"):
-                    if group in seen_groups:
-                        continue
-                    sub = table1[table1['Group'] == group]
-                    mean_rt = pd.to_numeric(sub['RetentionTime'], errors="coerce").mean()
-                    area_sum = sub['Relative Area'].sum()
-                    final_rows.append({
-                        'Peakname': group,
-                        'RetentionTime': mean_rt,
-                        'Relative Area': area_sum
-                    })
-                    seen_groups.add(group)
-                else:
-                    final_rows.append({
-                        'Peakname': row['Peakname'],
-                        'RetentionTime': row['RetentionTime'],
-                        'Relative Area': row['Relative Area']
-                    })
-                
+            group = row['Group']
+            if group.startswith("Other C"):
+                if group in seen_groups:
+                    continue
+                sub = table1[table1['Group'] == group]
+                mean_rt = pd.to_numeric(
+                    sub['RetentionTime'], errors="coerce").mean()
+                area_sum = sub['Relative Area'].sum()
+                final_rows.append({
+                    'Peakname': group,
+                    'RetentionTime': mean_rt,
+                    'Relative Area': area_sum
+                })
+                seen_groups.add(group)
+            else:
+                final_rows.append({
+                    'Peakname': row['Peakname'],
+                    'RetentionTime': row['RetentionTime'],
+                    'Relative Area': row['Relative Area']
+                })
+
         total = sum(r['Relative Area'] for r in final_rows)
         final_rows.append({
             'Peakname': 'Total:',
@@ -317,7 +340,8 @@ class ChromeleonOnline:
             'Relative Area': total
         })
 
-        table1 = pd.DataFrame(final_rows, columns=['Peakname', 'RetentionTime', 'Relative Area'])
+        table1 = pd.DataFrame(final_rows, columns=[
+                              'Peakname', 'RetentionTime', 'Relative Area'])
 
         mapping = COMPOUND_MAPPING
 
@@ -349,7 +373,6 @@ class ChromeleonOnline:
 
         return table1, table2
 
-
     def generate_workbook_with_charts(
         self,
         wb: Workbook,
@@ -364,7 +387,8 @@ class ChromeleonOnline:
         selected_elements: list[str] = []
         for m in (metrics_wanted or []):
             if (m.get("name") or "").strip() == "%mass gaz en fonction du temps":
-                selected_elements = list(m.get("chimicalElementSelected") or m.get("chimical_element_selected") or [])
+                selected_elements = list(m.get("chimicalElementSelected") or m.get(
+                    "chimical_element_selected") or [])
                 break
 
         rel_df = self.get_relative_area_by_injection()
@@ -376,7 +400,8 @@ class ChromeleonOnline:
         gray_fill = PatternFill("solid", fgColor="DDDDDD")
         center = Alignment(horizontal="center", vertical="center")
         black_thin = Side(style="thin", color="000000")
-        border = Border(left=black_thin, right=black_thin, top=black_thin, bottom=black_thin)
+        border = Border(left=black_thin, right=black_thin,
+                        top=black_thin, bottom=black_thin)
         ws.cell(row=1, column=1,
                 value="%Rel Area par injection (Online)").font = title_font
 
@@ -389,20 +414,26 @@ class ChromeleonOnline:
                 formatted_header = f"Rel. Area (%)\n{element_name}"
             else:
                 formatted_header = h
-                
+
             c = ws.cell(row=start_row, column=j, value=formatted_header)
             c.font = header_font
             c.fill = gray_fill
-            c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            c.alignment = Alignment(
+                horizontal="center", vertical="center", wrap_text=True)
             c.border = border
 
         for i, row in rel_df.iterrows():
             r = start_row + 1 + i
+            is_moyenne_row = str(row['Injection Name']).strip() == 'Moyennes'
+            
             for j, h in enumerate(headers, start=1):
                 val = row[h]
                 cell = ws.cell(row=r, column=j, value=val)
                 cell.border = border
-                
+
+                if is_moyenne_row:
+                    cell.fill = gray_fill
+
                 if j == 2:  # Injection Time
                     cell.alignment = center
                 elif h.startswith('Rel. Area (%) : '):  # Colonnes numériques Rel. Area
@@ -435,19 +466,20 @@ class ChromeleonOnline:
         for i, (_, row) in enumerate(t1.iterrows(), start=0):
             r = block1_row + 2 + i
             is_total_row = str(row["Peakname"]).lower() == "total:"
-            
-            peakname_cell = ws.cell(row=r, column=block1_col + 0, value=row["Peakname"])
+
+            peakname_cell = ws.cell(
+                row=r, column=block1_col + 0, value=row["Peakname"])
             peakname_cell.border = border
             if is_total_row:
                 peakname_cell.fill = gray_fill
-                
+
             retention_cell = ws.cell(row=r, column=block1_col + 1,
-                    value=row["RetentionTime"])
+                                     value=row["RetentionTime"])
             retention_cell.border = border
             retention_cell.number_format = "0.00"
             if is_total_row:
                 retention_cell.fill = gray_fill
-                
+
             try:
                 val = float(row["Relative Area"])
             except Exception:
@@ -492,9 +524,11 @@ class ChromeleonOnline:
 
         for j in range(len(headers2)):
             if j == 0:  # Carbon column
-                ws.column_dimensions[get_column_letter(block2_col + j)].width = 12
+                ws.column_dimensions[get_column_letter(
+                    block2_col + j)].width = 12
             else:  # Family columns (Linear, Olefin, BTX gas, Total)
-                ws.column_dimensions[get_column_letter(block2_col + j)].width = 14
+                ws.column_dimensions[get_column_letter(
+                    block2_col + j)].width = 14
 
         small_col = 12
         ws.cell(row=block1_row, column=small_col,
@@ -507,11 +541,12 @@ class ChromeleonOnline:
             c.alignment = center
             c.border = border
         hvc_categories = HVC_CATEGORIES
-        
+
         base = block1_row + 2
         for i, (display_name, carbon, family) in enumerate(hvc_categories):
-            ws.cell(row=base + i, column=small_col + 0, value=display_name).border = border
-            
+            ws.cell(row=base + i, column=small_col + 0,
+                    value=display_name).border = border
+
             try:
                 if carbon in table2.index and family in table2.columns:
                     val = float(table2.loc[carbon, family])
@@ -519,7 +554,7 @@ class ChromeleonOnline:
                     val = 0.0
             except Exception:
                 val = 0.0
-                
+
             c = ws.cell(row=base + i, column=small_col + 1, value=val)
             c.number_format = "0.00"
             c.border = border
@@ -533,15 +568,15 @@ class ChromeleonOnline:
             graphs_to_create.append("line")
         if want_bar:
             graphs_to_create.append("bar")
-        
+
         first_chart_row = block1_row
-        
+
         if len(graphs_to_create) == 1:
             chart_positions = {graphs_to_create[0]: first_chart_row}
         elif len(graphs_to_create) == 2:
             chart_positions = {
                 graphs_to_create[0]: first_chart_row,
-                graphs_to_create[1]: first_chart_row + 25 
+                graphs_to_create[1]: first_chart_row + 25
             }
         else:
             chart_positions = {}
@@ -554,7 +589,8 @@ class ChromeleonOnline:
             if not selected_elements:
                 elements_to_plot = available_elements
             else:
-                elements_to_plot = [e for e in selected_elements if f"Rel. Area (%) : {e}" in headers]
+                elements_to_plot = [
+                    e for e in selected_elements if f"Rel. Area (%) : {e}" in headers]
 
             if elements_to_plot:
                 lc = LineChart()
@@ -660,14 +696,14 @@ class ChromeleonOnline:
                 ws.add_chart(bar, f"{chart_col}{bar_position}")
 
         # ---- Finitions ----
-        ws.freeze_panes = "A3"
         return wb
+
 
 
 # Test progressif des méthodes
 if __name__ == "__main__":
     d = ChromeleonOnline(
-        "/home/lucaslhm/Bureau/test_GC_online")
+        "/home/lucaslhm/Bureau/test")
 
     print("=== Test progressif des méthodes ChromeleonOnline ===")
 
@@ -715,7 +751,7 @@ if __name__ == "__main__":
     try:
         graphs = d.get_graphs_available()
         print(f"✅ Graphiques disponibles: {len(graphs)}")
-        
+
         # Préparer les métriques pour le fichier Excel
         metrics_wanted = []
         for graph in graphs:
@@ -724,26 +760,28 @@ if __name__ == "__main__":
                 # Pour le graphique temporel, inclure tous les éléments chimiques disponibles
                 if graph['name'] == "%mass gaz en fonction du temps" and 'chimicalElements' in graph:
                     metric_config['chimicalElementSelected'] = graph['chimicalElements']
-                    print(f"   - {graph['name']}: ✅ Disponible ({len(graph['chimicalElements'])} éléments)")
+                    print(
+                        f"   - {graph['name']}: ✅ Disponible ({len(graph['chimicalElements'])} éléments)")
                 else:
                     print(f"   - {graph['name']}: ✅ Disponible")
                 metrics_wanted.append(metric_config)
             else:
                 print(f"   - {graph['name']}: ❌ Non disponible")
-        
+
         # Génération du fichier Excel
         print("\n📊 Génération du fichier Excel...")
         wb = Workbook()
         wb.remove(wb.active)  # Supprimer la feuille par défaut
-        
-        wb = d.generate_workbook_with_charts(wb, metrics_wanted, "GC-Online-Test")
-        
+
+        wb = d.generate_workbook_with_charts(
+            wb, metrics_wanted, "GC-Online-Test")
+
         output_file = "/home/lucaslhm/Bureau/chromeleon_online_test_complet.xlsx"
         wb.save(output_file)
-        
+
         print(f"✅ Fichier Excel créé: {output_file}")
         print(f"📊 Métriques incluses: {[m['name'] for m in metrics_wanted]}")
-        
+
     except Exception as e:
         print(f"❌ Erreur génération Excel: {e}")
         import traceback

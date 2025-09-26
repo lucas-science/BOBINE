@@ -6,11 +6,12 @@ import { useUploadState } from "@/src/hooks/useUploadState";
 import { copyAllFilesToDocuments } from "@/src/lib/copyAllFilesToDocuments";
 import { getIndexByPathname, getNavigationByIndex } from "@/src/lib/pathNavigation";
 import { usePathname, useRouter } from "next/navigation";
-import { checkContext, getDocumentsDir } from "@/src/lib/utils/invoke.utils";
+import { validateContext, getDocumentsDir } from "@/src/lib/utils/invoke.utils";
 import BackButton from "@/src/components/shared/backButton";
 import NextButton from "@/src/components/shared/nextButton";
 import LoaderOverlay from "@/src/components/upload/LoaderOverlay";
 import ErrorAlert from "@/src/components/upload/ErrorAlert";
+import { info } from "@tauri-apps/plugin-log";
 
 export default function Page() {
   const router = useRouter();
@@ -63,13 +64,13 @@ export default function Page() {
         return;
       }
 
-      const is_context_ok: boolean = await runStep<boolean>(3, "Vérification du contexte…", async () =>
-        checkContext(docsDir)
+      const contextValidation = await runStep(3, "Vérification du contexte…", async () =>
+        validateContext(docsDir)
       );
-
-      if (!is_context_ok) {
+      info("Context validation result: " + JSON.stringify(contextValidation));
+      if (!contextValidation.valid) {
         setOverlayOpen(false);
-        setError("Le fichier context est invalide. Vérifiez vos fichiers et réessayez.");
+        setError(contextValidation.error_message);
         return;
       }
 
