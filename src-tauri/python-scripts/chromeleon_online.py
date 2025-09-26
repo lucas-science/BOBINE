@@ -11,7 +11,6 @@ from openpyxl.chart.marker import Marker
 
 from utils.GC_Online_constants import COMPOUND_MAPPING, CARBON_ROWS, FAMILIES, HVC_CATEGORIES
 
-
 class ChromeleonOnline:
     def __init__(self, dir_root: str):
         self.first_file = ""
@@ -698,6 +697,7 @@ class ChromeleonOnline:
 
         # ---- Finitions ----
         return wb
+
 
 
 # Test progressif des méthodes

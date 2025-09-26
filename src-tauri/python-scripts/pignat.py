@@ -4,12 +4,12 @@ import pandas as pd
 import traceback
 from openpyxl import Workbook
 from openpyxl.chart import LineChart, Reference
+from openpyxl.utils import get_column_letter
 from openpyxl.styles import Font, Border, Side, Alignment
 from openpyxl.chart.text import RichText
 from openpyxl.drawing.text import Paragraph, ParagraphProperties, CharacterProperties
 from openpyxl.chart.axis import ChartLines
 from openpyxl.chart.layout import Layout, ManualLayout
-
 
 from utils.pignat_constants import (
     TIME,
@@ -322,6 +322,7 @@ class PignatData:
             print(f"[PIGNAT ERROR] Missing columns: {self.missing_columns}", file=sys.stderr)
             raise
 
+
     def generate_workbook_with_charts(self,
         wb: Workbook,
         metrics_wanted: list,
@@ -395,7 +396,7 @@ class PignatData:
                     header_cell.border = thin_border
                     
                     if col_name == TIME:
-                        col_letter = chr(65 + (current_col + j - 1) % 26) if current_col + j <= 26 else f"{chr(64 + (current_col + j - 1) // 26)}{chr(65 + (current_col + j - 1) % 26)}"
+                        col_letter = get_column_letter(current_col + j)
                         ws.column_dimensions[col_letter].width = 12
                 
                 for row_idx, row_data in enumerate(df_table.itertuples(index=False)):
@@ -570,20 +571,12 @@ class PignatData:
                 
                 # Position du graphique
                 chart_col = current_col + len(df_table.columns) + 1
-                
-                if chart_col <= 26:
-                    chart_col_letter = chr(64 + chart_col)
-                else:
-                    first_letter = chr(64 + ((chart_col - 1) // 26))
-                    second_letter = chr(65 + ((chart_col - 1) % 26))
-                    chart_col_letter = first_letter + second_letter
-                    
+                chart_col_letter = get_column_letter(chart_col)
                 ws.add_chart(chart, f"{chart_col_letter}2")
                 
                 # === CALCUL D'ESPACEMENT OPTIMISÉ POUR ÉVITER LES SUPERPOSITIONS ===
                 data_width = len(df_table.columns)
                 chart_width = int(chart.width) if hasattr(chart, 'width') else 22
-
 
                 print(f"[PIGNAT DEBUG] Successfully processed metric {metric_name} at column {current_col}", file=sys.stderr)
 
@@ -607,6 +600,7 @@ class PignatData:
                 print(f"[PIGNAT DEBUG] Skipping failed metric '{metric_name}', continuing with next", file=sys.stderr)
         
         return wb
+
 
 if __name__ == "__main__":
     try:
