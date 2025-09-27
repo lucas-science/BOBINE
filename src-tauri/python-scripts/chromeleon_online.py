@@ -4,6 +4,11 @@ import pandas as pd
 import numpy as np
 
 from openpyxl import Workbook
+from openpyxl.chart import LineChart, BarChart, Reference
+from openpyxl.chart.axis import ChartLines
+from openpyxl.chart.layout import Layout, ManualLayout
+from openpyxl.chart.legend import Legend
+from openpyxl.chart.series import SeriesLabel
 
 from utils.GC_Online_constants import COMPOUND_MAPPING, CARBON_ROWS, FAMILIES, HVC_CATEGORIES
 from utils.time_utils import standardize_injection_time, create_time_sort_key, calculate_total_time_duration
@@ -11,7 +16,7 @@ from utils.excel_parsing import find_data_end_row, count_actual_columns, extract
 from utils.excel_formatting import get_standard_styles, get_border, format_table_headers, format_data_table, apply_standard_column_widths, create_title_cell, freeze_panes_standard
 from utils.column_mapping import standardize_column_name, get_rel_area_columns, extract_element_names, validate_required_columns
 from utils.data_processing import create_summary_table1, process_table1_with_grouping, create_summary_table2, sort_data_by_time, create_relative_area_summary, process_injection_times, validate_data_availability
-from utils.chart_creation import create_chart_configuration, add_line_chart_to_worksheet, add_bar_chart_to_worksheet, calculate_chart_positions
+from utils.chart_creation import create_chart_configuration, calculate_chart_positions
 from utils.file_operations import get_first_excel_file, read_excel_summary, extract_experience_number_simple
 
 class ChromeleonOnline:
@@ -57,8 +62,6 @@ class ChromeleonOnline:
             })
 
         return graphs
-
-
 
     def _get_data_by_elements(self):
         data_by_injection = {}
@@ -164,6 +167,150 @@ class ChromeleonOnline:
 
         return table1, table2
 
+    def _calculate_optimal_chart_layout(self, num_elements, chart_type="line"):
+        """
+        Calcule la disposition optimale du graphique selon le nombre d'éléments
+        et le type de graphique pour éviter les chevauchements de légende
+        """
+        layouts = {
+            'line': {
+                'mono': {  # 1 élément - pas de légende
+                    'chart': {'x': 0.05, 'y': 0.05, 'w': 0.92, 'h': 0.85},
+                    'legend_pos': None,
+                    'width': 26, 'height': 15
+                },
+                'few': {  # 2-4 éléments - légende droite compacte
+                    'chart': {'x': 0.05, 'y': 0.05, 'w': 0.65, 'h': 0.85},
+                    'legend_pos': 'r',
+                    'width': 26, 'height': 15
+                },
+                'medium': {  # 5-10 éléments - légende droite élargie
+                    'chart': {'x': 0.05, 'y': 0.05, 'w': 0.65, 'h': 0.85},
+                    'legend_pos': 'r',
+                    'width': 28, 'height': 15
+                },
+                'many': {  # 11-20 éléments - légende droite très large
+                    'chart': {'x': 0.05, 'y': 0.05, 'w': 0.65, 'h': 0.85},
+                    'legend_pos': 'r',
+                    'width': 32, 'height': 15
+                },
+                'very_many': {  # 21+ éléments - légende en bas sur plusieurs colonnes
+                    'chart': {'x': 0.05, 'y': 0.05, 'w': 0.90, 'h': 0.65},
+                    'legend_pos': 'b',
+                    'width': 30, 'height': 16
+                }
+            },
+            'bar': {
+                'mono': {
+                    'chart': {'x': 0.05, 'y': 0.05, 'w': 0.90, 'h': 0.85},
+                    'legend_pos': None,
+                    'width': 22, 'height': 13
+                },
+                'few': {
+                    'chart': {'x': 0.08, 'y': 0.05, 'w': 0.75, 'h': 0.85},
+                    'legend_pos': 'r',
+                    'width': 24, 'height': 13
+                },
+                'medium': {
+                    'chart': {'x': 0.08, 'y': 0.05, 'w': 0.70, 'h': 0.85},
+                    'legend_pos': 'r',
+                    'width': 26, 'height': 13
+                },
+                'many': {
+                    'chart': {'x': 0.08, 'y': 0.05, 'w': 0.60, 'h': 0.85},
+                    'legend_pos': 'r',
+                    'width': 28, 'height': 13
+                },
+                'very_many': {
+                    'chart': {'x': 0.08, 'y': 0.05, 'w': 0.85, 'h': 0.70},
+                    'legend_pos': 'b',
+                    'width': 26, 'height': 13
+                }
+            }
+        }
+
+        # Déterminer la catégorie selon le nombre d'éléments
+        if num_elements == 1:
+            category = 'mono'
+        elif num_elements <= 4:
+            category = 'few'
+        elif num_elements <= 10:
+            category = 'medium'
+        elif num_elements <= 20:
+            category = 'many'
+        else:
+            category = 'very_many'
+
+        return layouts[chart_type][category]
+
+    def _configure_chart_legend(self, chart, legend_pos, num_elements):
+        """
+        Configure la légende du graphique selon sa position et le nombre d'éléments
+        """
+        if legend_pos is None:
+            chart.legend = None
+            return
+
+        # Configuration de base de la légende
+        chart.legend.position = legend_pos
+        chart.legend.overlay = False
+
+        # Ajustements spécifiques selon la position et le nombre d'éléments
+        if legend_pos == 'b' and num_elements > 20:
+            # Pour la légende en bas avec beaucoup d'éléments
+            # Essayer de réduire la taille de police (si possible)
+            try:
+                if hasattr(chart.legend, 'textProperties'):
+                    chart.legend.textProperties.size = 800  # Taille réduite
+            except:
+                pass
+
+        elif legend_pos == 'r':
+            # Pour la légende à droite, s'assurer qu'elle ne déborde pas
+            try:
+                if hasattr(chart.legend, 'layout'):
+                    # Limiter la largeur de la légende
+                    max_legend_width = min(0.25, 0.15 + (num_elements * 0.008))
+                    chart.legend.layout = Layout(
+                        manualLayout=ManualLayout(
+                            xMode="edge",
+                            yMode="edge", 
+                            x=0.75,
+                            y=0.1,
+                            w=max_legend_width,
+                            h=0.8
+                        )
+                    )
+            except:
+                pass
+
+    def _apply_chart_styling(self, chart, chart_type="line"):
+        """
+        Applique un style professionnel au graphique
+        """
+        # Style général
+        chart.style = 2
+
+        # Configuration des axes
+        chart.y_axis.tickLblPos = "low"
+        chart.x_axis.tickLblPos = "low"
+        chart.x_axis.delete = False
+        chart.y_axis.delete = False
+        
+        # Positionnement des axes
+        chart.x_axis.crosses = "min"
+        chart.y_axis.crosses = "min"
+        chart.x_axis.axPos = "b"
+        chart.y_axis.axPos = "l"
+
+        # Grilles pour meilleure lisibilité
+        chart.y_axis.majorGridlines = ChartLines()
+        
+        if chart_type == "line":
+            chart.x_axis.majorGridlines = ChartLines()
+            # Rotation modérée pour les labels temporels
+            chart.x_axis.textRotation = -30
+
     def generate_workbook_with_charts(
         self,
         wb: Workbook,
@@ -257,7 +404,7 @@ class ChromeleonOnline:
         format_data_table(ws, hvc_df, table1_row + 2, hvc_col, styles=styles)
         apply_standard_column_widths(ws, "hvc")
         
-        # Section 5: Graphiques
+        # Section 5: Graphiques avec gestion améliorée de l'espacement
         chart_col = "P"
         first_chart_row = table1_row
         
@@ -268,36 +415,256 @@ class ChromeleonOnline:
             graphs_to_create.append("bar")
         
         chart_positions = calculate_chart_positions(graphs_to_create, first_chart_row)
-        
-        # Graphique linéaire
+
+        # Espacement adaptatif selon le nombre de graphiques
+        if len(graphs_to_create) == 2:
+            separation_offset = 11  # Plus d'espace entre les graphiques
+        else:
+            separation_offset = 8
+
+        # GRAPHIQUE LINÉAIRE AMÉLIORÉ
         if chart_config['want_line']:
             line_position = f"{chart_col}{chart_positions.get('line', first_chart_row)}"
-            add_line_chart_to_worksheet(
-                ws, rel_df, headers, chart_config['selected_elements'],
-                start_row, line_position
+            selected_elements = chart_config['selected_elements']
+            num_elements = len(selected_elements)
+
+            # Obtenir la configuration optimale
+            layout_config = self._calculate_optimal_chart_layout(num_elements, "line")
+
+            # Créer le graphique avec configuration avancée
+            line_chart = LineChart()
+            line_chart.title = "%mass gaz en fonction du temps"
+            
+            # Appliquer le style professionnel
+            self._apply_chart_styling(line_chart, "line")
+            
+            # Configuration des axes avec titres
+            line_chart.y_axis.title = "Rel. Area (%)"
+            line_chart.x_axis.title = "Injection Time"
+
+            # Gestion intelligente des étiquettes d'axe X
+            num_data_points = len(rel_df) - 1  # Exclure la ligne "Moyennes"
+            if num_data_points > 100:
+                tick_interval = max(1, num_data_points // 15)
+            elif num_data_points > 50:
+                tick_interval = max(1, num_data_points // 10)
+            elif num_data_points > 20:
+                tick_interval = max(1, num_data_points // 6)
+            else:
+                tick_interval = 1
+
+            line_chart.x_axis.tickLblSkip = max(0, tick_interval - 1)
+
+            # Appliquer la disposition optimale
+            line_chart.layout = Layout(
+                manualLayout=ManualLayout(
+                    xMode="edge",
+                    yMode="edge",
+                    **layout_config['chart']
+                )
             )
+
+            # Taille adaptative
+            line_chart.width = layout_config['width']
+            line_chart.height = layout_config['height']
+
+            # Configuration de la légende
+            self._configure_chart_legend(line_chart, layout_config['legend_pos'], num_elements)
+
+            # Données pour le graphique (exclure la ligne "Moyennes")
+            data_df = rel_df[rel_df['Injection Name'] != 'Moyennes'].copy()
+
+            # Références de données - colonnes des éléments sélectionnés
+            y_cols = []
+            for element in selected_elements:
+                col_name = f'Rel. Area (%) : {element}'
+                if col_name in headers:
+                    y_cols.append(col_name)
+
+            if y_cols:
+                # Trouver les positions des colonnes
+                y_col_indices = [headers.index(col) + 1 for col in y_cols]
+
+                # Référence des données Y
+                min_col_y = min(y_col_indices)
+                max_col_y = max(y_col_indices)
+                # Ajouter les données sans titres automatiques
+                data_ref = Reference(ws,
+                                   min_col=min_col_y,
+                                   min_row=start_row + 1,  # Données seulement, pas les en-têtes
+                                   max_col=max_col_y,
+                                   max_row=start_row + len(data_df))
+                line_chart.add_data(data_ref, titles_from_data=False)
+
+                # Référence des catégories (temps d'injection)
+                time_col_index = headers.index('Injection Time') + 1
+                cats = Reference(ws,
+                               min_col=time_col_index,
+                               min_row=start_row + 1,
+                               max_row=start_row + len(data_df))
+                line_chart.set_categories(cats)
+
+                # Définir correctement les noms des séries avec SeriesLabel
+                for i, series in enumerate(line_chart.series):
+                    if i < len(selected_elements):
+                        series_label = SeriesLabel()
+                        series_label.strRef = None  # Pas de référence à une cellule
+                        series_label.v = selected_elements[i]  # Valeur directe
+                        series.tx = series_label
+
+            # Style des séries pour mono-élément
+            if num_elements == 1:
+                for series in line_chart.series:
+                    try:
+                        series.graphicalProperties.line.solidFill = "1f77b4"
+                        series.graphicalProperties.line.width = 25000
+                        if hasattr(series, 'marker'):
+                            series.marker.symbol = "circle"
+                            series.marker.size = 5
+                        series.smooth = True
+                    except Exception:
+                        pass
+
+            # Ajouter le graphique à la feuille
+            ws.add_chart(line_chart, line_position)
         
-        # Graphique en barres
+        # GRAPHIQUE EN BARRES (style original conservé)
         if chart_config['want_bar']:
-            bar_position = f"{chart_col}{chart_positions.get('bar', first_chart_row)}"
-            add_bar_chart_to_worksheet(
-                ws, table2, table2_row, table2_col, bar_position,
-                CARBON_ROWS, FAMILIES
-            )
+            bar_row = chart_positions.get('bar', first_chart_row) + separation_offset
+            bar_position = f"{chart_col}{bar_row}"
+
+            # Configuration du graphique en barres avec style original
+            bar_chart = BarChart()
+            bar_chart.title = "products repartition gaz phase"
+            bar_chart.style = 2
+
+            # Configuration des axes avec style original
+            bar_chart.y_axis.title = "Pourcentage (%)"
+            bar_chart.x_axis.title = "Carbone"
+
+            # Configuration avancée des axes (style original)
+            bar_chart.x_axis.tickLblPos = "low"
+            bar_chart.y_axis.tickLblPos = "low"
+            bar_chart.y_axis.tickLblSkip = 0
+
+            # Grilles pour meilleure lisibilité
+            bar_chart.y_axis.majorGridlines = ChartLines()
+
+            # Rotation pour les labels de carbone
+            bar_chart.x_axis.textRotation = -45
+
+            # Forcer l'affichage des axes
+            bar_chart.x_axis.delete = False
+            bar_chart.y_axis.delete = False
+
+            # Layout original adapté
+            num_families = len([f for f in FAMILIES if f in table2.columns]) if not table2.empty else 0
+            is_mono_series = num_families == 1
+            
+            if not is_mono_series:
+                bar_chart.layout = Layout(
+                    manualLayout=ManualLayout(
+                        xMode="edge",
+                        yMode="edge",
+                        x=0.10,
+                        y=0.10,
+                        w=0.80,
+                        h=0.85
+                    )
+                )
+            else:
+                bar_chart.layout = Layout(
+                    manualLayout=ManualLayout(
+                        xMode="edge",
+                        yMode="edge",
+                        x=0.05,
+                        y=0.10,
+                        w=0.95,
+                        h=0.85
+                    )
+                )
+
+            # Taille optimisée originale
+            bar_chart.width = 20
+            bar_chart.height = 12
+
+            # Positionnement précis des axes
+            bar_chart.x_axis.crosses = "min"
+            bar_chart.y_axis.crosses = "min"
+            bar_chart.x_axis.axPos = "b"
+            bar_chart.y_axis.axPos = "l"
+
+            # Configuration de la légende originale
+            if is_mono_series:
+                bar_chart.legend = None
+            else:
+                bar_chart.legend.position = 'r'
+                bar_chart.legend.overlay = False
+
+            # Type de graphique en barres (clustered)
+            bar_chart.type = "col"
+            bar_chart.grouping = "clustered"
+
+            # Données du graphique si table2 n'est pas vide
+            if not table2.empty:
+                # Filtrer les lignes de carbone pertinentes
+                filtered_table2 = table2.loc[table2.index.intersection(CARBON_ROWS)]
+
+                if not filtered_table2.empty:
+                    # Références de données pour les familles (colonnes)
+                    family_cols = [f for f in FAMILIES if f in table2.columns]
+
+                    if family_cols:
+                        # Calculer les positions des colonnes dans Excel
+                        family_col_indices = []
+                        for family in family_cols:
+                            family_idx = list(table2.columns).index(family)
+                            excel_col = table2_col + 1 + family_idx + 1
+                            family_col_indices.append(excel_col)
+
+                        if family_col_indices:
+                            # Nombre de lignes de carbone
+                            num_carbon_rows = len(filtered_table2)
+
+                            # Référence des données (familles)
+                            min_col_families = min(family_col_indices)
+                            max_col_families = max(family_col_indices)
+                            data_ref = Reference(ws,
+                                               min_col=min_col_families,
+                                               min_row=table2_row + 1,
+                                               max_col=max_col_families,
+                                               max_row=table2_row + 1 + num_carbon_rows)
+                            bar_chart.add_data(data_ref, titles_from_data=True)
+
+                            # Référence des catégories (carbone)
+                            carbon_col = table2_col
+                            cats = Reference(ws,
+                                           min_col=carbon_col,
+                                           min_row=table2_row + 2,
+                                           max_row=table2_row + 1 + num_carbon_rows)
+                            bar_chart.set_categories(cats)
+
+            # Ajouter le graphique à la feuille
+            ws.add_chart(bar_chart, bar_position)
         
         # Finitions
-        freeze_panes_standard(ws)
+        # freeze_panes_standard(ws)  # Désactivé pour permettre au header de ne pas être fixé
         
         return wb
 
 
-
 # Test progressif des méthodes
 if __name__ == "__main__":
+    # === CONSTANTE DE TEST POUR CONTRÔLER LE NOMBRE D'ÉLÉMENTS ===
+    # Ajustez cette valeur pour tester différents scenarios de layout :
+    # 1 = mono-série, 2-4 = few, 5-10 = medium, 11-20 = many, 21+ = very_many
+    TEST_MAX_ELEMENTS = 4  # Changez cette valeur pour tester différents layouts
+
     d = ChromeleonOnline(
-        "/home/lucaslhm/Bureau/test")
+        "C:/Users/lucas/Desktop/test")
 
     print("=== Test progressif des méthodes ChromeleonOnline ===")
+    print(f"🧪 Configuration de test: MAX {TEST_MAX_ELEMENTS} éléments chimiques")
 
     # Test 1: _get_data_by_elements
     print("\n1️⃣ Test _get_data_by_elements()")
@@ -349,11 +716,14 @@ if __name__ == "__main__":
         for graph in graphs:
             if graph['available']:
                 metric_config = {"name": graph['name']}
-                # Pour le graphique temporel, inclure tous les éléments chimiques disponibles
+                # Pour le graphique temporel, limiter le nombre d'éléments selon TEST_MAX_ELEMENTS
                 if graph['name'] == "%mass gaz en fonction du temps" and 'chimicalElements' in graph:
-                    metric_config['chimicalElementSelected'] = graph['chimicalElements']
+                    all_elements = graph['chimicalElements']
+                    # Limiter aux N premiers éléments pour tester différents layouts
+                    limited_elements = all_elements[:TEST_MAX_ELEMENTS]
+                    metric_config['chimicalElementSelected'] = limited_elements
                     print(
-                        f"   - {graph['name']}: ✅ Disponible ({len(graph['chimicalElements'])} éléments)")
+                        f"   - {graph['name']}: ✅ Disponible ({len(limited_elements)}/{len(all_elements)} éléments - LIMITÉ POUR TEST)")
                 else:
                     print(f"   - {graph['name']}: ✅ Disponible")
                 metrics_wanted.append(metric_config)
@@ -368,7 +738,7 @@ if __name__ == "__main__":
         wb = d.generate_workbook_with_charts(
             wb, metrics_wanted, "GC-Online-Test")
 
-        output_file = "/home/lucaslhm/Bureau/chromeleon_online_test_complet.xlsx"
+        output_file = f"C:/Users/lucas/Desktop/chromeleon_online_test_{TEST_MAX_ELEMENTS}elements.xlsx"
         wb.save(output_file)
 
         print(f"✅ Fichier Excel créé: {output_file}")
@@ -382,4 +752,15 @@ if __name__ == "__main__":
 
     print("\n🎉 Tous les tests sont passés avec succès!")
     print(f"📁 Fichier Excel généré: {output_file}")
+    print(f"🧪 Layout testé pour {TEST_MAX_ELEMENTS} éléments:")
+    if TEST_MAX_ELEMENTS == 1:
+        print("   📊 Layout: MONO-SÉRIE (pas de légende, graphique pleine largeur)")
+    elif TEST_MAX_ELEMENTS <= 4:
+        print("   📊 Layout: FEW (légende droite compacte)")
+    elif TEST_MAX_ELEMENTS <= 10:
+        print("   📊 Layout: MEDIUM (légende droite modérée)")
+    elif TEST_MAX_ELEMENTS <= 20:
+        print("   📊 Layout: MANY (légende droite large)")
+    else:
+        print("   📊 Layout: VERY_MANY (légende en bas, graphique plus haut)")
     print("=== Test terminé ===")
