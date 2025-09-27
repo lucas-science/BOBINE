@@ -11,7 +11,7 @@ from openpyxl.drawing.text import Paragraph, ParagraphProperties, CharacterPrope
 from openpyxl.chart.axis import ChartLines
 from openpyxl.chart.layout import Layout, ManualLayout
 
-from utils.pignat_constants import (
+from utils.pignat.pignat_constants import (
     TIME,
     TT301,
     TT302,
