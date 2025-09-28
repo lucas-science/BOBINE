@@ -5,6 +5,8 @@ import { save } from "@tauri-apps/plugin-dialog";
 import BackButton from "@/src/components/shared/backButton";
 import { getIndexByPathname, getNavigationByIndex } from "@/src/lib/pathNavigation";
 import { useState } from "react";
+import { useNavigationWithLoader } from "@/src/hooks/useNavigationWithLoader";
+import { StepLoader } from "@/src/components/shared/loaders";
 import { tauriService } from "@/src/lib/services/TauriService";
 import { toast } from "sonner";
 import { Button } from "@/src/ui/button";
@@ -28,6 +30,8 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [savedPath, setSavedPath] = useState("");
+
+  const { overlayOpen, handleNavigateWithLoader } = useNavigationWithLoader(prevPath || undefined);
 
   const handleGenerateExcel = async () => {
     setLoading(true);
@@ -71,7 +75,10 @@ export default function Page() {
     }
   };
 
-  const handleBack = () => prevPath && router.push(prevPath);
+  const handleBack = async () => {
+    if (!prevPath) return;
+    await handleNavigateWithLoader(() => router.push(prevPath));
+  };
 
   return (
     <>
@@ -131,6 +138,13 @@ export default function Page() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <StepLoader
+        open={overlayOpen}
+        currentStep={1}
+        totalSteps={1}
+        currentTask="Retour en cours…"
+      />
     </>
   );
 }

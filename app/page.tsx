@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useEffect } from "react";
 import { FILE_ZONE } from "@/src/lib/utils/uploadFile.utils";
 import FileUploadCard from "@/src/components/upload/FileUploadCard";
 import { useUploadState } from "@/src/hooks/useUploadState";
@@ -9,7 +9,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { tauriService } from "@/src/lib/services/TauriService";
 import BackButton from "@/src/components/shared/backButton";
 import NextButton from "@/src/components/shared/nextButton";
-import LoaderOverlay from "@/src/components/upload/LoaderOverlay";
+import { StepLoader } from "@/src/components/shared/loaders";
 import ErrorAlert from "@/src/components/upload/ErrorAlert";
 import { info } from "@tauri-apps/plugin-log";
 
@@ -22,11 +22,18 @@ export default function Page() {
   const { allFilesByZoneKey, handleFilesChange, setAllFilesByZoneKey } = useUploadState();
 
   const [overlayOpen, setOverlayOpen] = React.useState(false);
-  const TOTAL_STEPS = 3;
+  const TOTAL_STEPS = 4;
   const [currentStep, setCurrentStep] = React.useState(0);
   const [currentTask, setCurrentTask] = React.useState("Préparation…");
 
   const [error, setError] = React.useState<string | null>(null);
+
+  // Observer les changements de pathname pour fermer l'overlay au bon moment
+  useEffect(() => {
+    if (pathname === nextPath && overlayOpen) {
+      setOverlayOpen(false);
+    }
+  }, [pathname, nextPath, overlayOpen]);
 
   async function runStep<T>(n: number, label: string, fn: () => Promise<T>): Promise<T> {
     setCurrentStep(n);
@@ -74,10 +81,12 @@ export default function Page() {
         return;
       }
 
-      // terminé
-      setOverlayOpen(false);
-      setAllFilesByZoneKey({});
-      router.push(nextPath);
+      // Navigation vers la page suivante
+      await runStep(4, "Navigation en cours…", async () => {
+        setAllFilesByZoneKey({});
+        router.push(nextPath);
+        return true;
+      });
     } catch (e) {
       setOverlayOpen(false);
       console.error(e);
@@ -116,16 +125,21 @@ export default function Page() {
 
   return (
     <div className="min-h-screen">
+      {/* ErrorAlert sticky en haut avec z-index approprié */}
+      <div className="sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-4">
+          <ErrorAlert
+            error={error}
+            onDismiss={dismissError}
+            title="Erreur lors du traitement"
+          />
+        </div>
+      </div>
+
+      {/* Contenu principal */}
       <div className="max-w-6xl mx-auto pb-24">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">File Upload Center</h1>
 
-        {/* Error display using the ErrorAlert component */}
-        <ErrorAlert
-          error={error}
-          onDismiss={dismissError}
-          title="Erreur lors du traitement"
-        />
-        
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {Object.keys(FILE_ZONE).map((zoneKey) => (
             <FileUploadCard
@@ -146,7 +160,7 @@ export default function Page() {
       </div>
 
       {/* ----- Overlay au premier plan ----- */}
-      <LoaderOverlay
+      <StepLoader
         open={overlayOpen}
         currentStep={Math.min(currentStep, TOTAL_STEPS)}
         totalSteps={TOTAL_STEPS}
