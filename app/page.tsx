@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useEffect } from "react";
 import { FILE_ZONE } from "@/src/lib/utils/uploadFile.utils";
 import FileUploadCard from "@/src/components/upload/FileUploadCard";
 import { useUploadState } from "@/src/hooks/useUploadState";
@@ -22,11 +22,18 @@ export default function Page() {
   const { allFilesByZoneKey, handleFilesChange, setAllFilesByZoneKey } = useUploadState();
 
   const [overlayOpen, setOverlayOpen] = React.useState(false);
-  const TOTAL_STEPS = 3;
+  const TOTAL_STEPS = 4;
   const [currentStep, setCurrentStep] = React.useState(0);
   const [currentTask, setCurrentTask] = React.useState("Préparation…");
 
   const [error, setError] = React.useState<string | null>(null);
+
+  // Observer les changements de pathname pour fermer l'overlay au bon moment
+  useEffect(() => {
+    if (pathname === nextPath && overlayOpen) {
+      setOverlayOpen(false);
+    }
+  }, [pathname, nextPath, overlayOpen]);
 
   async function runStep<T>(n: number, label: string, fn: () => Promise<T>): Promise<T> {
     setCurrentStep(n);
@@ -74,10 +81,12 @@ export default function Page() {
         return;
       }
 
-      // terminé
-      setOverlayOpen(false);
-      setAllFilesByZoneKey({});
-      router.push(nextPath);
+      // Navigation vers la page suivante
+      await runStep(4, "Navigation en cours…", async () => {
+        setAllFilesByZoneKey({});
+        router.push(nextPath);
+        return true;
+      });
     } catch (e) {
       setOverlayOpen(false);
       console.error(e);
