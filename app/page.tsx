@@ -9,7 +9,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { tauriService } from "@/src/lib/services/TauriService";
 import BackButton from "@/src/components/shared/backButton";
 import NextButton from "@/src/components/shared/nextButton";
-import LoaderOverlay from "@/src/components/upload/LoaderOverlay";
+import { StepLoader } from "@/src/components/shared/loaders";
 import ErrorAlert from "@/src/components/upload/ErrorAlert";
 import { info } from "@tauri-apps/plugin-log";
 
@@ -160,7 +160,7 @@ export default function Page() {
       </div>
 
       {/* ----- Overlay au premier plan ----- */}
-      <LoaderOverlay
+      <StepLoader
         open={overlayOpen}
         currentStep={Math.min(currentStep, TOTAL_STEPS)}
         totalSteps={TOTAL_STEPS}

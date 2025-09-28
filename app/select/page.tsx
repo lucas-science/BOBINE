@@ -9,6 +9,8 @@ import { ConfirmBackDialog } from "@/src/components/select/ConfirmBackDialog";
 import { SelectedMetricsBySensor } from "@/src/lib/utils/type";
 import { useMetricsData } from "@/src/hooks/useMetricsData";
 import { useStepNavigation } from "@/src/hooks/useStepNavigation";
+import { useNavigationWithLoader } from "@/src/hooks/useNavigationWithLoader";
+import { SimpleLoader } from "@/src/components/shared/loaders";
 
 export default function Page() {
   const [selectedMetrics, setSelectedMetrics] = useState<SelectedMetricsBySensor | null>(null);
@@ -16,9 +18,16 @@ export default function Page() {
 
   const { metricsAvailable } = useMetricsData();
   const { prevPath, nextPath, handleNext, handleBack } = useStepNavigation();
+  const { overlayOpen, handleNavigateWithLoader } = useNavigationWithLoader(nextPath || undefined);
 
   const handleSelectionChange = (selectedMetrics: SelectedMetricsBySensor) => setSelectedMetrics(selectedMetrics);
   const hasSelectedMetrics = selectedMetrics && Object.values(selectedMetrics).some(arr => arr.length > 0);
+
+  const handleNextWithOverlay = async () => {
+    if (!nextPath || !hasSelectedMetrics) return;
+
+    await handleNavigateWithLoader(() => handleNext(selectedMetrics));
+  };
 
   const handleBackClick = () => {
     setShowConfirmDialog(true);
@@ -44,7 +53,7 @@ export default function Page() {
         <div className="flex justify-between items-center w-full mx-auto">
           <BackButton onClick={handleBackClick} disable={!prevPath} />
           <NextButton
-            onClick={() => handleNext(selectedMetrics)}
+            onClick={handleNextWithOverlay}
             disable={!nextPath || !hasSelectedMetrics}
           />
         </div>
@@ -54,6 +63,11 @@ export default function Page() {
         open={showConfirmDialog}
         onOpenChange={setShowConfirmDialog}
         onConfirm={handleConfirmBack}
+      />
+
+      <SimpleLoader
+        open={overlayOpen}
+        message="Navigation en cours…"
       />
     </div>
   );
