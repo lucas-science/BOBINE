@@ -4,7 +4,6 @@ import pandas as pd
 import numpy as np
 from openpyxl import Workbook
 from openpyxl.chart import LineChart, BarChart, Reference
-# ChartLines SUPPRIMÉ - cause principale corruption Excel selon documentation technique
 from openpyxl.chart.layout import Layout, ManualLayout
 from openpyxl.chart.legend import Legend
 from openpyxl.chart.series import SeriesLabel
@@ -17,38 +16,25 @@ from utils.column_mapping import standardize_column_name, get_rel_area_columns, 
 from utils.data_processing import create_summary_table1, create_summary_table2, sort_data_by_time, create_relative_area_summary, process_injection_times, validate_data_availability, calculate_mean_retention_time
 from utils.chart_creation import create_chart_configuration, calculate_chart_positions
 from utils.file_operations import get_first_excel_file, read_excel_summary, extract_experience_number_adaptive
-# SUPPRIMÉ : Les fonctions chart_styling causent corruption Excel
-# Remplacé par méthodes ultra-sécurisées intégrées
 
 
 class ChromeleonOnlinePermanent:
     def __init__(self, dir_root: str, debug: bool = False):
-        """
-        Initialise la classe pour traiter les données ChromeleonOnline en mode permanent.
-        
-        Args:
-            dir_root: Chemin vers le répertoire contenant les fichiers Excel
-            debug: Si True, affiche des informations de débogage
-        """
         self.debug = debug
         
-        # Utiliser les fonctions utilitaires pour les opérations sur fichiers
         self.first_file = get_first_excel_file(dir_root)
         self.summary_df = read_excel_summary(self.first_file)
         self.experience_number = extract_experience_number_adaptive(self.summary_df)
         
-        # Détection simple de la "structure"
         if isinstance(self.summary_df, pd.DataFrame) and not self.summary_df.empty:
             self.detected_structure = "Summary-based"
         else:
             self.detected_structure = "Unknown"
         
-        # Détection des composés
         self.compounds = self._detect_compounds()
     
     
     def _detect_compounds(self):
-        """Détecte tous les composés en utilisant les fonctions utilitaires."""
         compounds = []
         component_blocks = extract_component_blocks(self.summary_df)
         
@@ -63,9 +49,6 @@ class ChromeleonOnlinePermanent:
         return compounds
     
     def get_relative_area_by_injection(self) -> pd.DataFrame:
-        """
-        Récupère les données de surface relative par injection en utilisant les fonctions utilitaires.
-        """
         data_by_elements = self._extract_compound_data()
         
         if not data_by_elements:
@@ -97,9 +80,6 @@ class ChromeleonOnlinePermanent:
         return result
     
     def _extract_compound_data(self):
-        """
-        Extrait les données détaillées par composé en utilisant les fonctions utilitaires.
-        """
         data_by_compound = {}
         
         for comp_info in self.compounds:
@@ -138,9 +118,6 @@ class ChromeleonOnlinePermanent:
         return data_by_compound
     
     def make_summary_tables(self):
-        """
-        Génère les tableaux de résumé en utilisant les fonctions utilitaires.
-        """
         rel_df = self.get_relative_area_by_injection()
         data_by_elements = self._extract_compound_data()
         elements_list = [comp['name'] for comp in self.compounds]
@@ -151,9 +128,6 @@ class ChromeleonOnlinePermanent:
         return table1, table2
 
     def get_graphs_available(self) -> list[dict]:
-        """
-        Détermine quels graphiques peuvent être générés.
-        """
         graphs = []
         try:
             rel = self.get_relative_area_by_injection()
@@ -177,33 +151,29 @@ class ChromeleonOnlinePermanent:
         return graphs
 
     def _calculate_optimal_chart_layout(self, num_elements: int, chart_type: str = "line") -> dict:
-        """
-        Calcule la disposition optimale du graphique selon le nombre d'éléments
-        et le type de graphique pour éviter les chevauchements de légende
-        """
         layouts = {
             'line': {
-                'mono': {  # 1 élément - pas de légende
+                'mono': {
                     'chart': {'x': 0.05, 'y': 0.05, 'w': 0.92, 'h': 0.85},
                     'legend_pos': None,
                     'width': 26, 'height': 15
                 },
-                'few': {  # 2-4 éléments - légende droite compacte
+                'few': {
                     'chart': {'x': 0.05, 'y': 0.05, 'w': 0.65, 'h': 0.85},
                     'legend_pos': 'r',
                     'width': 26, 'height': 15
                 },
-                'medium': {  # 5-10 éléments - légende droite élargie
+                'medium': {
                     'chart': {'x': 0.05, 'y': 0.05, 'w': 0.65, 'h': 0.85},
                     'legend_pos': 'r',
                     'width': 28, 'height': 15
                 },
-                'many': {  # 11-20 éléments - légende droite très large
+                'many': {
                     'chart': {'x': 0.05, 'y': 0.05, 'w': 0.65, 'h': 0.85},
                     'legend_pos': 'r',
                     'width': 32, 'height': 15
                 },
-                'very_many': {  # 21+ éléments - légende en bas sur plusieurs colonnes
+                'very_many': {
                     'chart': {'x': 0.05, 'y': 0.05, 'w': 0.90, 'h': 0.65},
                     'legend_pos': 'b',
                     'width': 30, 'height': 16
@@ -238,7 +208,6 @@ class ChromeleonOnlinePermanent:
             }
         }
 
-        # Déterminer la catégorie selon le nombre d'éléments
         if num_elements == 1:
             category = 'mono'
         elif num_elements <= 4:
@@ -253,20 +222,12 @@ class ChromeleonOnlinePermanent:
         return layouts[chart_type][category]
 
     def _apply_ultra_safe_chart_styling(self, chart, chart_type: str = "line"):
-        """
-        Applique un style PROGRESSIF SÉCURISÉ - étape par étape pour éviter corruption
-        Basé sur tests : ajouter styles un par un pour identifier la limite safe
-        """
-        # Style général - SAFE ✅
         chart.style = 2
 
-        # Titres de base - SAFE ✅
         chart.y_axis.title = "Rel. Area (%)" if chart_type == "line" else "Pourcentage (%)"
         chart.x_axis.title = "Injection Time" if chart_type == "line" else "Carbone"
 
-        # ÉTAPE 1 : Configurations de base SAFE (testées)
         try:
-            # Position des axes - SAFE selon tests
             chart.x_axis.delete = False
             chart.y_axis.delete = False
             chart.x_axis.crosses = "min"
@@ -276,24 +237,14 @@ class ChromeleonOnlinePermanent:
         except:
             pass
 
-        # ÉTAPE 2 : Position des labels SAFE (sans tickLblSkip)
         try:
             chart.y_axis.tickLblPos = "low"
             chart.x_axis.tickLblPos = "low"
         except:
             pass
 
-        # ÉVITER ABSOLUMENT (causes corruption confirmées):
-        # - ChartLines() / majorGridlines
-        # - textRotation
-        # - tickLblSkip
-
     def _apply_safe_mono_series_styling(self, chart, num_elements: int):
-        """
-        Applique un style spécial SÉCURISÉ pour les graphiques mono-série
-        """
         try:
-            # Palette de couleurs ÉTENDUE pour supporter de nombreux éléments chimiques
             colors = [
                 "1f77b4", "ff7f0e", "2ca02c", "d62728", "9467bd", "8c564b",
                 "e377c2", "7f7f7f", "bcbd22", "17becf", "aec7e8", "ffbb78",
@@ -306,10 +257,8 @@ class ChromeleonOnlinePermanent:
             for i, series in enumerate(chart.series):
                 color = colors[i % len(colors)]
 
-                # Configuration basique des séries SAFE
                 series.smooth = True
 
-                # Style ligne et marqueur SAFE
                 if hasattr(series, 'graphicalProperties'):
                     try:
                         series.graphicalProperties.line.solidFill = color
@@ -317,7 +266,6 @@ class ChromeleonOnlinePermanent:
                     except:
                         pass
 
-                # Marqueurs SAFE
                 try:
                     from openpyxl.chart.marker import Marker
                     series.marker = Marker(symbol="circle", size=5)
@@ -331,9 +279,6 @@ class ChromeleonOnlinePermanent:
 
     def generate_workbook_with_charts(self, wb: Workbook, metrics_wanted: list[dict] = None,
                                       sheet_name: str = "GC On-line Permanent Gas") -> Workbook:
-        """
-        Génère la feuille Excel avec tableaux et graphiques.
-        """
         chart_config = create_chart_configuration(metrics_wanted or [])
         asked_names = {(m.get("name") or "").strip() for m in (metrics_wanted or [])}
         chart_config['want_line'] = any(name in asked_names for name in [
@@ -352,8 +297,7 @@ class ChromeleonOnlinePermanent:
         start_row = 2
         format_table_headers(ws, headers, start_row, styles=styles)
 
-        # Agrandir la hauteur des cellules de header du tableau %Rel Area par injection
-        ws.row_dimensions[start_row].height = 30  # Hauteur augmentée pour les headers
+        ws.row_dimensions[start_row].height = 30
 
         format_data_table(ws, rel_df, start_row + 1, special_row_identifier="Moyennes", styles=styles)
         apply_standard_column_widths(ws, "main")
@@ -394,77 +338,63 @@ class ChromeleonOnlinePermanent:
             graphs_to_create.append("bar")
         chart_positions = calculate_chart_positions(graphs_to_create, first_chart_row)
 
-        # Espacement adaptatif selon le nombre de graphiques
         if len(graphs_to_create) == 2:
-            separation_offset = 22  # Plus d'espace entre les graphiques
+            separation_offset = 22
         else:
             separation_offset = 8
 
-        # GRAPHIQUE LINÉAIRE - JUSTE MILIEU : Style professionnel SANS corruption Excel
         if chart_config['want_line']:
             line_position = f"{chart_col}{chart_positions.get('line', first_chart_row)}"
             selected_elements = chart_config['selected_elements']
+
+            # Si aucun élément sélectionné, utiliser tous les éléments disponibles
+            if not selected_elements:
+                all_rel_area_cols = [col for col in headers if col.startswith('Rel. Area (%) :')]
+                selected_elements = [col.replace('Rel. Area (%) : ', '') for col in all_rel_area_cols]
+
             num_elements = len(selected_elements)
 
-            # Obtenir la configuration optimale
             layout_config = self._calculate_optimal_chart_layout(num_elements, "line")
 
-            # Créer le graphique avec configuration avancée
             line_chart = LineChart()
             line_chart.title = "Suivi des concentrations au cours de l'essai"
 
-            # Appliquer le style PROGRESSIF SÉCURISÉ
             self._apply_ultra_safe_chart_styling(line_chart, "line")
 
-            # Configuration professionnelle SAFE avec espacement des titres
             line_chart.width = layout_config['width']
             line_chart.height = layout_config['height']
 
-            # SAFE : Layout du graphique pour éviter chevauchement des titres
             try:
                 from openpyxl.chart.layout import Layout, ManualLayout
-                # Ajuster la zone du graphique pour laisser de l'espace aux titres
                 line_chart.layout = Layout(
                     manualLayout=ManualLayout(
                         xMode="edge", yMode="edge",
-                        x=0.1,   # Marge gauche pour titre Y
-                        y=0.1,   # Marge haute pour titre principal
-                        w=0.75,  # Largeur réduite pour espace légende
-                        h=0.65   # Hauteur réduite pour espace légende en bas
+                        x=0.1, y=0.1, w=0.75, h=0.65
                     )
                 )
             except:
-                pass  # Fallback : garder taille par défaut
+                pass
 
-            # Légende EN BAS - SAFE et professionnel
             if num_elements == 1:
                 line_chart.legend = None
             else:
-                # Configuration légende EN BAS (safe)
-                line_chart.legend.position = 'b'  # Bottom position
+                line_chart.legend.position = 'b'
                 line_chart.legend.overlay = False
 
-                # Layout manuel SAFE pour la légende en bas
                 try:
                     from openpyxl.chart.layout import Layout, ManualLayout
                     line_chart.legend.layout = Layout(
                         manualLayout=ManualLayout(
                             xMode="edge", yMode="edge",
-                            x=0.1,   # Centré horizontalement
-                            y=0.85,  # En bas du graphique
-                            w=0.8,   # Largeur pour s'étaler
-                            h=0.1    # Hauteur compacte
+                            x=0.1, y=0.85, w=0.8, h=0.1
                         )
                     )
                 except:
-                    # Fallback simple si layout manuel échoue
                     line_chart.legend.position = 'b'
 
-            # Données pour le graphique (exclure la ligne "Moyennes")
             data_df = rel_df[rel_df['Injection Name'] != 'Moyennes'].copy()
             data_rows_count = len(data_df)
 
-            # Références de données - colonnes des éléments sélectionnés
             y_cols = []
             for element in selected_elements:
                 col_name = f'Rel. Area (%) : {element}'
@@ -472,28 +402,24 @@ class ChromeleonOnlinePermanent:
                     y_cols.append(col_name)
 
             if y_cols and data_rows_count > 0:
-                # Trouver les positions des colonnes
                 y_col_indices = [headers.index(col) + 1 for col in y_cols]
 
-                # Référence des données Y (INCLUT headers pour titles_from_data=True)
                 min_col_y = min(y_col_indices)
                 max_col_y = max(y_col_indices)
                 data_ref = Reference(ws,
                                    min_col=min_col_y,
                                    min_row=start_row,  # Inclut header
                                    max_col=max_col_y,
-                                   max_row=start_row + data_rows_count)  # Corrigé: correspond aux vraies données
+                                   max_row=start_row + data_rows_count)
                 line_chart.add_data(data_ref, titles_from_data=True)
 
-                # Référence des catégories (temps d'injection) - MÊME PLAGE que les données
                 time_col_index = headers.index('Injection Time') + 1
                 cats = Reference(ws,
                                min_col=time_col_index,
-                               min_row=start_row + 1,  # Exclut header pour catégories
-                               max_row=start_row + data_rows_count)  # MÊME plage que les données
+                               min_row=start_row + 1,
+                               max_row=start_row + data_rows_count)
                 line_chart.set_categories(cats)
 
-                # Réactiver SeriesLabel SAFE pour noms des éléments chimiques
                 try:
                     from openpyxl.chart.series import SeriesLabel
                     for i, series in enumerate(line_chart.series):
@@ -504,73 +430,55 @@ class ChromeleonOnlinePermanent:
                                 series_label.v = element_name.strip()
                                 series.tx = series_label
                 except:
-                    pass  # Fallback : garder les noms par défaut
+                    pass
 
-            # Style des séries pour mono-élément SÉCURISÉ
             self._apply_safe_mono_series_styling(line_chart, num_elements)
 
-            # Ajouter le graphique à la feuille
             ws.add_chart(line_chart, line_position)
 
-        # GRAPHIQUE EN BARRES - JUSTE MILIEU : Style professionnel SANS corruption Excel
         if chart_config['want_bar']:
             bar_row = chart_positions.get('bar', first_chart_row) + separation_offset
             bar_position = f"{chart_col}{bar_row}"
 
-            # Analyser le nombre de familles pour layout adaptatif
             num_families = len([f for f in FAMILIES if f in table2.columns]) if not table2.empty else 0
             bar_layout_config = self._calculate_optimal_chart_layout(num_families, "bar")
 
-            # Configuration du graphique en barres avec style avancé
             bar_chart = BarChart()
             bar_chart.title = "Products repartition Gas phase"
 
-            # Appliquer le style ULTRA-SÉCURISÉ (basé sur documentation technique)
             self._apply_ultra_safe_chart_styling(bar_chart, "bar")
 
-            # Taille adaptative simple et sûre avec espacement des titres
             bar_chart.width = bar_layout_config['width']
             bar_chart.height = bar_layout_config['height']
 
-            # SAFE : Layout du graphique en barres pour éviter chevauchement des titres
             try:
                 from openpyxl.chart.layout import Layout, ManualLayout
-                # Ajuster la zone du graphique pour laisser de l'espace aux titres
                 bar_chart.layout = Layout(
                     manualLayout=ManualLayout(
                         xMode="edge", yMode="edge",
-                        x=0.1,   # Marge gauche pour titre Y (ordonnées)
-                        y=0.1,   # Marge haute pour titre principal
-                        w=0.75,  # Largeur réduite pour espace légende à droite
-                        h=0.7    # Hauteur réduite pour espace titre X (abscisses) en bas
+                        x=0.1, y=0.1, w=0.75, h=0.7
                     )
                 )
             except:
-                pass  # Fallback : garder taille par défaut
+                pass
 
-            # Configuration de la légende SIMPLE
             if num_families <= 1:
-                bar_chart.legend = None  # Pas de légende pour 1 famille
+                bar_chart.legend = None
             else:
-                bar_chart.legend.position = 'r'  # Position simple à droite
+                bar_chart.legend.position = 'r'
                 bar_chart.legend.overlay = False
 
-            # Type de graphique en barres (clustered)
             bar_chart.type = "col"
             bar_chart.grouping = "clustered"
 
 
-            # Données du graphique si table2 n'est pas vide
             if not table2.empty:
-                # Filtrer les lignes de carbone pertinentes
                 filtered_table2 = table2.loc[table2.index.intersection(CARBON_ROWS)]
 
                 if not filtered_table2.empty:
-                    # Références de données pour les familles (colonnes)
                     family_cols = [f for f in FAMILIES if f in table2.columns]
 
                     if family_cols:
-                        # Calculer les positions des colonnes dans Excel
                         family_col_indices = []
                         for family in family_cols:
                             family_idx = list(table2.columns).index(family)
@@ -578,10 +486,8 @@ class ChromeleonOnlinePermanent:
                             family_col_indices.append(excel_col)
 
                         if family_col_indices:
-                            # Nombre de lignes de carbone
                             num_carbon_rows = len(filtered_table2)
 
-                            # Référence des données (familles)
                             min_col_families = min(family_col_indices)
                             max_col_families = max(family_col_indices)
                             data_ref = Reference(ws,
@@ -591,7 +497,6 @@ class ChromeleonOnlinePermanent:
                                                max_row=table2_row + 1 + num_carbon_rows)
                             bar_chart.add_data(data_ref, titles_from_data=True)
 
-                            # Référence des catégories (carbone)
                             carbon_col = table2_col
                             cats = Reference(ws,
                                            min_col=carbon_col,
@@ -599,11 +504,8 @@ class ChromeleonOnlinePermanent:
                                            max_row=table2_row + 1 + num_carbon_rows)
                             bar_chart.set_categories(cats)
 
-            # Ajouter le graphique à la feuille
             ws.add_chart(bar_chart, bar_position)
 
-        # Finitions - désactivé pour permettre au header de ne pas être fixé comme dans chromeleon_online
-        # freeze_panes_standard(ws)
         return wb
 
 
