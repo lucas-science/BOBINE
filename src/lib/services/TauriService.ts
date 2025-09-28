@@ -10,6 +10,10 @@ class TauriService {
     return await invoke<boolean>("context_is_correct", { dirPath });
   }
 
+  async validateContext(dirPath: string): Promise<{valid: boolean; error_message: string}> {
+    return await invoke<{valid: boolean; error_message: string}>("validate_context", { dirPath });
+  }
+
   async getContextMasses(dirPath: string): Promise<Record<string, number | null>> {
     return await invoke<Record<string, number | null>>("get_context_masses", { dirPath });
   }
