@@ -6,7 +6,7 @@ import { useUploadState } from "@/src/hooks/useUploadState";
 import { copyAllFilesToDocuments } from "@/src/lib/copyAllFilesToDocuments";
 import { getIndexByPathname, getNavigationByIndex } from "@/src/lib/pathNavigation";
 import { usePathname, useRouter } from "next/navigation";
-import { validateContext, getDocumentsDir } from "@/src/lib/utils/invoke.utils";
+import { tauriService } from "@/src/lib/services/TauriService";
 import BackButton from "@/src/components/shared/backButton";
 import NextButton from "@/src/components/shared/nextButton";
 import LoaderOverlay from "@/src/components/upload/LoaderOverlay";
@@ -55,7 +55,7 @@ export default function Page() {
       }
 
       const docsDir: string = await runStep<string>(2, "Préparation du dossier…", async () =>
-        getDocumentsDir()
+        tauriService.getDocumentsDir()
       );
 
       if (!docsDir) {
@@ -65,7 +65,7 @@ export default function Page() {
       }
 
       const contextValidation = await runStep(3, "Vérification du contexte…", async () =>
-        validateContext(docsDir)
+        tauriService.validateContext(docsDir)
       );
       info("Context validation result: " + JSON.stringify(contextValidation));
       if (!contextValidation.valid) {
