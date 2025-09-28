@@ -1,6 +1,6 @@
-export const HOME = "/";
-export const SELECT = "/select/";
-export const EXPORT = "/export/";
+const HOME = "/";
+const SELECT = "/select/";
+const EXPORT = "/export/";
 
 export const PATH_STEPS = [HOME, SELECT, EXPORT];
 

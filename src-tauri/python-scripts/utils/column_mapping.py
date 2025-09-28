@@ -67,27 +67,6 @@ def standardize_column_name(real_name, element_name: str = None) -> str:
     return str(real_name).strip()
 
 
-def standardize_dataframe_columns(df: pd.DataFrame, element_name: str = None) -> pd.DataFrame:
-    """
-    Standardise tous les noms de colonnes d'un DataFrame.
-    
-    Args:
-        df: DataFrame à traiter
-        element_name: Nom de l'élément pour les colonnes Rel. Area
-        
-    Returns:
-        DataFrame avec colonnes standardisées
-    """
-    new_columns = []
-    for col in df.columns:
-        standardized = standardize_column_name(col, element_name)
-        new_columns.append(standardized)
-    
-    df_copy = df.copy()
-    df_copy.columns = new_columns
-    return df_copy
-
-
 def validate_required_columns(df: pd.DataFrame, required_columns: list[str]) -> tuple[bool, list[str]]:
     """
     Valide que toutes les colonnes requises sont présentes dans le DataFrame.
@@ -137,58 +116,11 @@ def extract_element_names(rel_area_columns: list[str]) -> list[str]:
 def normalize_peakname(name: str) -> str:
     """
     Normalise un nom de pic pour le regroupement (ex: C1, C2 -> Other C1, Other C2).
-    
-    Args:
-        name: Nom du pic à normaliser
-        
-    Returns:
-        Nom normalisé
     """
-    # Pattern pour détecter les composés carbonés simples (C1, C2, etc.)
     match = re.match(r'^(?:c|C)(\d+)', str(name))
     if match:
         return f"Other C{match.group(1)}"
     return name
-
-
-def get_column_type(column_name: str) -> str:
-    """
-    Détermine le type d'une colonne basé sur son nom.
-    
-    Args:
-        column_name: Nom de la colonne
-        
-    Returns:
-        Type de colonne ("text", "number", "time", "area")
-    """
-    col_lower = column_name.lower()
-    
-    if 'time' in col_lower:
-        return "time"
-    elif 'rel. area' in col_lower or 'relative area' in col_lower or 'retentiontime' in col_lower:
-        return "number"
-    elif 'area' in col_lower or 'height' in col_lower:
-        return "number"
-    else:
-        return "text"
-
-
-def map_columns_to_standards(headers: list[str], element_name: str = None) -> dict[str, str]:
-    """
-    Crée un mapping entre les noms originaux et standardisés.
-    
-    Args:
-        headers: Liste des en-têtes originaux
-        element_name: Nom de l'élément pour les colonnes Rel. Area
-        
-    Returns:
-        Dictionnaire {original: standardized}
-    """
-    mapping = {}
-    for header in headers:
-        standardized = standardize_column_name(header, element_name)
-        mapping[header] = standardized
-    return mapping
 
 
 # Constantes pour les colonnes requises par type de données

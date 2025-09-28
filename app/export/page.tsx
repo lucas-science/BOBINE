@@ -5,7 +5,6 @@ import { save } from "@tauri-apps/plugin-dialog";
 import BackButton from "@/src/components/shared/backButton";
 import { getIndexByPathname, getNavigationByIndex } from "@/src/lib/pathNavigation";
 import { useState } from "react";
-import { generateAndSaveExcel, getDocumentsDir } from "@/src/lib/utils/invoke.utils";
 import { tauriService } from "@/src/lib/services/TauriService";
 import { toast } from "sonner";
 import { Button } from "@/src/ui/button";
@@ -17,7 +16,6 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import RestartButton from "@/src/components/export/restartButton";
-import { HOME } from "@/src/lib/utils/navigation.utils";
 import ButtonLoading from "@/src/components/export/buttonLoading";
 import { info } from "@tauri-apps/plugin-log";
 
@@ -41,7 +39,7 @@ export default function Page() {
       if (!sel) throw new Error("Aucune métrique sélectionnée");
       const metrics = JSON.parse(sel);
 
-      const docsDir = await getDocumentsDir();
+      const docsDir = await tauriService.getDocumentsDir();
 
       // Générer un nom de fichier basé sur l'expérience
       let defaultName = "rapport.xlsx";
@@ -58,7 +56,7 @@ export default function Page() {
       });
       if (!absPath) throw new Error("Enregistrement annulé");
 
-      const res = await generateAndSaveExcel(docsDir, metrics, absPath);
+      const res = await tauriService.generateAndSaveExcel(docsDir, metrics, absPath);
       if (!res || res.error) throw new Error(res?.error || "L'export a échoué");
 
       setSavedPath(res.result ?? absPath);
@@ -101,7 +99,7 @@ export default function Page() {
         <div className="fixed bottom-4 left-0 right-0 px-6">
           <div className="flex justify-between">
             <BackButton onClick={handleBack} disable={!prevPath || loading} />
-            <RestartButton onClick={() => router.push(HOME)} disable={loading} />
+            <RestartButton onClick={() => router.push("/")} disable={loading} />
           </div>
         </div>
       </div>

@@ -49,7 +49,6 @@ class PignatData:
         else:
             raise FileNotFoundError(f"Le répertoire {dir_root} n'existe pas")
 
-        # Try different encodings to handle cross-platform compatibility
         encodings_to_try = ['utf-8', 'utf-8-sig', 'latin1', 'cp1252']
         separator = ','
         
@@ -71,7 +70,6 @@ class PignatData:
                     raise UnicodeDecodeError(f"Failed to read file with any encoding: {encodings_to_try}")
                 continue
         
-        # Try to read CSV with the same successful encoding
         for encoding in encodings_to_try:
             try:
                 print(f"[PIGNAT DEBUG] Reading CSV with encoding: {encoding} and separator: '{separator}'", file=sys.stderr)
@@ -90,7 +88,6 @@ class PignatData:
         print(f"[PIGNAT DEBUG] Missing required columns: {self.missing_columns}", file=sys.stderr)
 
     def _select_columns(self, columns: list[str]) -> pd.DataFrame:
-        # Validate that all required columns exist in the dataframe
         missing_columns = [col for col in columns if col not in self.data_frame.columns]
         if missing_columns:
             print(f"[PIGNAT ERROR] Missing columns: {missing_columns}. Available columns: {list(self.data_frame.columns)}", file=sys.stderr)
@@ -105,20 +102,18 @@ class PignatData:
         if TIME not in df.columns:
             return df
             
-        
         sample_timestamp = df[TIME].iloc[0] if len(df) > 0 else None
-        
+
         if sample_timestamp and ':' in str(sample_timestamp) and len(str(sample_timestamp).split()) == 1:
-            
             mask = pd.Series([True] * len(df))
-            
+
             if start_time is not None:
                 try:
                     start_time_only = str(start_time).split(' ')[1] if ' ' in str(start_time) else str(start_time)
                     mask &= (df[TIME] >= start_time_only)
                 except:
                     pass
-                    
+
             if end_time is not None:
                 try:
                     end_time_only = str(end_time).split(' ')[1] if ' ' in str(end_time) else str(end_time)
@@ -171,9 +166,7 @@ class PignatData:
             max_dt = pd.to_datetime(max_time)
             duration_minutes = (max_dt - min_dt).total_seconds() / 60
 
-            # Objectif : ~72 points de temps
             target_points = 72
-            # Calcul du pas dynamique (au minimum 1 minute)
             delta_minutes = max(1, int(duration_minutes / target_points))
             delta = pd.Timedelta(minutes=delta_minutes)
 
@@ -190,7 +183,6 @@ class PignatData:
             }
 
         except Exception:
-            # Fallback si les dates ne sont pas utilisables
             step = max(1, len(all_times) // 100)
             sampled_times = all_times[::step]
             return {
@@ -246,7 +238,6 @@ class PignatData:
         print(f"[PIGNAT DEBUG] Getting JSON metrics for: '{metric}'", file=sys.stderr)
 
         try:
-            # Support both new names (no accents) and legacy names (with accents)
             if metric == TEMPERATURE_DEPENDING_TIME or metric == 'Température par rapport au temps':
                 print(f"[PIGNAT DEBUG] ✅ Processing TEMPERATURE metric", file=sys.stderr)
                 required_cols = [TIME, TT301, TT302, TT303]
@@ -383,7 +374,6 @@ class PignatData:
                 else:
                     df_display = df.copy()
                 
-                # Utiliser df_display pour les données Excel
                 df_table = df_display.copy()
                 
                 title = metric_data['name'].replace('=', '-')
@@ -404,15 +394,12 @@ class PignatData:
                         data_cell = ws.cell(row=3 + row_idx, column=current_col + col_idx, value=value)
                         data_cell.border = thin_border
                 
-                # Configuration du graphique améliorée
                 chart = LineChart()
                 chart.title = title
                 chart.style = 2
 
-                # === DÉTECTION MONO-SÉRIE POUR CAMOUFLAGE ===
                 is_mono_series = len(metric_data['y_axis']) == 1
 
-                # Configuration de base des axes (compatible avec toutes les versions d'openpyxl)
                 chart.y_axis.title = (
                     ', '.join(metric_data['y_axis'])
                     if len(metric_data['y_axis']) > 1
@@ -420,42 +407,26 @@ class PignatData:
                 )
                 chart.x_axis.title = metric_data['x_axis']
                 
-                # === CONFIGURATION AMÉLIORÉE DES AXES AVEC VALEURS VISIBLES ===
+                chart.x_axis.tickLblPos = "low"
+                chart.y_axis.tickLblPos = "low"
 
-                # 1. Configuration initiale des étiquettes (sera redéfinie plus tard pour positionnement final)
-                chart.x_axis.tickLblPos = "low"  # Position en dessous pour l'axe X
-                chart.y_axis.tickLblPos = "low"  # Position à gauche pour l'axe Y
-
-                # 2. Espacement intelligent des étiquettes pour éviter la superposition
                 num_data_points = len(df_table)
                 if num_data_points > 100:
-                    # Pour beaucoup de points, espacement plus large mais pas trop
                     tick_interval = max(1, num_data_points // 20)
                 elif num_data_points > 30:
-                    # Pour moyennement de points, espacement modéré
                     tick_interval = max(1, num_data_points // 8)
                 else:
-                    # Pour peu de points, afficher plus de valeurs
                     tick_interval = max(1, num_data_points // 5)
 
-                # Réduire le skip pour afficher plus de valeurs
                 chart.x_axis.tickLblSkip = max(0, tick_interval - 1) if tick_interval > 2 else 0
 
-                # 3. Forcer l'affichage des valeurs sur l'axe Y
-                chart.y_axis.tickLblSkip = 0  # Afficher toutes les valeurs importantes sur Y
-
-                # 4. Grilles pour meilleure lisibilité des valeurs
-                chart.y_axis.majorGridlines = ChartLines()  # Grilles horizontales pour lire les valeurs Y
-                chart.x_axis.majorGridlines = ChartLines()  # Grilles verticales légères pour l'axe X
-
-                # 5. Rotation réduite pour meilleure lisibilité
-                chart.x_axis.textRotation = -30  # Rotation moins agressive
-
-                # 6. Forcer l'affichage des valeurs min/max sur les axes
-                chart.x_axis.delete = False  # S'assurer que l'axe X n'est pas supprimé
-                chart.y_axis.delete = False  # S'assurer que l'axe Y n'est pas supprimé
+                chart.y_axis.tickLblSkip = 0
+                chart.y_axis.majorGridlines = ChartLines()
+                chart.x_axis.majorGridlines = ChartLines()
+                chart.x_axis.textRotation = -30
+                chart.x_axis.delete = False
+                chart.y_axis.delete = False
                 
-                # === LAYOUT OPTIMISÉ POUR TITRE X EN BAS ===
                 if not is_mono_series:
                     chart.layout = Layout(
                         manualLayout=ManualLayout(
@@ -479,108 +450,84 @@ class PignatData:
                         )
                     )
 
-                # 7. Taille augmentée pour contenir valeurs et titres en dehors de la zone
-                chart.width = 23  # Plus large pour espace valeurs Y + titre Y + graphique
-                chart.height = 13  # Plus haut pour espace graphique + valeurs X + titre X
+                chart.width = 23
+                chart.height = 13
                 
                 max_row_table = 2 + len(df_table)
                 
-                # Références de données - CORRIGÉES pour forcer l'affichage des axes
                 data_ref = Reference(ws,
-                                    min_col=current_col + 1,  # Commence après la colonne Time
-                                    min_row=2,                # Ligne des en-têtes
+                                    min_col=current_col + 1,
+                                    min_row=2,
                                     max_col=current_col + len(metric_data['y_axis']),
                                     max_row=max_row_table)
                 chart.add_data(data_ref, titles_from_data=True)
 
-                # === CAMOUFLAGE POUR MÉTRIQUES MONO-SÉRIE ===
                 if is_mono_series:
-                    # Supprimer la légende pour les mono-séries (évite l'affichage de 8000+ entrées)
                     chart.legend = None
 
-                    # Appliquer la même couleur à toutes les séries pour un effet visuel uniforme
-                    uniform_color = "1f77b4"  # Bleu moderne uniforme
+                    uniform_color = "1f77b4"
 
                     for series in chart.series:
                         try:
-                            # Couleur de ligne identique
                             series.graphicalProperties.line.solidFill = uniform_color
-                            series.graphicalProperties.line.width = 25000  # Ligne légèrement plus épaisse
+                            series.graphicalProperties.line.width = 25000
 
-                            # Pas de marqueurs pour une ligne continue propre
                             if hasattr(series, 'marker'):
                                 series.marker.symbol = "none"
 
-                            # Lissage pour une courbe plus propre
                             series.smooth = True
                         except Exception:
-                            pass  # Ignorer les erreurs de style pour compatibilité
+                            pass
                 else:
-                    # Configuration légende pour multi-séries
                     chart.legend.position = 'r'
                     chart.legend.overlay = False
                 
-                # Catégories (axe X - Time) - FORCÉ POUR AFFICHER LES VALEURS
                 cats = Reference(ws,
-                                min_col=current_col,      # Colonne Time
-                                min_row=3,                # Première ligne de données (pas l'en-tête)
+                                min_col=current_col,
+                                min_row=3,
                                 max_row=max_row_table)
                 chart.set_categories(cats)
                 
-                # CONFIGURATION AVANCÉE POUR POSITIONNER L'AXE X EN DEHORS DU GRAPHIQUE
-                chart.x_axis.crosses = "min"  # Positionner l'axe X en bas du graphique (valeur max)
-                chart.y_axis.crosses = "min"  # Positionner l'axe Y à gauche (valeur min)
+                chart.x_axis.crosses = "min"
+                chart.y_axis.crosses = "min"
 
-                # 8. Configuration avancée des axes pour garantir l'affichage des valeurs
                 try:
-                    # Forcer l'affichage des valeurs sur l'axe Y (auto-scaling)
                     if hasattr(chart.y_axis, 'scaling'):
-                        chart.y_axis.scaling.min = None  # Auto-scaling
-                        chart.y_axis.scaling.max = None  # Auto-scaling
+                        chart.y_axis.scaling.min = None
+                        chart.y_axis.scaling.max = None
 
-                    # Configuration pour afficher plus de valeurs sur l'axe Y
                     if hasattr(chart.y_axis, 'majorUnit'):
-                        chart.y_axis.majorUnit = None  # Auto pour les unités principales
+                        chart.y_axis.majorUnit = None
 
-                    # Positionner les axes pour que les valeurs soient en dehors de la zone graphique
-                    chart.x_axis.axPos = "b"  # Titre et valeurs X en bas
-                    chart.y_axis.axPos = "l"  # Valeurs Y à gauche
-                    chart.x_axis.tickLblPos = "low"  # Valeurs X en bas
-                    chart.y_axis.tickLblPos = "low"  # Valeurs Y à gauche
-                    # Configuration avancée des titres d'axes
+                    chart.x_axis.axPos = "b"
+                    chart.y_axis.axPos = "l"
+                    chart.x_axis.tickLblPos = "low"
+                    chart.y_axis.tickLblPos = "low"
                     if hasattr(chart.x_axis, 'title') and chart.x_axis.title:
-                        chart.x_axis.title.tx.rich.p[0].r.rPr.sz = 1200  # Taille titre axe X
-                        # Positionner le titre X en dessous du graphique
+                        chart.x_axis.title.tx.rich.p[0].r.rPr.sz = 1200
                         if hasattr(chart.x_axis.title, 'layout'):
                             chart.x_axis.title.layout = Layout(
                                 manualLayout=ManualLayout(
-                                    xMode="edge",
-                                    yMode="edge",
-                                    x=0.5,    # Centré horizontalement
-                                    y=0.95,   # Tout en bas du graphique
-                                    w=0.3,    # Largeur du titre
-                                    h=0.05    # Hauteur du titre
+                                    xMode="edge", yMode="edge",
+                                    x=0.5, y=0.95, w=0.3, h=0.05
                                 )
                             )
 
                     if hasattr(chart.y_axis, 'title') and chart.y_axis.title:
-                        chart.y_axis.title.tx.rich.p[0].r.rPr.sz = 1200  # Taille titre axe Y
+                        chart.y_axis.title.tx.rich.p[0].r.rPr.sz = 1200
 
                 except AttributeError as e:
                     print(f"[PIGNAT DEBUG] Advanced axis configuration not available: {e}", file=sys.stderr)
                 
-                # Position du graphique
                 chart_col = current_col + len(df_table.columns) + 1
                 chart_col_letter = get_column_letter(chart_col)
                 ws.add_chart(chart, f"{chart_col_letter}2")
                 
-                # === CALCUL D'ESPACEMENT OPTIMISÉ POUR ÉVITER LES SUPERPOSITIONS ===
                 data_width = len(df_table.columns)
                 chart_width = int(chart.width) if hasattr(chart, 'width') else 22
 
                 print(f"[PIGNAT DEBUG] Successfully processed metric {metric_name} at column {current_col}", file=sys.stderr)
 
-                # Calcul de la colonne suivante avec espacement optimisé
                 current_col += data_width + chart_width 
                 
             except Exception as e:
