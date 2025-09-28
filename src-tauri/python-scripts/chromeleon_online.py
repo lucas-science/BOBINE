@@ -387,97 +387,97 @@ class ChromeleonOnline:
                 all_rel_area_cols = [col for col in headers if col.startswith('Rel. Area (%) :')]
                 selected_elements = [col.replace('Rel. Area (%) : ', '') for col in all_rel_area_cols]
 
-            num_elements = len(selected_elements)
+            if selected_elements:
+                num_elements = len(selected_elements)
 
-            layout_config = self._calculate_optimal_chart_layout(num_elements, "line")
+                layout_config = self._calculate_optimal_chart_layout(num_elements, "line")
 
-            line_chart = LineChart()
-            line_chart.title = "%mass gaz en fonction du temps"
+                line_chart = LineChart()
+                line_chart.title = "%mass gaz en fonction du temps"
 
-            self._apply_ultra_safe_chart_styling(line_chart, "line")
+                self._apply_ultra_safe_chart_styling(line_chart, "line")
 
-            line_chart.width = layout_config['width']
-            line_chart.height = layout_config['height']
+                line_chart.width = layout_config['width']
+                line_chart.height = layout_config['height']
 
-            try:
-                from openpyxl.chart.layout import Layout, ManualLayout
-                # Ajuster la zone du graphique pour laisser de l'espace aux titres
-                line_chart.layout = Layout(
-                    manualLayout=ManualLayout(
-                        xMode="edge", yMode="edge",
-                        x=0.1,   # Marge gauche pour titre Y
-                        y=0.1,   # Marge haute pour titre principal
-                        w=0.75,  # Largeur réduite pour espace légende
-                        h=0.65   # Hauteur réduite pour espace légende en bas
-                    )
-                )
-            except:
-                pass
-
-            if num_elements == 1:
-                line_chart.legend = None
-            else:
-                line_chart.legend.position = 'b'  # Bottom position
-                line_chart.legend.overlay = False
-
-                # Layout manuel SAFE pour la légende en bas
                 try:
                     from openpyxl.chart.layout import Layout, ManualLayout
-                    line_chart.legend.layout = Layout(
+                    # Ajuster la zone du graphique pour laisser de l'espace aux titres
+                    line_chart.layout = Layout(
                         manualLayout=ManualLayout(
                             xMode="edge", yMode="edge",
-                            x=0.1,   # Centré horizontalement
-                            y=0.85,  # En bas du graphique
-                            w=0.8,   # Largeur pour s'étaler
-                            h=0.1    # Hauteur compacte
+                            x=0.1,   # Marge gauche pour titre Y
+                            y=0.1,   # Marge haute pour titre principal
+                            w=0.75,  # Largeur réduite pour espace légende
+                            h=0.65   # Hauteur réduite pour espace légende en bas
                         )
                     )
                 except:
-                    line_chart.legend.position = 'b'
-
-            data_df = rel_df[rel_df['Injection Name'] != 'Moyennes'].copy()
-            data_rows_count = len(data_df)
-
-            y_cols = []
-            for element in selected_elements:
-                col_name = f'Rel. Area (%) : {element}'
-                if col_name in headers:
-                    y_cols.append(col_name)
-
-            if y_cols and data_rows_count > 0:
-                y_col_indices = [headers.index(col) + 1 for col in y_cols]
-
-                min_col_y = min(y_col_indices)
-                max_col_y = max(y_col_indices)
-                data_ref = Reference(ws,
-                                   min_col=min_col_y,
-                                   min_row=start_row,  # Inclut header
-                                   max_col=max_col_y,
-                                   max_row=start_row + data_rows_count)
-                line_chart.add_data(data_ref, titles_from_data=True)
-
-                time_col_index = headers.index('Injection Time') + 1
-                cats = Reference(ws,
-                               min_col=time_col_index,
-                               min_row=start_row + 1,
-                               max_row=start_row + data_rows_count)
-                line_chart.set_categories(cats)
-
-                try:
-                    from openpyxl.chart.series import SeriesLabel
-                    for i, series in enumerate(line_chart.series):
-                        if i < len(selected_elements):
-                            element_name = selected_elements[i]
-                            if element_name and element_name.strip():
-                                series_label = SeriesLabel()
-                                series_label.v = element_name.strip()
-                                series.tx = series_label
-                except:
                     pass
 
-            self._apply_safe_mono_series_styling(line_chart, num_elements)
+                if num_elements == 1:
+                    line_chart.legend = None
+                else:
+                    line_chart.legend.position = 'b'  # Bottom position
+                    line_chart.legend.overlay = False
 
-            ws.add_chart(line_chart, line_position)
+                    # Layout manuel SAFE pour la légende en bas
+                    try:
+                        from openpyxl.chart.layout import Layout, ManualLayout
+                        line_chart.legend.layout = Layout(
+                            manualLayout=ManualLayout(
+                                xMode="edge", yMode="edge",
+                                x=0.1,   # Centré horizontalement
+                                y=0.85,  # En bas du graphique
+                                w=0.8,   # Largeur pour s'étaler
+                                h=0.1    # Hauteur compacte
+                            )
+                        )
+                    except:
+                        line_chart.legend.position = 'b'
+
+                data_df = rel_df[rel_df['Injection Name'] != 'Moyennes'].copy()
+                data_rows_count = len(data_df)
+
+                y_cols = []
+                for element in selected_elements:
+                    col_name = f'Rel. Area (%) : {element}'
+                    if col_name in headers:
+                        y_cols.append(col_name)
+
+                if y_cols and data_rows_count > 0:
+                    # Ajouter chaque série individuellement pour éviter les colonnes intermédiaires non désirées
+                    for i, col in enumerate(y_cols):
+                        col_index = headers.index(col) + 1
+                        data_ref = Reference(ws,
+                                           min_col=col_index,
+                                           min_row=start_row + 1,  # Données sans header
+                                           max_col=col_index,
+                                           max_row=start_row + data_rows_count)
+                        line_chart.add_data(data_ref, titles_from_data=False)
+
+                        # Définir manuellement le titre de la série
+                        element_name = col.replace('Rel. Area (%) : ', '')
+                        if i < len(line_chart.series):
+                            try:
+                                from openpyxl.chart.series import SeriesLabel
+                                series_label = SeriesLabel()
+                                series_label.v = element_name
+                                line_chart.series[i].tx = series_label
+                            except:
+                                pass
+
+                    time_col_index = headers.index('Injection Time') + 1
+                    cats = Reference(ws,
+                                   min_col=time_col_index,
+                                   min_row=start_row + 1,
+                                   max_row=start_row + data_rows_count)
+                    line_chart.set_categories(cats)
+
+
+                self._apply_safe_mono_series_styling(line_chart, num_elements)
+
+                ws.add_chart(line_chart, line_position)
         
         if chart_config['want_bar']:
             bar_row = chart_positions.get('bar', first_chart_row) + separation_offset
@@ -559,100 +559,113 @@ class ChromeleonOnline:
 # Test progressif des méthodes
 if __name__ == "__main__":
     # ========== CONFIGURATION DU TEST ==========
-    # Configurer le nombre d'éléments chimiques à tester
-    NOMBRE_ELEMENTS_TEST = 30  # Changer cette valeur pour tester différents nombres d'éléments
+    # Configurer les éléments chimiques spécifiques à tester
+    ELEMENTS_CHIMIQUES_TEST = ["Methane", "1,3-Butadiene"]  # Éléments spécifiques à tester
+    # ELEMENTS_CHIMIQUES_TEST = []  # Liste vide = tracer tous les éléments disponibles
 
-    print(f"=== Test progressif ChromeleonOnline - {NOMBRE_ELEMENTS_TEST} éléments ===")
+    if ELEMENTS_CHIMIQUES_TEST:
+        print(f"=== Test progressif ChromeleonOnline - Éléments spécifiques: {', '.join(ELEMENTS_CHIMIQUES_TEST)} ===")
+    else:
+        print("=== Test progressif ChromeleonOnline - Tous les éléments disponibles ===")
 
     d = ChromeleonOnline(
         "C:/Users/lucas/Desktop/test")
 
     # Test 1: _get_data_by_elements
-    print("\n1️⃣ Test _get_data_by_elements()")
+    print("\n[1] Test _get_data_by_elements()")
     try:
         data_by_elements = d._get_data_by_elements()
         print(
-            f"✅ Extraction réussie! {len(data_by_elements)} éléments trouvés")
+            f"[OK] Extraction réussie! {len(data_by_elements)} éléments trouvés")
         print(data_by_elements["Methane"].head())
     except Exception as e:
-        print(f"❌ Erreur _get_data_by_elements: {e}")
+        print(f"[ERREUR] Erreur _get_data_by_elements: {e}")
         exit(1)
 
     # Test 2: get_relative_area_by_injection
-    print("\n2️⃣ Test get_relative_area_by_injection()")
+    print("\n[2] Test get_relative_area_by_injection()")
     try:
         rel_df = d.get_relative_area_by_injection()
-        print("✅ Tableau relatif créé: \n", rel_df)
+        print("[OK] Tableau relatif créé: \n", rel_df)
 
         # Afficher les premières lignes
         if len(rel_df) > 0:
             print(f"   Première ligne: {rel_df.iloc[0].to_dict()}")
     except Exception as e:
-        print(f"❌ Erreur get_relative_area_by_injection: {e}")
+        print(f"[ERREUR] Erreur get_relative_area_by_injection: {e}")
         import traceback
         traceback.print_exc()
         exit(1)
 
     # Test 3: make_summary_tables
-    print("\n3️⃣ Test make_summary_tables()")
+    print("\n[3] Test make_summary_tables()")
     try:
         table1, table2 = d.make_summary_tables()
-        print(f"✅ Tables de résumé créées:")
+        print(f"[OK] Tables de résumé créées:")
         print(f"   Table1 (pics): {table1.shape[0]} lignes")
         print(f"   Table2 (pivot): {table2.shape}")
     except Exception as e:
-        print(f"❌ Erreur make_summary_tables: {e}")
+        print(f"[ERREUR] Erreur make_summary_tables: {e}")
         import traceback
         traceback.print_exc()
         exit(1)
 
     # Test 4: get_graphs_available et génération Excel
-    print("\n4️⃣ Test get_graphs_available() et génération Excel")
+    print("\n[4] Test get_graphs_available() et génération Excel")
     try:
         graphs = d.get_graphs_available()
-        print(f"✅ Graphiques disponibles: {len(graphs)}")
+        print(f"[OK] Graphiques disponibles: {len(graphs)}")
 
         # Préparer les métriques pour le fichier Excel
         metrics_wanted = []
         for graph in graphs:
             if graph['available']:
                 metric_config = {"name": graph['name']}
-                # Pour le graphique temporel, utiliser le nombre d'éléments configuré
+                # Pour le graphique temporel, utiliser les éléments spécifiques configurés
                 if graph['name'] == "%mass gaz en fonction du temps" and 'chimicalElements' in graph:
-                    # Limiter au nombre d'éléments défini dans la configuration de test
+                    # Sélectionner uniquement les éléments spécifiés dans la configuration de test
                     all_elements = graph['chimicalElements']
-                    selected_elements = all_elements[:NOMBRE_ELEMENTS_TEST] if len(all_elements) >= NOMBRE_ELEMENTS_TEST else all_elements
+                    selected_elements = [elem for elem in ELEMENTS_CHIMIQUES_TEST if elem in all_elements]
+
+                    # Afficher les éléments disponibles vs demandés pour debugging
+                    missing_elements = [elem for elem in ELEMENTS_CHIMIQUES_TEST if elem not in all_elements]
+                    if missing_elements:
+                        print(f"   [WARN] Éléments demandés mais non trouvés: {', '.join(missing_elements)}")
+                        print(f"   [INFO] Éléments disponibles: {', '.join(all_elements)}")
 
                     metric_config['chimicalElementSelected'] = selected_elements
                     print(
-                        f"   - {graph['name']}: ✅ Disponible ({len(selected_elements)} éléments sélectionnés sur {len(all_elements)} disponibles)")
+                        f"   - {graph['name']}: [OK] Disponible ({len(selected_elements)} éléments sélectionnés sur {len(all_elements)} disponibles)")
                     print(f"     Éléments testés: {', '.join(selected_elements)}")
                 else:
-                    print(f"   - {graph['name']}: ✅ Disponible")
+                    print(f"   - {graph['name']}: [OK] Disponible")
                 metrics_wanted.append(metric_config)
             else:
-                print(f"   - {graph['name']}: ❌ Non disponible")
+                print(f"   - {graph['name']}: [NON] Non disponible")
 
         # Génération du fichier Excel
-        print("\n📊 Génération du fichier Excel...")
+        print("\n[EXCEL] Génération du fichier Excel...")
         wb = Workbook()
         wb.remove(wb.active)  # Supprimer la feuille par défaut
 
         wb = d.generate_workbook_with_charts(
             wb, metrics_wanted, "GC-Online-Test")
 
-        output_file = f"C:/Users/lucas/Desktop/chromeleon_online_test_{NOMBRE_ELEMENTS_TEST}elements.xlsx"
+        if ELEMENTS_CHIMIQUES_TEST:
+            output_file = f"C:/Users/lucas/Desktop/chromeleon_online_test_{'_'.join(ELEMENTS_CHIMIQUES_TEST).replace(',', '_')}.xlsx"
+        else:
+            output_file = "C:/Users/lucas/Desktop/chromeleon_online_test_all_elements.xlsx"
         wb.save(output_file)
 
-        print(f"✅ Fichier Excel créé: {output_file}")
-        print(f"📊 Métriques incluses: {[m['name'] for m in metrics_wanted]}")
+        print(f"[OK] Fichier Excel créé: {output_file}")
+        print(f"[INFO] Métriques incluses: {[m['name'] for m in metrics_wanted]}")
 
     except Exception as e:
-        print(f"❌ Erreur génération Excel: {e}")
+        print(f"[ERREUR] Erreur génération Excel: {e}")
         import traceback
         traceback.print_exc()
         exit(1)
 
-    print("\n🎉 Tous les tests sont passés avec succès!")
-    print(f"📁 Fichier Excel généré: {output_file}")
+    print("\n[SUCCES] Tous les tests sont passés avec succès!")
+    print(f"[FICHIER] Fichier Excel généré: {output_file}")
     print("=== Test terminé ===")

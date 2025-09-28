@@ -352,89 +352,88 @@ class ChromeleonOnlinePermanent:
                 all_rel_area_cols = [col for col in headers if col.startswith('Rel. Area (%) :')]
                 selected_elements = [col.replace('Rel. Area (%) : ', '') for col in all_rel_area_cols]
 
-            num_elements = len(selected_elements)
+            if selected_elements:
+                num_elements = len(selected_elements)
 
-            layout_config = self._calculate_optimal_chart_layout(num_elements, "line")
+                layout_config = self._calculate_optimal_chart_layout(num_elements, "line")
 
-            line_chart = LineChart()
-            line_chart.title = "Suivi des concentrations au cours de l'essai"
+                line_chart = LineChart()
+                line_chart.title = "Suivi des concentrations au cours de l'essai"
 
-            self._apply_ultra_safe_chart_styling(line_chart, "line")
+                self._apply_ultra_safe_chart_styling(line_chart, "line")
 
-            line_chart.width = layout_config['width']
-            line_chart.height = layout_config['height']
-
-            try:
-                from openpyxl.chart.layout import Layout, ManualLayout
-                line_chart.layout = Layout(
-                    manualLayout=ManualLayout(
-                        xMode="edge", yMode="edge",
-                        x=0.1, y=0.1, w=0.75, h=0.65
-                    )
-                )
-            except:
-                pass
-
-            if num_elements == 1:
-                line_chart.legend = None
-            else:
-                line_chart.legend.position = 'b'
-                line_chart.legend.overlay = False
+                line_chart.width = layout_config['width']
+                line_chart.height = layout_config['height']
 
                 try:
                     from openpyxl.chart.layout import Layout, ManualLayout
-                    line_chart.legend.layout = Layout(
+                    line_chart.layout = Layout(
                         manualLayout=ManualLayout(
                             xMode="edge", yMode="edge",
-                            x=0.1, y=0.85, w=0.8, h=0.1
+                            x=0.1, y=0.1, w=0.75, h=0.65
                         )
                     )
                 except:
-                    line_chart.legend.position = 'b'
-
-            data_df = rel_df[rel_df['Injection Name'] != 'Moyennes'].copy()
-            data_rows_count = len(data_df)
-
-            y_cols = []
-            for element in selected_elements:
-                col_name = f'Rel. Area (%) : {element}'
-                if col_name in headers:
-                    y_cols.append(col_name)
-
-            if y_cols and data_rows_count > 0:
-                y_col_indices = [headers.index(col) + 1 for col in y_cols]
-
-                min_col_y = min(y_col_indices)
-                max_col_y = max(y_col_indices)
-                data_ref = Reference(ws,
-                                   min_col=min_col_y,
-                                   min_row=start_row,  # Inclut header
-                                   max_col=max_col_y,
-                                   max_row=start_row + data_rows_count)
-                line_chart.add_data(data_ref, titles_from_data=True)
-
-                time_col_index = headers.index('Injection Time') + 1
-                cats = Reference(ws,
-                               min_col=time_col_index,
-                               min_row=start_row + 1,
-                               max_row=start_row + data_rows_count)
-                line_chart.set_categories(cats)
-
-                try:
-                    from openpyxl.chart.series import SeriesLabel
-                    for i, series in enumerate(line_chart.series):
-                        if i < len(selected_elements):
-                            element_name = selected_elements[i]
-                            if element_name and element_name.strip():
-                                series_label = SeriesLabel()
-                                series_label.v = element_name.strip()
-                                series.tx = series_label
-                except:
                     pass
 
-            self._apply_safe_mono_series_styling(line_chart, num_elements)
+                if num_elements == 1:
+                    line_chart.legend = None
+                else:
+                    line_chart.legend.position = 'b'
+                    line_chart.legend.overlay = False
 
-            ws.add_chart(line_chart, line_position)
+                    try:
+                        from openpyxl.chart.layout import Layout, ManualLayout
+                        line_chart.legend.layout = Layout(
+                            manualLayout=ManualLayout(
+                                xMode="edge", yMode="edge",
+                                x=0.1, y=0.85, w=0.8, h=0.1
+                            )
+                        )
+                    except:
+                        line_chart.legend.position = 'b'
+
+                data_df = rel_df[rel_df['Injection Name'] != 'Moyennes'].copy()
+                data_rows_count = len(data_df)
+
+                y_cols = []
+                for element in selected_elements:
+                    col_name = f'Rel. Area (%) : {element}'
+                    if col_name in headers:
+                        y_cols.append(col_name)
+
+                if y_cols and data_rows_count > 0:
+                    # Ajouter chaque série individuellement pour éviter les colonnes intermédiaires non désirées
+                    for i, col in enumerate(y_cols):
+                        col_index = headers.index(col) + 1
+                        data_ref = Reference(ws,
+                                           min_col=col_index,
+                                           min_row=start_row + 1,  # Données sans header
+                                           max_col=col_index,
+                                           max_row=start_row + data_rows_count)
+                        line_chart.add_data(data_ref, titles_from_data=False)
+
+                        # Définir manuellement le titre de la série
+                        element_name = col.replace('Rel. Area (%) : ', '')
+                        if i < len(line_chart.series):
+                            try:
+                                from openpyxl.chart.series import SeriesLabel
+                                series_label = SeriesLabel()
+                                series_label.v = element_name
+                                line_chart.series[i].tx = series_label
+                            except:
+                                pass
+
+                    time_col_index = headers.index('Injection Time') + 1
+                    cats = Reference(ws,
+                                   min_col=time_col_index,
+                                   min_row=start_row + 1,
+                                   max_row=start_row + data_rows_count)
+                    line_chart.set_categories(cats)
+
+                self._apply_safe_mono_series_styling(line_chart, num_elements)
+
+                ws.add_chart(line_chart, line_position)
 
         if chart_config['want_bar']:
             bar_row = chart_positions.get('bar', first_chart_row) + separation_offset
@@ -519,41 +518,41 @@ if __name__ == "__main__":
         data_path = "C:/Users/lucas/Desktop/test"
 
     try:
-        print("🔍 === ANALYSE AVANCÉE CHROMELEON PERMANENT GAS ===")
-        print(f"📂 Chemin d'analyse: {data_path}")
+        print("[ANALYSE] === CHROMELEON PERMANENT GAS ===")
+        print(f"[PATH] Chemin d'analyse: {data_path}")
         
         start_time = datetime.now()
         analyzer = ChromeleonOnlinePermanent(data_path, debug=True)
         init_time = datetime.now() - start_time
         
-        print(f"⏱️  Initialisation: {init_time.total_seconds():.2f}s")
-        print(f"📊 Expérience détectée: {analyzer.experience_number or 'Non définie'}")
-        print(f"🔧 Structure détectée: {analyzer.detected_structure}")
-        print(f"🧪 Composés détectés: {len(analyzer.compounds)}")
+        print(f"[TIME] Initialisation: {init_time.total_seconds():.2f}s")
+        print(f"[EXP] Expérience détectée: {analyzer.experience_number or 'Non définie'}")
+        print(f"[STRUCT] Structure détectée: {analyzer.detected_structure}")
+        print(f"[COMP] Composés détectés: {len(analyzer.compounds)}")
         
 
         # Analyse des données extraites
-        print("\n📈 === ANALYSE DES DONNÉES EXTRAITES ===")
+        print("\n[DATA] === ANALYSE DES DONNÉES EXTRAITES ===")
         
         extract_start = datetime.now()
         rel_data = analyzer.get_relative_area_by_injection()
         extract_time = datetime.now() - extract_start
         
-        print(f"⏱️  Extraction: {extract_time.total_seconds():.2f}s")
-        print(f"📊 Lignes de données: {len(rel_data)}")
-        print(f"📋 Colonnes de données: {len([c for c in rel_data.columns if c.startswith('Rel. Area')])}")
+        print(f"[TIME] Extraction: {extract_time.total_seconds():.2f}s")
+        print(f"[ROWS] Lignes de données: {len(rel_data)}")
+        print(f"[COLS] Colonnes de données: {len([c for c in rel_data.columns if c.startswith('Rel. Area')])}")
         
-        print("✅ Extraction terminée")
+        print("[OK] Extraction terminée")
 
         # Test graphiques disponibles
-        print("\n📈 === GRAPHIQUES ET MÉTRIQUES DISPONIBLES ===")
+        print("\n[CHARTS] === GRAPHIQUES ET MÉTRIQUES DISPONIBLES ===")
         graphs_info = analyzer.get_graphs_available()
         
         available_count = sum(1 for g in graphs_info if g.get('available'))
-        print(f"📊 Graphiques disponibles: {available_count}/{len(graphs_info)}")
+        print(f"[AVAILABLE] Graphiques disponibles: {available_count}/{len(graphs_info)}")
         
         for g in graphs_info:
-            status = "✅ DISPONIBLE" if g.get('available') else "❌ INDISPONIBLE"
+            status = "[OK] DISPONIBLE" if g.get('available') else "[NO] INDISPONIBLE"
             print(f"   - {g['name']}: {status}")
             
             if 'chimicalElements' in g and g['chimicalElements']:
@@ -572,7 +571,7 @@ if __name__ == "__main__":
                 metrics.append(m)
 
         # Test de génération Excel
-        print("\n📄 === GÉNÉRATION DU RAPPORT EXCEL ===")
+        print("\n[EXCEL] === GÉNÉRATION DU RAPPORT EXCEL ===")
         
         gen_start = datetime.now()
         wb = Workbook()
@@ -595,34 +594,34 @@ if __name__ == "__main__":
         wb.save("C:/Users/lucas/Desktop/test" + out_name)
         gen_time = datetime.now() - gen_start
         
-        print(f"⏱️  Génération: {gen_time.total_seconds():.2f}s")
-        print(f"💾 Fichier généré: {out_path}")
+        print(f"[TIME] Génération: {gen_time.total_seconds():.2f}s")
+        print(f"[FILE] Fichier généré: {out_path}")
 
         # Résumé final
         total_time = datetime.now() - start_time
-        print(f"\n🎉 === RÉSUMÉ D'ANALYSE RÉUSSIE ===")
-        print(f"⏱️  Temps total: {total_time.total_seconds():.2f}s")
-        print(f"🔬 Composés analysés: {len(analyzer.compounds)}")
-        print(f"📊 Lignes de données: {len(rel_data) if len(rel_data) > 0 else 'Aucune'}")
-        print(f"📈 Graphiques générés: {available_count}")
-        print(f"✅ Analyse terminée avec succès")
+        print(f"\n[SUCCESS] === RÉSUMÉ D'ANALYSE RÉUSSIE ===")
+        print(f"[TIME] Temps total: {total_time.total_seconds():.2f}s")
+        print(f"[COMP] Composés analysés: {len(analyzer.compounds)}")
+        print(f"[ROWS] Lignes de données: {len(rel_data) if len(rel_data) > 0 else 'Aucune'}")
+        print(f"[CHARTS] Graphiques générés: {available_count}")
+        print(f"[OK] Analyse terminée avec succès")
         
 
     except Exception as e:
-        print(f"\n❌ === ERREUR DURANT L'ANALYSE ===")
-        print(f"🔥 Erreur: {str(e)}")
-        print(f"📍 Type: {type(e).__name__}")
+        print(f"\n[ERROR] === ERREUR DURANT L'ANALYSE ===")
+        print(f"[ERR] Erreur: {str(e)}")
+        print(f"[TYPE] Type: {type(e).__name__}")
         
         # Tentative de diagnostic d'erreur
         try:
             if 'analyzer' in locals():
-                print(f"🔧 État de l'analyseur:")
+                print(f"[STATE] État de l'analyseur:")
                 print(f"   - Composés détectés: {len(analyzer.compounds) if hasattr(analyzer, 'compounds') else 'N/A'}")
                 print(f"   - Structure: {analyzer.detected_structure if hasattr(analyzer, 'detected_structure') else 'N/A'}")
         except:
             pass
         
         import traceback
-        print(f"📋 Trace détaillée:")
+        print(f"[TRACE] Trace détaillée:")
         traceback.print_exc()
         sys.exit(1)
