@@ -116,16 +116,21 @@ export default function Page() {
 
   return (
     <div className="min-h-screen">
+      {/* ErrorAlert sticky en haut avec z-index approprié */}
+      <div className="sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-4">
+          <ErrorAlert
+            error={error}
+            onDismiss={dismissError}
+            title="Erreur lors du traitement"
+          />
+        </div>
+      </div>
+
+      {/* Contenu principal */}
       <div className="max-w-6xl mx-auto pb-24">
         <h1 className="text-2xl font-bold text-gray-900 mb-6">File Upload Center</h1>
 
-        {/* Error display using the ErrorAlert component */}
-        <ErrorAlert
-          error={error}
-          onDismiss={dismissError}
-          title="Erreur lors du traitement"
-        />
-        
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {Object.keys(FILE_ZONE).map((zoneKey) => (
             <FileUploadCard
