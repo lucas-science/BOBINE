@@ -53,6 +53,14 @@ class TauriService {
   async copyFile(sourcePath: string, destinationPath: string): Promise<void> {
     return await invoke("copy_file", { sourcePath, destinationPath });
   }
+
+  async removeDir(dirPath: string): Promise<void> {
+    return await invoke("remove_dir", { dirPath });
+  }
+
+  async writeFile(destinationPath: string, contents: number[]): Promise<void> {
+    return await invoke("write_file", { destinationPath, contents });
+  }
 }
 
 export const tauriService = new TauriService();

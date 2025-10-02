@@ -1,9 +1,22 @@
 export const SENSOR_DISPLAY_NAMES = {
   chromeleon_offline: "Chromeleon Offline",
   chromeleon_online: "Chromeleon Online",
-  chromeleon_online_permanent_gas: "Chromeleon online Permanent Gas",
+  chromeleon_online_permanent_gas: "GC Online Permanent Gas",
   pignat: "Pignat",
   resume: "Resume",
+} as const;
+
+export const UPLOAD_ZONE_DISPLAY_NAMES = {
+  context: "Contexte",
+  pignat: "Pignat",
+  gc_online: "Analyse en ligne",
+  gc_offline: "Analyse hors ligne",
+} as const;
+
+export const UPLOAD_SUBZONE_DISPLAY_NAMES = {
+  online: "GC Online C1-C7",
+  chromeleon_online_permanent_gas: "GC Online Permanent Gas",
+  offline: "GC Offline",
 } as const;
 
 export const STORAGE_KEYS = {
