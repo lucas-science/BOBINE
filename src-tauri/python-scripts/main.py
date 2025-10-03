@@ -44,16 +44,6 @@ def getDirectories(dir_path):
     }
 
 
-def context_is_correct(dir_path):
-    DIR = getDirectories(dir_path)[CONTEXT]
-
-    if not os.path.exists(DIR):
-        return False
-    contextData = ExcelContextData(DIR)
-
-    return contextData.is_valid()
-
-
 def get_context_masses(dir_path):
     DIR = getDirectories(dir_path)[CONTEXT]
 
@@ -232,11 +222,7 @@ def process_command(args):
         arg3 = args[2] if len(args) > 2 else None
         arg4 = args[3] if len(args) > 3 else None
 
-        if action == "CONTEXT_IS_CORRECT":
-            result = context_is_correct(dir_path=arg2)
-            response = {"result": result}
-
-        elif action == "GET_CONTEXT_MASSES":
+        if action == "GET_CONTEXT_MASSES":
             try:
                 result = get_context_masses(arg2)
                 response = {"result": result}

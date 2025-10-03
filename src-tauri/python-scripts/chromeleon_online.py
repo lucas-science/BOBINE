@@ -27,35 +27,35 @@ class ChromeleonOnline:
     def get_graphs_available(self) -> list[dict]:
         graphs = []
 
-        # Graphique 1: %mass gaz en fonction du temps
+        # Graphique 1: %mass gas en fonction du temps
         try:
             rel = self.get_relative_area_by_injection()
             validation = validate_data_availability(rel)
-            
+
             graphs.append({
-                'name': '%mass gaz en fonction du temps',
+                'name': '%mass gas en fonction du temps',
                 'available': validation['has_enough_timepoints'] and validation['has_numeric_data'],
                 'chimicalElements': validation['chemical_elements']
             })
         except Exception:
             graphs.append({
-                'name': '%mass gaz en fonction du temps',
+                'name': '%mass gas en fonction du temps',
                 'available': False,
             })
 
-        # Graphique 2: products repartition gaz phase
+        # Graphique 2: products repartition gas phase
         try:
             _, table2 = self.make_summary_tables()
-            fam_cols = [c for c in ['Linear', 'Olefin', 'BTX gas'] if c in table2.columns]
+            fam_cols = [c for c in ['Paraffin', 'Olefin', 'BTX gas'] if c in table2.columns]
             has_nonzero = (table2[fam_cols].to_numpy().sum() > 0) if fam_cols else False
 
             graphs.append({
-                'name': 'products repartition gaz phase',
+                'name': 'products repartition gas phase',
                 'available': bool(has_nonzero)
             })
         except Exception:
             graphs.append({
-                'name': 'products repartition gaz phase',
+                'name': 'products repartition gas phase',
                 'available': False
             })
 
@@ -393,7 +393,7 @@ class ChromeleonOnline:
                 layout_config = self._calculate_optimal_chart_layout(num_elements, "line")
 
                 line_chart = LineChart()
-                line_chart.title = "%mass gaz en fonction du temps"
+                line_chart.title = "%mass gas en fonction du temps"
 
                 self._apply_ultra_safe_chart_styling(line_chart, "line")
 
@@ -487,7 +487,7 @@ class ChromeleonOnline:
             bar_layout_config = self._calculate_optimal_chart_layout(num_families, "bar")
 
             bar_chart = BarChart()
-            bar_chart.title = "products repartition gaz phase"
+            bar_chart.title = "products repartition gas phase"
 
             self._apply_ultra_safe_chart_styling(bar_chart, "bar")
 
@@ -622,7 +622,7 @@ if __name__ == "__main__":
             if graph['available']:
                 metric_config = {"name": graph['name']}
                 # Pour le graphique temporel, utiliser les éléments spécifiques configurés
-                if graph['name'] == "%mass gaz en fonction du temps" and 'chimicalElements' in graph:
+                if graph['name'] == "%mass gas en fonction du temps" and 'chimicalElements' in graph:
                     # Sélectionner uniquement les éléments spécifiés dans la configuration de test
                     all_elements = graph['chimicalElements']
                     selected_elements = [elem for elem in ELEMENTS_CHIMIQUES_TEST if elem in all_elements]

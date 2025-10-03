@@ -320,7 +320,7 @@ class ChromeleonOffline:
                             break
 
                 results[carbon] = {
-                    'Linear': linear_val,
+                    'Paraffin': linear_val,
                     'Isomers': isomers_val
                 }
 
@@ -349,7 +349,7 @@ class ChromeleonOffline:
                             btx_values[carbon_key] = area_value
                             break
 
-            total_linear = sum(results[carbon]['Linear'] for carbon in carbon_ranges)
+            total_linear = sum(results[carbon]['Paraffin'] for carbon in carbon_ranges)
             total_isomers = sum(results[carbon]['Isomers'] for carbon in carbon_ranges)
             total_btx = sum(btx_values.values())
 
@@ -367,14 +367,14 @@ class ChromeleonOffline:
             data_list = []
 
             for carbon in carbon_ranges:
-                linear = results[carbon]['Linear']
+                linear = results[carbon]['Paraffin']
                 isomers = results[carbon]['Isomers']
                 btx = btx_values.get(carbon, 0)
                 total = linear + isomers + btx
 
                 data_list.append({
                     'Carbon': carbon,
-                    'Linear': linear,
+                    'Paraffin': linear,
                     'Isomers': isomers,
                     'BTX': btx,
                     'Total': total
@@ -387,11 +387,11 @@ class ChromeleonOffline:
 
         df_Moyenne = pd.DataFrame({
             'Carbon': carbon_ranges,
-            'Linear': [(results_R1[carbon]['Linear'] + results_R2[carbon]['Linear']) / 2 for carbon in carbon_ranges],
+            'Paraffin': [(results_R1[carbon]['Paraffin'] + results_R2[carbon]['Paraffin']) / 2 for carbon in carbon_ranges],
             'Isomers': [(results_R1[carbon]['Isomers'] + results_R2[carbon]['Isomers']) / 2 for carbon in carbon_ranges],
             'BTX': [(btx_values_R1.get(carbon, 0) + btx_values_R2.get(carbon, 0)) / 2 for carbon in carbon_ranges],
-            'Total': [((results_R1[carbon]['Linear'] + results_R1[carbon]['Isomers'] + btx_values_R1.get(carbon, 0)) +
-                      (results_R2[carbon]['Linear'] + results_R2[carbon]['Isomers'] + btx_values_R2.get(carbon, 0))) / 2
+            'Total': [((results_R1[carbon]['Paraffin'] + results_R1[carbon]['Isomers'] + btx_values_R1.get(carbon, 0)) +
+                      (results_R2[carbon]['Paraffin'] + results_R2[carbon]['Isomers'] + btx_values_R2.get(carbon, 0))) / 2
                       for carbon in carbon_ranges]
         })
 
@@ -406,7 +406,7 @@ class ChromeleonOffline:
         def add_totals(df, autres_val, total_linear, total_isomers, total_btx):
             totals = pd.DataFrame({
                 'Carbon': ['Autres', 'Total'],
-                'Linear': [0, total_linear],
+                'Paraffin': [0, total_linear],
                 'Isomers': [0, total_isomers],
                 'BTX': [0, total_btx],
                 'Total': [autres_val, 100]
@@ -549,7 +549,7 @@ class ChromeleonOffline:
         table_data.append(["Bilan matière", "", "", "", ""])
         table_data.append(["", "wt% R1/R2", "", "Rendement (massique)", ""])
         table_data.append(["Masse recette 1 (kg)", fmt2(data.get("Masse recette 1 (kg)", 0)), wt_r1, "Liquide (%)", fmt2(rend.get("Liquide (%)", 0))])
-        table_data.append(["Masse recette 2 (kg)", fmt2(data.get("Masse recette 2 (kg)", 0)), wt_r2, "Gaz (%)", fmt2(rend.get("Gaz (%)", 0))])
+        table_data.append(["Masse recette 2 (kg)", fmt2(data.get("Masse recette 2 (kg)", 0)), wt_r2, "Gas (%)", fmt2(rend.get("Gas (%)", 0))])
         table_data.append(["Masse cendrier (kg)", fmt2(data.get("Masse cendrier (kg)", 0)), "", "Residue (%)", fmt2(rend.get("Residue (%)", 0))])
         table_data.append(["Masse injectée (kg)", fmt2(data.get("Masse injectée (kg)", 0)), "", "", ""])
 
@@ -628,13 +628,13 @@ class ChromeleonOffline:
 
         m_liquide = masse_recette_1 + masse_recette_2
         m_residu = masse_cendrier
-        m_gaz = masse_injectee - (m_liquide + m_residu)
+        m_gas = masse_injectee - (m_liquide + m_residu)
 
-        if m_gaz < 0:
-            m_gaz = 0.0
+        if m_gas < 0:
+            m_gas = 0.0
 
         p_liquide = round(100.0 * m_liquide / masse_injectee, 2)
-        p_gaz = round(100.0 * m_gaz / masse_injectee, 2)
+        p_gas = round(100.0 * m_gas / masse_injectee, 2)
         p_residu = round(100.0 * m_residu / masse_injectee, 2)
 
         wt_r1 = round(masse_recette_1 / m_liquide, 2) if m_liquide > 0 else 0.0
@@ -648,7 +648,7 @@ class ChromeleonOffline:
             "Masse injectée (kg)": masse_injectee,
             "Rendement (massique)": {
                 "Liquide (%)": p_liquide,
-                "Gaz (%)": p_gaz,
+                "Gas (%)": p_gas,
                 "Residue (%)": p_residu,
             },
         }
@@ -700,7 +700,7 @@ class ChromeleonOffline:
                 ws.cell(row=start_row, column=anchor_col,
                         value=title).font = title_font
 
-                headers = ["Carbon", "Linear", "Isomers", "BTX", "Total"]
+                headers = ["Carbon", "Paraffin", "Isomers", "BTX", "Total"]
                 for i, h in enumerate(headers):
                     rr, cc = start_row + 1, anchor_col + i
                     ws.cell(row=rr, column=cc, value=h).font = header_font
@@ -721,7 +721,7 @@ class ChromeleonOffline:
                         carbon_cell.font = header_font
                     
                     # Cellules de valeurs
-                    for j, key in enumerate(["Linear", "Isomers", "BTX", "Total"], start=1):
+                    for j, key in enumerate(["Paraffin", "Isomers", "BTX", "Total"], start=1):
                         val = float(row[key]) if pd.notna(row[key]) else None
                         c = ws.cell(row=r, column=anchor_col + j, value=val)
                         c.number_format = "0.00"

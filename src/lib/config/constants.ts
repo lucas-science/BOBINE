@@ -27,7 +27,6 @@ export const BOBINE_DATA_FOLDER = "Bobine_data" as const;
 
 export const API_ENDPOINTS = {
   GET_DOCUMENTS_DIR: "get_documents_dir",
-  CONTEXT_IS_CORRECT: "context_is_correct",
   GET_CONTEXT_MASSES: "get_context_masses",
   GET_CONTEXT_B64: "get_context_b64",
   GET_GRAPHS_AVAILABLE: "get_graphs_available",
