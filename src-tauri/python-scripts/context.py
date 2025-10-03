@@ -9,6 +9,7 @@ import pandas as pd
 from openpyxl import Workbook, load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.utils import get_column_letter
+from utils.text_utils import normalize_text, parse_date_value
 
 
 class ExcelContextData:
@@ -57,17 +58,14 @@ class ExcelContextData:
         
         return target_labels
 
-    def is_valid(self) -> bool:
-        return not any(v is None for v in self.get_masses().values())
-    
     def validate(self) -> dict:
         """
         Valide les données du contexte avec des messages d'erreur spécifiques.
-        
+
         Returns:
             dict: {
                 "valid": bool,
-                "error_type": str,  # "missing_experience_data" | "missing_masses" | "invalid_format" | None
+                "error_type": str,  # "missing_filename_info" | "missing_experience_data" | "missing_masses" | "invalid_format" | None
                 "error_message": str
             }
         """
@@ -75,31 +73,52 @@ class ExcelContextData:
             # Test 1: Vérifier les masses
             masses = self.get_masses()
             missing_masses = [k for k, v in masses.items() if v is None]
-            
+
             if missing_masses:
                 return {
                     "valid": False,
                     "error_type": "missing_masses",
                     "error_message": f"Les masses requises sont incomplètes dans le fichier context. Champs manquants: {', '.join(missing_masses)}. Vérifiez que tous les champs de masse sont renseignés."
                 }
-            
-            # Test 2: Vérifier les informations d'expérience
+
+            # Test 2: Vérifier les informations pour le nom de fichier
+            filename_info = self.get_filename_info()
+            missing_filename_fields = []
+
+            # Vérifier que les champs critiques ne sont pas aux valeurs par défaut
+            if filename_info.get("date") == datetime.now().strftime('%d%m%Y'):
+                missing_filename_fields.append("date")
+            if filename_info.get("feedstock") == "Unknown":
+                missing_filename_fields.append("feedstock")
+            if filename_info.get("debit") == "0kgh":
+                missing_filename_fields.append("débit plastique")
+            if filename_info.get("nb_inducteurs") == "0" or not filename_info.get("temperatures") or filename_info.get("temperatures") == "0":
+                missing_filename_fields.append("températures inducteurs")
+
+            if missing_filename_fields:
+                return {
+                    "valid": False,
+                    "error_type": "missing_filename_info",
+                    "error_message": f"Les informations pour le nom de fichier sont incomplètes dans le fichier context. Champs manquants ou invalides: {', '.join(missing_filename_fields)}. Vérifiez que les champs date, feedstock, débit plastique et températures des inducteurs sont bien renseignés."
+                }
+
+            # Test 3: Vérifier les informations d'expérience
             target_labels = {
                 "date": None,
-                "heure début": None, 
+                "heure début": None,
                 "heure fin": None
             }
-            
+
             data = list(self.sheet.values)
             df = pd.DataFrame(data)
-            
+
             # Parcourir toutes les cellules pour trouver les labels
             for i in range(df.shape[0]):
                 for j in range(df.shape[1]):
                     val = df.iat[i, j]
                     if isinstance(val, str):
                         val_clean = val.lower().strip()
-                        
+
                         # Rechercher chaque label cible
                         for key in target_labels.keys():
                             if key in val_clean and target_labels[key] is None:
@@ -109,46 +128,177 @@ class ExcelContextData:
                                     if next_val is not None and str(next_val).strip():
                                         target_labels[key] = str(next_val).strip()
                                         break
-            
+
             missing_experience_data = [k for k, v in target_labels.items() if v is None]
-            
+
             if missing_experience_data:
                 return {
                     "valid": False,
                     "error_type": "missing_experience_data",
                     "error_message": f"Les informations d'expérience sont manquantes dans le fichier context. Champs manquants: {', '.join(missing_experience_data)}. Vérifiez que les champs date, heure début et heure fin sont bien renseignés."
                 }
-            
+
             # Si tout est valide
             return {
                 "valid": True,
                 "error_type": None,
                 "error_message": ""
             }
-            
+
         except Exception as e:
-            # Test 3: Format invalide (erreur de lecture Excel, etc.)
+            # Test 4: Format invalide (erreur de lecture Excel, etc.)
             return {
                 "valid": False,
                 "error_type": "invalid_format",
                 "error_message": f"Le format du fichier context n'est pas valide: {str(e)}. Vérifiez qu'il s'agit bien d'un fichier Excel correctement structuré."
             }
 
+    def get_filename_info(self) -> dict:
+        """
+        Extraction robuste des infos nécessaires pour nommer le fichier :
+        Format retourné:
+          {
+            "date": "DDMMYYYY",
+            "feedstock": "LDPE" | "Unknown",
+            "debit": "0.73kgh",  # conserve les décimales
+            "nb_inducteurs": "3",
+            "temperatures": "450450450"
+          }
+        """
+        # Utiliser directement self.sheet qui pointe vers la bonne feuille
+        sheet_to_use = self.sheet
+
+        data = list(sheet_to_use.values)
+        df = pd.DataFrame(data)
+        nrows, ncols = df.shape
+
+        target_info = {
+            "date": None,
+            "feedstock": None,
+            "debit": None,
+            "nb_inducteurs": None,
+            "temperatures": []
+        }
+
+        # Scanner les cellules pour trouver les labels et lire la cellule à droite
+        for r in range(nrows):
+            for c in range(ncols):
+                val = df.iat[r, c]
+                if val is None:
+                    continue
+
+                norm = normalize_text(val)
+
+                # --- DATE ---
+                if target_info["date"] is None and 'date' in norm:
+                    if c + 1 < ncols:
+                        candidate = df.iat[r, c + 1]
+                        parsed = parse_date_value(candidate)
+                        if parsed:
+                            target_info["date"] = parsed
+
+                # --- FEEDSTOCK ---
+                if target_info["feedstock"] is None and ('feedstock' in norm or 'matiere' in norm):
+                    if c + 1 < ncols:
+                        candidate = df.iat[r, c + 1]
+                        if candidate is not None and str(candidate).strip():
+                            target_info["feedstock"] = str(candidate).strip().upper()
+
+                # --- DEBIT PLASTIQUE (kg/h) ---
+                if target_info["debit"] is None and ('debit' in norm and 'plast' in norm):
+                    if c + 1 < ncols:
+                        candidate = df.iat[r, c + 1]
+                        if candidate is not None:
+                            s = str(candidate)
+                            m = re.search(r'(\d+[,.]?\d*)', s)
+                            if m:
+                                num = m.group(1).replace(',', '.')
+                                target_info["debit"] = f"{num}kgh"
+
+                # --- NOMBRE D'INDUCTEURS ---
+                if target_info["nb_inducteurs"] is None and ('nombre' in norm and 'inducteur' in norm):
+                    if c + 1 < ncols:
+                        candidate = df.iat[r, c + 1]
+                        if candidate is not None:
+                            try:
+                                num = int(float(str(candidate).replace(',', '.')))
+                                target_info["nb_inducteurs"] = str(num)
+                            except:
+                                pass
+
+        # TEMPERATURES : lire directement B28, C28, D28 (ligne 28, colonnes 2, 3, 4)
+        # Ligne 28 = index 27 (0-based), colonnes B=1, C=2, D=3
+        if nrows > 27:
+            for col_idx in [1, 2, 3]:  # B, C, D
+                if col_idx < ncols:
+                    cell = df.iat[27, col_idx]
+                    if cell is not None:
+                        try:
+                            val_float = float(str(cell).replace(',', '.'))
+                            val_int = int(round(val_float))
+                            target_info["temperatures"].append(val_int)
+                        except:
+                            pass
+
+        # si nb_inducteurs pas trouvé explicitement, on prend la longueur des températures trouvées
+        if target_info["nb_inducteurs"] is None:
+            target_info["nb_inducteurs"] = str(len(target_info["temperatures"]))
+
+        # si date manquante -> fallback sur date du jour
+        if target_info["date"] is None:
+            target_info["date"] = datetime.now().strftime('%d%m%Y')
+
+        # fallback feedstock / debit
+        if target_info["feedstock"] is None:
+            target_info["feedstock"] = "Unknown"
+
+        if target_info["debit"] is None:
+            target_info["debit"] = "0kgh"
+
+        temps_concat = "".join(str(int(t)) for t in target_info["temperatures"]) if target_info["temperatures"] else "0"
+
+        result = {
+            "date": target_info["date"],
+            "feedstock": target_info["feedstock"],
+            "debit": target_info["debit"],
+            "nb_inducteurs": target_info["nb_inducteurs"],
+            "temperatures": temps_concat
+        }
+
+        return result
+
     def get_experience_name(self) -> str:
         """
-        Extrait les informations d'expérience (date, heures) du fichier Excel
-        pour générer un nom de fichier approprié.
-        
+        Génère le nom de fichier au format V2.
+        Format: V2_{date}_{feedstock}_{debit}_{nb_inducteurs}IH_{temperatures}
+
+        Returns:
+            str: Nom formaté pour fichier (ex: "V2_11092025_LDPE_0.73kgh_3IH_450450450")
+                 ou fallback vers date du jour si informations manquantes
+        """
+        try:
+            info = self.get_filename_info()
+            return f"V2_{info['date']}_{info['feedstock']}_{info['debit']}_{info['nb_inducteurs']}IH_{info['temperatures']}"
+        except Exception as e:
+            # Fallback en cas d'erreur
+            today = datetime.now().strftime("%d%m%Y")
+            return f"V2_{today}_rapport"
+
+    def get_experience_name_legacy(self) -> str:
+        """
+        Version legacy de get_experience_name (pour compatibilité si besoin).
+        Extrait les informations d'expérience (date, heures) du fichier Excel.
+
         Returns:
             str: Nom formaté pour fichier (ex: "Rapport_experience_24-juin-25_08h15-16h15")
                  ou fallback vers date du jour si informations manquantes
         """
         target_labels = {
             "date": None,
-            "heure début": None, 
+            "heure début": None,
             "heure fin": None
         }
-        
+
         data = list(self.sheet.values)
         df = pd.DataFrame(data)
         

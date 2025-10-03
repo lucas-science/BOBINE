@@ -2,6 +2,7 @@
 import React from "react";
 import FileUploadZone from "./FileUploadZone";
 import { FILE_ZONE } from "@/src/lib/utils/uploadFile.utils";
+import { UPLOAD_SUBZONE_DISPLAY_NAMES } from "@/src/lib/config/constants";
 
 export interface FileUploadCardProps {
   title: string;
@@ -17,6 +18,11 @@ export default function FileUploadCard({ title, zoneKey, onFilesChange }: FileUp
 
   React.useEffect(() => { onFilesChange(zoneKey, filesByZone); }, [filesByZone, zoneKey, onFilesChange]);
 
+  const getSubZoneLabel = (zoneName: string) => {
+    return UPLOAD_SUBZONE_DISPLAY_NAMES[zoneName as keyof typeof UPLOAD_SUBZONE_DISPLAY_NAMES]
+      || `${zoneName.charAt(0).toUpperCase() + zoneName.slice(1)} files`;
+  };
+
   return (
     <div className="bg-white p-4 h-fit rounded-lg shadow-md border border-gray-200">
       <div className="mb-4 flex justify-between items-center">
@@ -27,7 +33,7 @@ export default function FileUploadCard({ title, zoneKey, onFilesChange }: FileUp
         {zonesConfig.map((zoneItem, index) => (
           <FileUploadZone
             key={index}
-            description={`${zoneItem.zone.charAt(0).toUpperCase() + zoneItem.zone.slice(1)} files`}
+            description={getSubZoneLabel(zoneItem.zone)}
             selectedFiles={filesByZone[index] || []}
             maxFiles={zoneItem.max_files}
             onFileSelect={(files: File[]) =>

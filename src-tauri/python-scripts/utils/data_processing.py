@@ -167,7 +167,7 @@ def create_summary_table2(table1: pd.DataFrame, compound_mapping: dict, carbon_r
         table1: DataFrame table1 (moyennes par composé)
         compound_mapping: Dictionnaire de mapping {compound: (carbon, family)}
         carbon_rows: Liste des lignes carbone (ex: ["C1", "C2", ...])
-        families: Liste des familles (ex: ["Linear", "Olefin", "BTX gas"])
+        families: Liste des familles (ex: ["Paraffin", "Olefin", "BTX gas"])
         
     Returns:
         DataFrame table2 indexé par Carbon avec colonnes par famille

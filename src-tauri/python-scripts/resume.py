@@ -102,7 +102,7 @@ class Resume:
         # Reset index to make Carbon a column instead of index
         gas_phase_df = gas_phase_df.reset_index()
         
-        gas_phase_df["% linear"] = gas_phase_df["Linear"] * gas_percent / 100
+        gas_phase_df["% linear"] = gas_phase_df["Paraffin"] * gas_percent / 100
         gas_phase_df["% iso+olefin"] = gas_phase_df["Olefin"] * gas_percent / 100  
         gas_phase_df["% BTX"] = gas_phase_df["BTX gas"] * gas_percent / 100
         gas_phase_df["% total"] = gas_phase_df["Total"] * gas_percent / 100
@@ -122,7 +122,7 @@ class Resume:
         liquid_phase_df = self.offline_relative_area_by_carbon.copy()
 
         liquid_phase_df = liquid_phase_df.rename(columns={
-            'Linear': 'iCn',
+            'Paraffin': 'iCn',
             'Isomers': 'nCn'
         })
         
@@ -465,7 +465,7 @@ class Resume:
         cL1 = summary_table_start_col + 0  # labels gauche
         cV1 = summary_table_start_col + 1  # valeurs gauche
 
-        r1 = summary_table_start_row + 1   # %gaz
+        r1 = summary_table_start_row + 1   # %gas
         r2 = summary_table_start_row + 2   # %liq
         r3 = summary_table_start_row + 3   # % cracking residue
 
@@ -499,7 +499,7 @@ class Resume:
         c_end: int,
         title: str,
     ):
-        """Histogramme empilé (stacked) Linear | Olefin | BTX, plage C{c_start}..C{c_end}."""
+        """Histogramme empilé (stacked) Paraffin | Olefin | BTX, plage C{c_start}..C{c_end}."""
         if total_phase_df.empty:
             return
 
@@ -576,7 +576,7 @@ class Resume:
                 data.append(["Summary", "", "", "", "", ""])  # titre
 
                 # ligne 1
-                data.append(["%gaz", n(mp.get("Gas (%)")),
+                data.append(["%gas", n(mp.get("Gas (%)")),
                             "Light olefin", get("Light olefin"),
                             "Ethylene", get("Ethylene")])
 
@@ -657,7 +657,7 @@ class Resume:
                 for row_idx in range(1, 7):  # 6 data rows (skip header)
                     current_row = start_row + row_idx
                     
-                    # Group 1: Columns 1-2 (%gaz, %liq, % cracking residue) - borders for first 3 rows only
+                    # Group 1: Columns 1-2 (%gas, %liq, % cracking residue) - borders for first 3 rows only
                     if row_idx <= 3:
                         worksheet.cell(row=current_row, column=start_col).border = thin_border
                         worksheet.cell(row=current_row, column=start_col + 1).border = thin_border
@@ -691,7 +691,7 @@ class Resume:
                             right=right_border
                         )
                 # Affichage "65 %" mais valeur numérique 65.0 (utilisable en chart)
-                for rr in range(start_row + 1, start_row + 4):  # %gaz / %liq / % cracking residue
+                for rr in range(start_row + 1, start_row + 4):  # %gas / %liq / % cracking residue
                     ws.cell(row=rr, column=start_col + 1).number_format = '0" %"'  # ou '0.00" %"' si tu veux 2 décimales
 
                 # Valeurs numériques au centre (Light olefin ... HVC)

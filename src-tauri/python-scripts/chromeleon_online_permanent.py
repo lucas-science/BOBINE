@@ -282,7 +282,7 @@ class ChromeleonOnlinePermanent:
         chart_config = create_chart_configuration(metrics_wanted or [])
         asked_names = {(m.get("name") or "").strip() for m in (metrics_wanted or [])}
         chart_config['want_line'] = any(name in asked_names for name in [
-            "Suivi des concentrations au cours de l'essai", "%mass gaz en fonction du temps"
+            "Suivi des concentrations au cours de l'essai", "%mass gas en fonction du temps"
         ])
         
         rel_df = self.get_relative_area_by_injection()

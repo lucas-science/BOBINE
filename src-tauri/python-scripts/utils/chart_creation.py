@@ -54,11 +54,11 @@ def create_chart_configuration(metrics_wanted: list[dict]) -> dict:
     
     # Détecter les graphiques demandés
     line_chart_names = [
-        "%mass gaz en fonction du temps",
+        "%mass gas en fonction du temps",
         "Suivi des concentrations au cours de l'essai"
     ]
     bar_chart_names = [
-        "products repartition gaz phase",
+        "products repartition gas phase",
         "Products repartition Gas phase"
     ]
     
