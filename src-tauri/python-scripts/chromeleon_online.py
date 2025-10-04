@@ -33,13 +33,13 @@ class ChromeleonOnline:
             validation = validate_data_availability(rel)
 
             graphs.append({
-                'name': '%mass gas en fonction du temps',
+                'name': 'Hydrocarbons mass fractions in Gas',
                 'available': validation['has_enough_timepoints'] and validation['has_numeric_data'],
                 'chimicalElements': validation['chemical_elements']
             })
         except Exception:
             graphs.append({
-                'name': '%mass gas en fonction du temps',
+                'name': 'Hydrocarbons mass fractions in Gas',
                 'available': False,
             })
 
@@ -50,12 +50,12 @@ class ChromeleonOnline:
             has_nonzero = (table2[fam_cols].to_numpy().sum() > 0) if fam_cols else False
 
             graphs.append({
-                'name': 'products repartition gas phase',
+                'name': 'Products repartition in Gas',
                 'available': bool(has_nonzero)
             })
         except Exception:
             graphs.append({
-                'name': 'products repartition gas phase',
+                'name': 'Products repartition in Gas',
                 'available': False
             })
 
@@ -393,7 +393,7 @@ class ChromeleonOnline:
                 layout_config = self._calculate_optimal_chart_layout(num_elements, "line")
 
                 line_chart = LineChart()
-                line_chart.title = "%mass gas en fonction du temps"
+                line_chart.title = "Hydrocarbons mass fractions in Gas"
 
                 self._apply_ultra_safe_chart_styling(line_chart, "line")
 
@@ -487,7 +487,7 @@ class ChromeleonOnline:
             bar_layout_config = self._calculate_optimal_chart_layout(num_families, "bar")
 
             bar_chart = BarChart()
-            bar_chart.title = "products repartition gas phase"
+            bar_chart.title = "Products repartition in Gas"
 
             self._apply_ultra_safe_chart_styling(bar_chart, "bar")
 

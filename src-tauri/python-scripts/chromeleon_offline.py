@@ -120,7 +120,7 @@ class ChromeleonOffline:
 
     def get_graphs_available(self) -> list[dict]:
         graphs = [{
-            'name': "Résultats d'intégration de R1 et R2 avec bilan matière",
+            'name': "Résultats d'intégration R1/R2 avec bilan matière",
             'available': False,
         }]
         try:
