@@ -4,7 +4,8 @@ export type PyResp = {
 };
 
 type Metric = {
-  name: string;
+  name: string;        // Internal ID (for API communication)
+  displayName?: string; // Display name (for UI, optional for backward compatibility)
   available: boolean;
 };
 
