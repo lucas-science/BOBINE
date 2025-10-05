@@ -367,7 +367,7 @@ class ChromeleonOnline:
             apply_standard_column_widths(ws, "carbon_family")
         
         hvc_col = 12
-        create_title_cell(ws, table1_row, hvc_col, "Composition moyenne principaux HVC (%)", styles)
+        create_title_cell(ws, table1_row, hvc_col, "COMPOSITION MOYENNE PRINCIPAUX HVC (%)", styles)
         
         hvc_headers = ["Molécule", "Moyenne (%)"]
         format_table_headers(ws, hvc_headers, table1_row + 1, hvc_col, styles=styles)

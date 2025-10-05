@@ -125,7 +125,7 @@ def format_table_headers(ws: Worksheet, headers: list[str], start_row: int, star
             formatted_header = f"Rel. Area (%)\n{element_name}"
         # Ajouter l'unité (hh:mm) pour Injection Time
         elif header == 'Injection Time':
-            formatted_header = f"Injection Time\n(hh:mm:ss)"
+            formatted_header = f"Injection Time\n(hh:mm)"
         else:
             formatted_header = header
 
