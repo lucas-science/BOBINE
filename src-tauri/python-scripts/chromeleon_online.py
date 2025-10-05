@@ -142,12 +142,34 @@ class ChromeleonOnline:
     def make_summary_tables(self):
         rel_df = self.get_relative_area_by_injection()
         data_by_elements = self._get_data_by_elements()
-        
+
         table1 = create_summary_table1(rel_df, data_by_elements)
-        
         table1 = process_table1_with_grouping(table1)
-        
         table2 = create_summary_table2(table1, COMPOUND_MAPPING, CARBON_ROWS, FAMILIES)
+
+        # Recalculer "Autres" = 100 - somme(C1 à C8)
+        c1_c8_carbons = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8']
+
+        if all(c in table2.index for c in c1_c8_carbons):
+            # Somme des totaux identifiés (C1→C8)
+            total_identified = table2.loc[c1_c8_carbons, 'Total'].sum()
+            autres_total = 100.0 - total_identified
+
+            # Mettre à jour la ligne "Autres"
+            if 'Autres' in table2.index:
+                table2.loc['Autres', 'Total'] = autres_total
+                # Familles à 0 car composés non identifiés
+                for family in FAMILIES:
+                    table2.loc['Autres', family] = 0.0
+
+            # Recalculer le Total global comme somme réelle
+            if 'Total' in table2.index:
+                # Total pour chaque famille = somme de toutes les lignes (C1→C8 + Autres)
+                for family in FAMILIES:
+                    table2.loc['Total', family] = table2.loc[c1_c8_carbons + ['Autres'], family].sum()
+
+                # Total global = somme de toutes les familles dans la ligne Total
+                table2.loc['Total', 'Total'] = table2.loc['Total', FAMILIES].sum()
 
         return table1, table2
 
@@ -225,8 +247,11 @@ class ChromeleonOnline:
     def _apply_ultra_safe_chart_styling(self, chart, chart_type: str = "line"):
         chart.style = 2
 
-        chart.y_axis.title = "Rel. Area (%)" if chart_type == "line" else "Pourcentage (%)"
-        chart.x_axis.title = "Injection Time" if chart_type == "line" else "Carbone"
+        # Axe Y : toujours "mass %"
+        chart.y_axis.title = "mass %"
+
+        # Axe X : "Injection Time" pour line chart, vide pour bar chart
+        chart.x_axis.title = "Injection Time" if chart_type == "line" else ""
 
         try:
             chart.x_axis.delete = False
@@ -342,22 +367,24 @@ class ChromeleonOnline:
             apply_standard_column_widths(ws, "carbon_family")
         
         hvc_col = 12
-        create_title_cell(ws, table1_row, hvc_col, "composition moyenne principaux HVC (%)", styles)
+        create_title_cell(ws, table1_row, hvc_col, "Composition moyenne principaux HVC (%)", styles)
         
         hvc_headers = ["Molécule", "Moyenne (%)"]
         format_table_headers(ws, hvc_headers, table1_row + 1, hvc_col, styles=styles)
-        
+
         hvc_data = []
-        for display_name, carbon, family in HVC_CATEGORIES:
+        for display_name, carbons, family in HVC_CATEGORIES:
+            val = 0.0
             try:
-                if carbon in table2.index and family in table2.columns:
-                    val = float(table2.loc[carbon, family])
-                else:
-                    val = 0.0
+                # Support multi-carbones (liste) ou single carbone (string legacy)
+                carbon_list = carbons if isinstance(carbons, list) else [carbons]
+                for carbon in carbon_list:
+                    if carbon in table2.index and family in table2.columns:
+                        val += float(table2.loc[carbon, family])
             except:
                 val = 0.0
             hvc_data.append({"Molécule": display_name, "Moyenne (%)": val})
-        
+
         hvc_df = pd.DataFrame(hvc_data)
         format_data_table(ws, hvc_df, table1_row + 2, hvc_col, styles=styles)
         apply_standard_column_widths(ws, "hvc")
@@ -374,7 +401,7 @@ class ChromeleonOnline:
         chart_positions = calculate_chart_positions(graphs_to_create, first_chart_row)
 
         if len(graphs_to_create) == 2:
-            separation_offset = 22  # Plus d'espace entre les graphiques
+            separation_offset = 12  # Espace réduit entre les graphiques
         else:
             separation_offset = 8
 
@@ -519,16 +546,20 @@ class ChromeleonOnline:
             bar_chart.grouping = "clustered"
 
             if not table2.empty:
-                filtered_table2 = table2.loc[table2.index.intersection(CARBON_ROWS)]
+                # Filtrer pour ne garder que C1 à C7 (sans C8 ni Autres)
+                chart_carbons = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7']
+                filtered_table2 = table2.loc[table2.index.intersection(chart_carbons)]
 
                 if not filtered_table2.empty:
-                    family_cols = [f for f in FAMILIES if f in table2.columns]
+                    # Utiliser seulement Paraffin, Olefin, BTX (pas Autres ni Total)
+                    family_cols = [f for f in ['Paraffin', 'Olefin', 'BTX'] if f in table2.columns]
 
                     if family_cols:
                         family_col_indices = []
                         for family in family_cols:
                             family_idx = list(table2.columns).index(family)
-                            excel_col = table2_col + 1 + family_idx + 1
+                            # table2_col = colonne "Carbon", +1 pour sauter Carbon, +family_idx pour la famille
+                            excel_col = table2_col + 1 + family_idx
                             family_col_indices.append(excel_col)
 
                         if family_col_indices:
