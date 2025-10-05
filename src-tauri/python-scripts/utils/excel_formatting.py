@@ -126,6 +126,12 @@ def format_table_headers(ws: Worksheet, headers: list[str], start_row: int, star
         # Ajouter l'unité (hh:mm) pour Injection Time
         elif header == 'Injection Time':
             formatted_header = f"Injection Time\n(hh:mm)"
+        # Ajouter l'unité (min) pour RetentionTime
+        elif header == 'RetentionTime' or header == 'Retention Time':
+            formatted_header = "Retention Time\n(min)"
+        # Ajouter l'unité (%) pour Relative Area
+        elif header == 'Relative Area':
+            formatted_header = "Relative Area\n(%)"
         else:
             formatted_header = header
 

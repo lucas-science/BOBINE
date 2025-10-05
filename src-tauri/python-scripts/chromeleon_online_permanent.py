@@ -300,29 +300,13 @@ class ChromeleonOnlinePermanent:
         format_table_headers(ws, headers1, table1_row + 1, styles=styles)
         format_data_table(ws, table1, table1_row + 2, special_row_identifier="Total:", styles=styles)
         apply_standard_column_widths(ws, "summary")
-        
-        table2_col = 6
-        table2_row = table1_row
-        if not table2.empty:
-            create_title_cell(ws, table2_row, table2_col, "Regroupement par carbone / famille", styles)
-            headers2 = ["Carbon"] + list(table2.columns)
-            format_table_headers(ws, headers2, table2_row + 1, table2_col, styles=styles)
-            r = table2_row + 2
-            for _, row in table2.reset_index().iterrows():
-                is_total_row = str(row["Carbon"]).lower() == "total"
-                for j, colname in enumerate(["Carbon"] + list(table2.columns)):
-                    val = row[colname] if colname in row else 0
-                    cell = ws.cell(row=r, column=table2_col + j, value=val)
-                    cell.border = styles['border']
-                    if isinstance(val, (int, float)) and colname != "Carbon":
-                        cell.number_format = "0.00"
-                    if is_total_row:
-                        cell.fill = styles['gray_fill']
-                r += 1
-            apply_standard_column_widths(ws, "carbon_family")
-        
-        chart_col = "P"
-        first_chart_row = table1_row
+
+        # Adapter la colonne du graphique selon la largeur du tableau rel_df
+        from openpyxl.utils import get_column_letter
+        num_cols_rel_df = len(rel_df.columns)
+        chart_col_index = num_cols_rel_df + 3  # Décalage de 3 colonnes après le tableau
+        chart_col = get_column_letter(chart_col_index)
+        first_chart_row = 1
 
         if chart_config['want_line']:
             line_position = f"{chart_col}{first_chart_row}"
