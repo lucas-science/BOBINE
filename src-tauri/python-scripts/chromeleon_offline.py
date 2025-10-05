@@ -401,15 +401,16 @@ class ChromeleonOffline:
 
         autres_R1 = 100 - total_identified_R1
         autres_R2 = 100 - total_identified_R2
-        autres_Moyenne = 100 - total_identified_Moyenne
+        autres_Moyenne = (autres_R1 + autres_R2) / 2
 
         def add_totals(df, autres_val, total_linear, total_isomers, total_btx):
+            total_sum = total_linear + total_isomers + total_btx
             totals = pd.DataFrame({
                 'Carbon': ['Autres', 'Total'],
                 'Paraffin': [0, total_linear],
                 'Isomers': [0, total_isomers],
                 'BTX': [0, total_btx],
-                'Total': [autres_val, 100]
+                'Total': [autres_val, total_sum]
             })
             return pd.concat([df, totals], ignore_index=True)
 
@@ -533,25 +534,19 @@ class ChromeleonOffline:
                     value="Bilan matière").font = Font(bold=True, size=12)
             return start_row, start_col + 4
 
-        def fmt2(x):
-            try:
-                return f"{float(x):.2f}".replace(".", ",")
-            except Exception:
-                return ""
-
         wt_vals = data.get("wt% R1/R2", [0, 0])
-        wt_r1 = fmt2(wt_vals[0]) if len(wt_vals) > 0 else ""
-        wt_r2 = fmt2(wt_vals[1]) if len(wt_vals) > 1 else ""
-        
+        wt_r1 = wt_vals[0] if len(wt_vals) > 0 else 0.0
+        wt_r2 = wt_vals[1] if len(wt_vals) > 1 else 0.0
+
         rend = data.get("Rendement (massique)", {})
-        
+
         table_data = []
-        table_data.append(["Bilan matière", "", "", "", ""])
-        table_data.append(["", "wt% R1/R2", "", "Rendement (massique)", ""])
-        table_data.append(["Masse recette 1 (kg)", fmt2(data.get("Masse recette 1 (kg)", 0)), wt_r1, "Liquide (%)", fmt2(rend.get("Liquide (%)", 0))])
-        table_data.append(["Masse recette 2 (kg)", fmt2(data.get("Masse recette 2 (kg)", 0)), wt_r2, "Gas (%)", fmt2(rend.get("Gas (%)", 0))])
-        table_data.append(["Masse cendrier (kg)", fmt2(data.get("Masse cendrier (kg)", 0)), "", "Residue (%)", fmt2(rend.get("Residue (%)", 0))])
-        table_data.append(["Masse injectée (kg)", fmt2(data.get("Masse injectée (kg)", 0)), "", "", ""])
+        table_data.append(["Bilan matière", None, None, None, None])
+        table_data.append([None, "wt% R1/R2", None, "Rendement (massique)", None])
+        table_data.append(["Masse recette 1 (kg)", data.get("Masse recette 1 (kg)", 0.0), wt_r1, "Liquide (%)", rend.get("Liquide (%)", 0.0)])
+        table_data.append(["Masse recette 2 (kg)", data.get("Masse recette 2 (kg)", 0.0), wt_r2, "Gas (%)", rend.get("Gas (%)", 0.0)])
+        table_data.append(["Masse cendrier (kg)", data.get("Masse cendrier (kg)", 0.0), None, "Residue (%)", rend.get("Residue (%)", 0.0)])
+        table_data.append(["Masse injectée (kg)", data.get("Masse injectée (kg)", 0.0), None, None, None])
 
         for row_idx, row_data in enumerate(table_data):
             for col_idx, value in enumerate(row_data):
@@ -559,9 +554,9 @@ class ChromeleonOffline:
 
         end_row = start_row + len(table_data) - 1
         end_col = start_col + 4  # 5 colonnes (0-4)
-        
+
         self._apply_bilan_matiere_formatting(ws, start_row, start_col, end_row, end_col)
-        
+
         return end_row, end_col
 
     def _apply_bilan_matiere_formatting(self, worksheet, start_row, start_col, end_row, end_col):
@@ -584,19 +579,38 @@ class ChromeleonOffline:
         worksheet.cell(row=header_r, column=cWt1, value="wt% R1/R2")
         worksheet.merge_cells(start_row=header_r, start_column=cWt1,
                             end_row=header_r, end_column=cWt2)
-        worksheet.cell(row=header_r, column=cWt1).alignment = Alignment(horizontal="center", vertical="center")
+        worksheet.cell(row=header_r, column=cWt1).alignment = Alignment(horizontal="right", vertical="center")
 
         worksheet.cell(row=header_r, column=cRL, value="Rendement (massique)")
         worksheet.merge_cells(start_row=header_r, start_column=cRL,
                             end_row=header_r, end_column=cRV)
         worksheet.cell(row=header_r, column=cRL).alignment = Alignment(horizontal="center", vertical="center")
 
+        # Appliquer les formats numériques et alignements
         for r in range(start_row + 2, end_row + 1):
+            # Colonne labels (gauche)
             worksheet.cell(row=r, column=start_col).alignment = Alignment(horizontal="left", vertical="center")
-            worksheet.cell(row=r, column=start_col + 1).alignment = Alignment(horizontal="right", vertical="center")
-            worksheet.cell(row=r, column=cWt2).alignment = Alignment(horizontal="right", vertical="center")
+
+            # Colonne masses (kg) - format 4 décimales
+            mass_cell = worksheet.cell(row=r, column=start_col + 1)
+            mass_cell.alignment = Alignment(horizontal="right", vertical="center")
+            if mass_cell.value is not None and isinstance(mass_cell.value, (int, float)):
+                mass_cell.number_format = "0.0000"
+
+            # Colonne wt% R1/R2 - format 2 décimales
+            wt_cell = worksheet.cell(row=r, column=cWt2)
+            wt_cell.alignment = Alignment(horizontal="right", vertical="center")
+            if wt_cell.value is not None and isinstance(wt_cell.value, (int, float)):
+                wt_cell.number_format = "0.00"
+
+            # Colonne Rendement label (gauche)
             worksheet.cell(row=r, column=cRL).alignment = Alignment(horizontal="left", vertical="center")
-            worksheet.cell(row=r, column=cRV).alignment = Alignment(horizontal="right", vertical="center")
+
+            # Colonne Rendement % - format 2 décimales
+            rend_cell = worksheet.cell(row=r, column=cRV)
+            rend_cell.alignment = Alignment(horizontal="right", vertical="center")
+            if rend_cell.value is not None and isinstance(rend_cell.value, (int, float)):
+                rend_cell.number_format = "0.00"
 
         for rr in range(start_row + 2, start_row + 6):
             if start_row <= rr <= end_row:
@@ -633,12 +647,12 @@ class ChromeleonOffline:
         if m_gas < 0:
             m_gas = 0.0
 
-        p_liquide = round(100.0 * m_liquide / masse_injectee, 2)
-        p_gas = round(100.0 * m_gas / masse_injectee, 2)
-        p_residu = round(100.0 * m_residu / masse_injectee, 2)
+        p_liquide = 100.0 * m_liquide / masse_injectee
+        p_gas = 100.0 * m_gas / masse_injectee
+        p_residu = 100.0 * m_residu / masse_injectee
 
-        wt_r1 = round(masse_recette_1 / m_liquide, 2) if m_liquide > 0 else 0.0
-        wt_r2 = round(masse_recette_2 / m_liquide, 2) if m_liquide > 0 else 0.0
+        wt_r1 = masse_recette_1 / m_liquide if m_liquide > 0 else 0.0
+        wt_r2 = masse_recette_2 / m_liquide if m_liquide > 0 else 0.0
 
         return {
             "wt% R1/R2": [wt_r1, wt_r2],
