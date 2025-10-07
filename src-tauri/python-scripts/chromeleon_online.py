@@ -145,6 +145,34 @@ class ChromeleonOnline:
 
         table1 = create_summary_table1(rel_df, data_by_elements)
         table1 = process_table1_with_grouping(table1)
+
+        # Ajouter la ligne "Non reporté" avant Total:
+        if not table1.empty and 'Total:' in table1['Peakname'].values:
+            # Séparer les lignes de données et la ligne Total
+            data_rows = table1[table1['Peakname'] != 'Total:'].copy()
+
+            # Calculer la somme des Relative Area des lignes de données
+            sum_reported = data_rows['Relative Area'].sum()
+
+            # Créer la ligne "Non reporté"
+            non_reporte_value = 100.0 - sum_reported
+            non_reporte_row = pd.DataFrame({
+                'Peakname': ['Non reporté'],
+                'RetentionTime': [''],
+                'Relative Area': [non_reporte_value]
+            })
+
+            # Créer la ligne Total avec valeur mise à jour (incluant Non reporté)
+            # Total = sum_reported + non_reporte_value = 100.0
+            total_row = pd.DataFrame({
+                'Peakname': ['Total:'],
+                'RetentionTime': [''],
+                'Relative Area': [100.0]
+            })
+
+            # Reconstruire table1 : données + Non reporté + Total
+            table1 = pd.concat([data_rows, non_reporte_row, total_row], ignore_index=True)
+
         table2 = create_summary_table2(table1, COMPOUND_MAPPING, CARBON_ROWS, FAMILIES)
 
         # Recalculer "Autres" = 100 - somme(C1 à C8)
@@ -168,8 +196,9 @@ class ChromeleonOnline:
                 for family in FAMILIES:
                     table2.loc['Total', family] = table2.loc[c1_c8_carbons + ['Autres'], family].sum()
 
-                # Total global = somme de toutes les familles dans la ligne Total
-                table2.loc['Total', 'Total'] = table2.loc['Total', FAMILIES].sum()
+                # Total global = somme de tous les carbones (C1→C8 + Autres) dans la colonne Total
+                # NOTE: On ne peut PAS sommer les familles car Autres a des familles = 0 mais Total != 0
+                table2.loc['Total', 'Total'] = table2.loc[c1_c8_carbons + ['Autres'], 'Total'].sum()
 
         return table1, table2
 
@@ -523,14 +552,14 @@ class ChromeleonOnline:
 
             try:
                 from openpyxl.chart.layout import Layout, ManualLayout
-                # Ajuster la zone du graphique pour laisser de l'espace aux titres
+                # Ajuster la zone du graphique pour laisser de l'espace aux titres et légende en bas
                 bar_chart.layout = Layout(
                     manualLayout=ManualLayout(
                         xMode="edge", yMode="edge",
                         x=0.1,   # Marge gauche pour titre Y (ordonnées)
                         y=0.1,   # Marge haute pour titre principal
-                        w=0.75,  # Largeur réduite pour espace légende à droite
-                        h=0.7    # Hauteur réduite pour espace titre X (abscisses) en bas
+                        w=0.85,  # Largeur élargie (pas de légende à droite)
+                        h=0.78   # Hauteur augmentée pour réduire espace avec légende
                     )
                 )
             except:
@@ -539,11 +568,12 @@ class ChromeleonOnline:
             if num_families <= 1:
                 bar_chart.legend = None
             else:
-                bar_chart.legend.position = 'r'
+                bar_chart.legend.position = 'b'  # Légende en bas
                 bar_chart.legend.overlay = False
 
             bar_chart.type = "col"
-            bar_chart.grouping = "clustered"
+            bar_chart.grouping = "stacked"
+            bar_chart.overlap = 100
 
             if not table2.empty:
                 # Filtrer pour ne garder que C1 à C7 (sans C8 ni Autres)

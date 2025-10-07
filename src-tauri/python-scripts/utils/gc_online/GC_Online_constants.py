@@ -20,7 +20,7 @@ COMPOUND_MAPPING = {
     'n-Pentane':           ('C5', 'Paraffin'),
     '1,3-Butadiene':       ('C4', 'Olefin'),
     'trans-2-Pentene':     ('C5', 'Olefin'),
-    '2-methyl-2-Butene':   ('C5', 'Olefin'),
+    '2-methyl-2-Butene':   ('C4', 'Olefin'),
     '1-Pentene':           ('C5', 'Olefin'),
     'cis-2-Pentene':       ('C5', 'Olefin'),
     'Other C5':            ('C5', 'Olefin'),

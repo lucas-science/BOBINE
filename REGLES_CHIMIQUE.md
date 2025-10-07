@@ -35,12 +35,44 @@ n-Butane         → C4, Paraffin
 1,3-Butadiene    → C4, Olefin
 n-Pentane        → C5, Paraffin
 iso-Pentane      → C5, Olefin
+2-methyl-2-Butene → C5, Olefin
 n-Hexane         → C6, Paraffin
 Benzene          → C6, BTX
 Toluene          → C7, BTX
 ```
 
-### 3. Calculs par Carbone et Famille
+### 3. Tableau "Gas phase Integration Results test average"
+
+Ce tableau liste tous les composés détectés avec leurs moyennes.
+
+**Structure:**
+- Peakname: Nom du composé ou groupe (ex: "Methane", "Other C5")
+- RetentionTime: Temps de rétention moyen (min)
+- Relative Area: Aire relative moyenne (%)
+
+**Ligne "Non reporté":**
+Une ligne spéciale est ajoutée avant le Total pour comptabiliser les composés non identifiés:
+
+```python
+sum_reported = Somme(Relative Area de tous les composés identifiés)
+Non reporté = 100 - sum_reported
+Total = 100.0  (inclut tous les composés identifiés + Non reporté)
+```
+
+**Structure finale du tableau:**
+```
+Methane          | 1.234 | 15.50
+Ethylene         | 2.456 | 8.30
+...
+Other C5         | 5.678 | 2.10
+Non reporté      |       | 5.20   ← Composés non identifiés
+Total:           |       | 100.00 ← sum_reported + Non reporté = 100%
+```
+
+**Note importante:**
+Le Total inclut maintenant la ligne "Non reporté", garantissant que la somme totale = 100%.
+
+### 4. Calculs par Carbone et Famille
 
 Pour chaque carbone Cn (C1 à C8) :
 
@@ -51,7 +83,7 @@ BTX(Cn)      = Somme des Rel. Area de tous les BTX de Cn
 Total(Cn)    = Paraffin(Cn) + Olefin(Cn) + BTX(Cn)
 ```
 
-### 4. Calcul "Autres"
+### 5. Calcul "Autres"
 
 **Règle : Autres = 100 - Somme(Total C1 à C8)**
 
@@ -68,9 +100,9 @@ Autres_Olefin   = 0.0
 Autres_BTX      = 0.0
 ```
 
-### 5. Calcul Total Global
+### 6. Calcul Total Global
 
-**Règle : Le Total global est la somme réelle de toutes les familles**
+**Règle : Le Total global est la somme de TOUS les carbones (C1-C8 + Autres) dans la colonne Total**
 
 ```python
 # Pour chaque famille
@@ -78,11 +110,19 @@ Total_Paraffin = Σ Paraffin(Ci) pour i ∈ [1, 8] + Autres_Paraffin
 Total_Olefin   = Σ Olefin(Ci) pour i ∈ [1, 8] + Autres_Olefin
 Total_BTX      = Σ BTX(Ci) pour i ∈ [1, 8] + Autres_BTX
 
-# Total global
-Total_Global = Total_Paraffin + Total_Olefin + Total_BTX
+# Total global = somme de tous les carbones (inclut Autres.Total)
+# IMPORTANT: On ne peut PAS faire Total_Paraffin + Total_Olefin + Total_BTX
+# car Autres a des familles = 0 mais Autres.Total != 0
+Total_Global = Σ Total(Ci) pour i ∈ [1, 8] + Autres_Total
+             = 100.0  (toujours égal à 100%)
 ```
 
-### 6. HVC (High Value Chemicals)
+**Note importante :**
+- `Autres_Paraffin = 0`, `Autres_Olefin = 0`, `Autres_BTX = 0` (composés non identifiés par famille)
+- Mais `Autres_Total = 100 - Σ Total(Ci)` peut être non-nul (ex: 15%)
+- Donc le Total global DOIT inclure `Autres_Total` pour arriver à 100%
+
+### 7. HVC (High Value Chemicals)
 
 **Définition : Composés à haute valeur ajoutée**
 
@@ -95,6 +135,25 @@ BTX        = BTX(C6) + BTX(C7)  # Benzene + Toluene seulement
 
 **Note :** BTX dans HVC = C6 + C7 uniquement (pas C8/Xylene)
 
+### 8. Graphiques
+
+#### Hydrocarbons mass fractions in Gas (Line Chart)
+- Type: Graphique linéaire temporel
+- Données: %Rel Area par injection pour chaque élément chimique sélectionné
+- Axe X: Injection Time
+- Axe Y: mass %
+- Légende: En bas (bottom)
+
+#### Products repartition in Gas (Bar Chart)
+- Type: Graphique en barres empilées (stacked)
+- Données: Paraffin, Olefin, BTX par carbone (C1-C7)
+- Mode: Stacked (empilé) avec overlap = 100
+- Axe X: Carbone (C1, C2, ..., C7)
+- Axe Y: mass %
+- Légende: En bas (bottom)
+
+**Note :** C8 et Autres sont exclus du graphique pour une meilleure lisibilité.
+
 ---
 
 ## chromeleon_offline.py - GC-Offline (Phase Liquide R1/R2)
@@ -103,7 +162,7 @@ BTX        = BTX(C6) + BTX(C7)  # Benzene + Toluene seulement
 
 Les composés sont classés en 3 familles principales :
 - **Paraffin** (n-Cn : alcanes linéaires)
-- **Isomers** (Cn isomers : alcanes ramifiés)
+- **Olefin** (Cn isomers : alcanes ramifiés)
 - **BTX** (Benzene, Toluene, Xylene)
 
 ### 2. Plage de Carbones
@@ -120,7 +179,7 @@ Patterns acceptés :
 - "C6 linear", "C7 linear", ...
 ```
 
-#### Isomers (ramifiés)
+#### Olefin (ramifiés)
 ```
 Patterns acceptés :
 - "C6 isomers", "C7 isomers", ...
@@ -142,19 +201,19 @@ Pour chaque carbone Cn (C6 à C32) :
 ```
 # Données R1
 Paraffin_R1(Cn) = Rel. Area du composé n-Cn dans R1
-Isomers_R1(Cn)  = Rel. Area du composé Cn isomers dans R1
+Olefin_R1(Cn)   = Rel. Area du composé Cn isomers dans R1
 BTX_R1(Cn)      = Rel. Area du BTX correspondant dans R1
-Total_R1(Cn)    = Paraffin_R1(Cn) + Isomers_R1(Cn) + BTX_R1(Cn)
+Total_R1(Cn)    = Paraffin_R1(Cn) + Olefin_R1(Cn) + BTX_R1(Cn)
 
 # Données R2 (idem)
 Paraffin_R2(Cn) = ...
-Isomers_R2(Cn)  = ...
+Olefin_R2(Cn)   = ...
 BTX_R2(Cn)      = ...
 Total_R2(Cn)    = ...
 
 # Moyenne
 Paraffin_Moyenne(Cn) = (Paraffin_R1(Cn) + Paraffin_R2(Cn)) / 2
-Isomers_Moyenne(Cn)  = (Isomers_R1(Cn) + Isomers_R2(Cn)) / 2
+Olefin_Moyenne(Cn)   = (Olefin_R1(Cn) + Olefin_R2(Cn)) / 2
 BTX_Moyenne(Cn)      = (BTX_R1(Cn) + BTX_R2(Cn)) / 2
 Total_Moyenne(Cn)    = (Total_R1(Cn) + Total_R2(Cn)) / 2
 ```
@@ -181,12 +240,20 @@ autres_Moyenne = (autres_R1 + autres_R2) / 2
 ```python
 # Pour R1
 Total_Paraffin_R1 = Σ Paraffin_R1(Ci) pour i ∈ [6, 32]
-Total_Isomers_R1  = Σ Isomers_R1(Ci) pour i ∈ [6, 32]
+Total_Olefin_R1   = Σ Olefin_R1(Ci) pour i ∈ [6, 32]
 Total_BTX_R1      = BTX_R1(C6) + BTX_R1(C7) + BTX_R1(C8)
-Total_Global_R1   = Total_Paraffin_R1 + Total_Isomers_R1 + Total_BTX_R1
+Total_Global_R1   = Total_Paraffin_R1 + Total_Olefin_R1 + Total_BTX_R1 + autres_R1
+                  = 100.0  (toujours égal à 100%)
 
 # Idem pour R2 et Moyenne
+Total_Global_R2      = Total_Paraffin_R2 + Total_Olefin_R2 + Total_BTX_R2 + autres_R2 = 100.0
+Total_Global_Moyenne = Total_Paraffin_Moyenne + Total_Olefin_Moyenne + Total_BTX_Moyenne + autres_Moyenne = 100.0
 ```
+
+**Note importante :**
+- Les composés non identifiés (`autres_R1`, `autres_R2`) représentent `100 - Σ Total(C6-C32)`
+- Ces composés DOIVENT être inclus dans le Total global pour atteindre 100%
+- `Autres.Paraffin = 0`, `Autres.Olefin = 0`, `Autres.BTX = 0` mais `Autres.Total != 0`
 
 ### 7. Bilan Matière (Masse)
 
@@ -265,26 +332,29 @@ gas_phase_df["% BTX"]         = BTX_GC_Online × (Gas % / 100)
 gas_phase_df["% total"]       = Total_GC_Online × (Gas % / 100)
 
 # Phase Liquide
-liquid_phase_df["% iCn"]   = Paraffin_GC_Offline × (Liquide % / 100)
-liquid_phase_df["% nCn"]   = Isomers_GC_Offline × (Liquide % / 100)
-liquid_phase_df["% BTX"]   = BTX_GC_Offline × (Liquide % / 100)
-liquid_phase_df["% Total"] = Total_GC_Offline × (Liquide % / 100)
+liquid_phase_df["% Paraffin"] = Paraffin_GC_Offline × (Liquide % / 100)
+liquid_phase_df["% Olefin"]   = Olefin_GC_Offline × (Liquide % / 100)
+liquid_phase_df["% BTX"]      = BTX_GC_Offline × (Liquide % / 100)
+liquid_phase_df["% Total"]    = Total_GC_Offline × (Liquide % / 100)
 ```
 
 **Note :**
-- `iCn` (GC-Offline Paraffin) = linéaires en phase liquide
-- `nCn` (GC-Offline Isomers) = ramifiés en phase liquide
+- Les noms de familles sont cohérents entre gas et liquid : Paraffin, Olefin, BTX
+- Phase gaz : Paraffin (C1-C8), iso+Olefin (C2-C8)
+- Phase liquide : Paraffin (linéaires C6-C32), Olefin (ramifiés C6-C32)
 
 ### 3. Phase Totale (Gas + Liquid)
 
 Pour chaque carbone Cn :
 
 ```python
-% Paraffin(Cn) = % Paraffin_Gas(Cn) + % iCn_Liquid(Cn)
-% Olefin(Cn)   = % iso+Olefin_Gas(Cn) + % nCn_Liquid(Cn)
+% Paraffin(Cn) = % Paraffin_Gas(Cn) + % Paraffin_Liquid(Cn)
+% Olefin(Cn)   = % iso+Olefin_Gas(Cn) + % Olefin_Liquid(Cn)
 % BTX(Cn)      = % BTX_Gas(Cn) + % BTX_Liquid(Cn)
 % Total(Cn)    = % Paraffin(Cn) + % Olefin(Cn) + % BTX(Cn)
 ```
+
+**Note :** Les noms de colonnes sont cohérents (Paraffin, Olefin, BTX) dans toutes les phases.
 
 ### 4. Light Olefins (Oléfines Légères)
 
@@ -356,12 +426,12 @@ Other_HC_Gas = Σ % Paraffin_Gas(Ci) pour i ∈ [1, 8]
 **Définition : Tous les hydrocarbures liquides (C6 à C32)**
 
 ```python
-Other_HC_Liquid = Σ (% iCn_Liquid(Ci) + % nCn_Liquid(Ci)) pour i ∈ [6, 32]
+Other_HC_Liquid = Σ (% Paraffin_Liquid(Ci) + % Olefin_Liquid(Ci)) pour i ∈ [6, 32]
                 + % Total_Liquid(Autres)
 ```
 
 **Explication :**
-- Tous les composés linéaires (iCn) et ramifiés (nCn) de C6 à C32
+- Tous les composés linéaires (Paraffin) et ramifiés (Olefin) de C6 à C32
 - Les composés non identifiés (Autres) en phase liquide
 
 ### 9. Residue
@@ -408,6 +478,48 @@ wt% R2 = masse_recette_2 / m_liquide
 Liquide (%) + Gas (%) + Residue (%) = 100%
 wt% R1 + wt% R2 = 1.0
 ```
+
+### 12. Graphiques
+
+#### Global Repartition (PieChart)
+- Type: Graphique en camembert (PieChart)
+- Données: Other Hydrocarbons gas, Other Hydrocarbons liquid, Residue, HVC
+- Dimensions: 12 × 7.5
+- Légende: À droite (right), sans chevauchement (overlay = False)
+- Étiquettes: Avec leader lines (lignes de repère) pour les petites valeurs sortant du disque
+
+#### HVC Repartition (PieChart)
+- Type: Graphique en camembert (PieChart)
+- Données: Ethylene, Propylene, C4=, Benzene, Toluene, Xylene
+- Dimensions: 12 × 7.5
+- Étiquettes: Avec leader lines pour éviter que les petites valeurs passent sous le titre
+- Layout: x=0.1, y=0.18 (espace augmenté sous le titre), w=0.8, h=0.7
+
+#### Phase Repartition (PieChart3D)
+- Type: Graphique en camembert 3D (PieChart3D)
+- Données: %gas, %liq, % cracking residue
+- Dimensions: 12 × 7.5
+- Légende: En bas (bottom)
+- Étiquettes: Avec leader lines pour les petites valeurs
+- Layout: x=0.1, y=0.18 (espace augmenté sous le titre), w=0.8, h=0.65
+
+#### Products repartition (Bar Chart)
+- Type: Graphique en barres empilées (stacked)
+- Données: Paraffin, Olefin, BTX par carbone
+- Mode: Stacked (empilé) avec overlap = 100
+- Dimensions: 12 × 6.5
+- Axe X: Carbone (C1, C2, ..., Cn selon plage)
+- Axe Y: mass %
+- Légende: En bas (bottom) avec espace réduit (h = 0.78)
+- Layout: Largeur 0.85, hauteur 0.78 (espace minimal avec légende)
+- Plages disponibles:
+  - C1 à C23: Vue complète de la répartition des produits
+  - C1 à C8: Vue détaillée de la phase gazeuse
+
+**Espacement des graphiques :**
+- Vertical: 19 lignes (~15 lignes graphique + 4 lignes gap)
+- Horizontal: 3 colonnes (CHART_WIDTH)
+- Disposition: 2 graphiques par ligne maximum
 
 ---
 
@@ -462,8 +574,7 @@ cell.number_format = '0.00'  # Formatage Excel
 | Terme | Définition |
 |-------|------------|
 | **Paraffin** | Alcanes linéaires (n-Cn) : hydrocarbures saturés à chaîne droite |
-| **Isomers** | Alcanes ramifiés : hydrocarbures saturés à chaîne ramifiée |
-| **Olefin** | Alcènes : hydrocarbures insaturés avec double liaison C=C |
+| **Olefin** | - GC-Online : Alcènes (hydrocarbures insaturés avec double liaison C=C)<br>- GC-Offline : Alcanes ramifiés (hydrocarbures saturés à chaîne ramifiée) |
 | **BTX** | Benzene, Toluene, Xylene : composés aromatiques |
 | **HVC** | High Value Chemicals : composés à haute valeur ajoutée (oléfines légères + aromatiques) |
 | **Light Olefins** | Oléfines légères : C2, C3, C4 oléfines uniquement |
@@ -482,9 +593,13 @@ cell.number_format = '0.00'  # Formatage Excel
    - Overlap C6-C8 : présent dans les deux phases
 
 2. **Nomenclature Familles**
-   - GC-Online utilise : Paraffin, Olefin, BTX
-   - GC-Offline utilise : Paraffin (n-Cn), Isomers, BTX
-   - Resume combine les deux avec renommage : iCn (Paraffin liquide), nCn (Isomers liquide)
+   - GC-Online utilise : Paraffin, Olefin (alcènes), BTX
+   - GC-Offline utilise : Paraffin (n-Cn linéaires), Olefin (alcanes ramifiés), BTX
+   - Resume utilise la même nomenclature pour cohérence : Paraffin, Olefin, BTX
+
+   **Note importante :** "Olefin" a deux significations différentes selon le contexte :
+   - Dans GC-Online : Olefin = alcènes (hydrocarbures insaturés avec double liaison C=C)
+   - Dans GC-Offline et Resume : Olefin = alcanes ramifiés (hydrocarbures saturés à chaîne ramifiée)
 
 3. **Calcul Autres**
    - Toujours : `Autres = 100 - Somme(identifiés)`

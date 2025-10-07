@@ -121,13 +121,11 @@ class Resume:
         
         liquid_phase_df = self.offline_relative_area_by_carbon.copy()
 
-        liquid_phase_df = liquid_phase_df.rename(columns={
-            'Paraffin': 'iCn',
-            'Isomers': 'nCn'
-        })
-        
-        liquid_phase_df["% iCn"] = liquid_phase_df["iCn"] * liquide_percent / 100
-        liquid_phase_df["% nCn"] = liquid_phase_df["nCn"] * liquide_percent / 100
+        # Garder les noms de familles cohérents (Paraffin, Olefin, BTX)
+        # Pas de renommage en iCn/nCn
+
+        liquid_phase_df["% Paraffin"] = liquid_phase_df["Paraffin"] * liquide_percent / 100
+        liquid_phase_df["% Olefin"] = liquid_phase_df["Olefin"] * liquide_percent / 100
         liquid_phase_df["% BTX"] = liquid_phase_df["BTX"] * liquide_percent / 100
         liquid_phase_df["% Total"] = liquid_phase_df["Total"] * liquide_percent / 100
         
@@ -160,9 +158,9 @@ class Resume:
             # Get values from liquid phase (if carbon exists in liquid phase)
             liquid_row = liquid_phase_df[liquid_phase_df['Carbon'] == carbon]
             if not liquid_row.empty:
-                # For liquid phase: iCn is linear, nCn is olefin
-                linear_pct += liquid_row['% iCn'].iloc[0] if '% iCn' in liquid_row.columns else 0.0
-                olefin_pct += liquid_row['% nCn'].iloc[0] if '% nCn' in liquid_row.columns else 0.0
+                # For liquid phase: Paraffin (linear), Olefin (branched)
+                linear_pct += liquid_row['% Paraffin'].iloc[0] if '% Paraffin' in liquid_row.columns else 0.0
+                olefin_pct += liquid_row['% Olefin'].iloc[0] if '% Olefin' in liquid_row.columns else 0.0
                 btx_pct += liquid_row['% BTX'].iloc[0] if '% BTX' in liquid_row.columns else 0.0
                 total_pct += liquid_row['% Total'].iloc[0] if '% Total' in liquid_row.columns else 0.0
             
@@ -192,8 +190,8 @@ class Resume:
             # Check liquid phase
             liquid_special = liquid_phase_df[liquid_phase_df['Carbon'] == special_row]
             if not liquid_special.empty:
-                linear_pct += liquid_special['% iCn'].iloc[0] if '% iCn' in liquid_special.columns else 0.0
-                olefin_pct += liquid_special['% nCn'].iloc[0] if '% nCn' in liquid_special.columns else 0.0
+                linear_pct += liquid_special['% Paraffin'].iloc[0] if '% Paraffin' in liquid_special.columns else 0.0
+                olefin_pct += liquid_special['% Olefin'].iloc[0] if '% Olefin' in liquid_special.columns else 0.0
                 btx_pct += liquid_special['% BTX'].iloc[0] if '% BTX' in liquid_special.columns else 0.0
                 total_pct += liquid_special['% Total'].iloc[0] if '% Total' in liquid_special.columns else 0.0
             
@@ -239,9 +237,9 @@ class Resume:
             get_value(gas_phase_df, 'Autres', '% total')
         )
         
-        # Other Hydrocarbons liquid = Somme toute valeur de %iCn et %nCn de C6 à C32 dans table liquide phase + %total de autres dans table liquide phase
+        # Other Hydrocarbons liquid = Somme toute valeur de %Paraffin et %Olefin de C6 à C32 dans table liquide phase + %total de autres dans table liquide phase
         other_hc_liquid = (
-            sum(get_value(liquid_phase_df, f'C{i}', '% iCn') + get_value(liquid_phase_df, f'C{i}', '% nCn') for i in range(6, 33)) +
+            sum(get_value(liquid_phase_df, f'C{i}', '% Paraffin') + get_value(liquid_phase_df, f'C{i}', '% Olefin') for i in range(6, 33)) +
             get_value(liquid_phase_df, 'Autres', '% Total')
         )
         
@@ -411,21 +409,22 @@ class Resume:
         chart.add_data(data, titles_from_data=False)
         chart.set_categories(cats)
 
-        # 1) rendre le camembert bien grand
-        chart.height = 15
-        chart.width = 24
+        # Dimensions réduites pour meilleure lisibilité
+        chart.height = 7.5
+        chart.width = 12
 
-        # 3) ne pas laisser la légende rétrécir le tracé
-        chart.legend.position = "r"   # "t"=top (tu peux garder "r" si tu préfères)
-        chart.legend.overlay = True   # la légende “flotte” et n’enlève pas de place au camembert
+        # Légende à droite sans chevauchement
+        chart.legend.position = "r"
+        chart.legend.overlay = False  # La légende ne chevauche pas le camembert
 
-        # 4) étiquettes propres: Catégorie + valeur (pas de %)
+        # Étiquettes avec leader lines pour les petites valeurs
         chart.dataLabels = DataLabelList()
         chart.dataLabels.showCatName   = True
         chart.dataLabels.showPercent   = False
         chart.dataLabels.showVal       = True
         chart.dataLabels.showSerName   = False
-        chart.dataLabels.showLegendKey = False   # petits carrés près des étiquettes
+        chart.dataLabels.showLegendKey = False
+        chart.dataLabels.showLeaderLines = True  # Lignes de repère pour étiquettes sortantes
         chart.dataLabels.separator     = "; "
 
         ws.add_chart(chart, ws.cell(row=chart_start_row, column=chart_start_col).coordinate)
@@ -454,9 +453,25 @@ class Resume:
         chart.dataLabels.showPercent = False
         chart.dataLabels.showSerName = False
         chart.dataLabels.showLegendKey = False
+        chart.dataLabels.showLeaderLines = True  # Lignes de repère pour étiquettes sortantes
         chart.dataLabels.separator = "; "
-        chart.height = 15
-        chart.width = 24
+        chart.height = 7.5
+        chart.width = 12
+
+        # Layout pour augmenter l'espace entre titre et contenu
+        try:
+            from openpyxl.chart.layout import Layout, ManualLayout
+            chart.layout = Layout(
+                manualLayout=ManualLayout(
+                    xMode="edge", yMode="edge",
+                    x=0.1,   # Marge gauche
+                    y=0.18,  # Marge haute augmentée pour plus d'espace sous le titre
+                    w=0.8,   # Largeur
+                    h=0.7    # Hauteur
+                )
+            )
+        except:
+            pass
 
         ws.add_chart(chart, ws.cell(row=chart_start_row, column=chart_start_col).coordinate)
 
@@ -486,13 +501,29 @@ class Resume:
         chart.dataLabels.showPercent = False
         chart.dataLabels.showSerName = False
         chart.dataLabels.showLegendKey = False
+        chart.dataLabels.showLeaderLines = True  # Lignes de repère pour étiquettes sortantes
         chart.dataLabels.separator = "; "
-        chart.height = 15
-        chart.width = 24
+        chart.height = 7.5
+        chart.width = 12
 
         # Légende en bas
         chart.legend.position = 'b'
         chart.legend.overlay = False
+
+        # Layout pour augmenter l'espace entre titre et contenu
+        try:
+            from openpyxl.chart.layout import Layout, ManualLayout
+            chart.layout = Layout(
+                manualLayout=ManualLayout(
+                    xMode="edge", yMode="edge",
+                    x=0.1,   # Marge gauche
+                    y=0.18,  # Marge haute augmentée pour plus d'espace sous le titre
+                    w=0.8,   # Largeur
+                    h=0.65   # Hauteur réduite pour légende en bas
+                )
+            )
+        except:
+            pass
 
         ws.add_chart(chart, ws.cell(row=chart_start_row, column=chart_start_col).coordinate)
 
@@ -559,11 +590,11 @@ class Resume:
         # Apply same styling as chromeleon_online.py
         self._apply_ultra_safe_chart_styling(chart, "bar")
 
-        # Same dimensions as chromeleon_online.py bar chart
-        chart.width = 24
-        chart.height = 13
+        # Dimensions réduites pour meilleure lisibilité
+        chart.width = 12
+        chart.height = 6.5
 
-        # Same layout as chromeleon_online.py
+        # Layout adjusted for bottom legend with reduced gap
         try:
             from openpyxl.chart.layout import Layout, ManualLayout
             chart.layout = Layout(
@@ -571,18 +602,18 @@ class Resume:
                     xMode="edge", yMode="edge",
                     x=0.1,   # Marge gauche pour titre Y (ordonnées)
                     y=0.1,   # Marge haute pour titre principal
-                    w=0.75,  # Largeur réduite pour espace légende à droite
-                    h=0.7    # Hauteur réduite pour espace titre X (abscisses) en bas
+                    w=0.85,  # Largeur étendue (pas besoin d'espace à droite)
+                    h=0.78   # Hauteur augmentée pour réduire espace avec légende
                 )
             )
         except:
             pass
 
-        # Legend handling - same as chromeleon_online.py
+        # Legend at bottom
         if num_families <= 1:
             chart.legend = None
         else:
-            chart.legend.position = 'r'
+            chart.legend.position = 'b'
             chart.legend.overlay = False
 
         # Type stacked (empilé)
@@ -858,8 +889,8 @@ class Resume:
                 # Identify numeric columns (columns with % or known numeric column names)
                 numeric_columns = []
                 for i, col_name in enumerate(df.columns):
-                    if (('%' in str(col_name)) or 
-                        any(keyword in str(col_name).lower() for keyword in ['linear', 'olefin', 'btx', 'icn', 'ncn', 'total']) and
+                    if (('%' in str(col_name)) or
+                        any(keyword in str(col_name).lower() for keyword in ['paraffin', 'olefin', 'btx', 'total']) and
                         str(col_name).lower() != 'carbon'):  # Exclude 'Carbon' column
                         numeric_columns.append(i)
                 
@@ -926,8 +957,8 @@ class Resume:
                 # Identify numeric columns (same logic as apply_numeric_formatting)
                 numeric_columns = set()
                 for i, col_name in enumerate(df.columns):
-                    if (('%' in str(col_name)) or 
-                        any(keyword in str(col_name).lower() for keyword in ['linear', 'olefin', 'btx', 'icn', 'ncn', 'total']) and
+                    if (('%' in str(col_name)) or
+                        any(keyword in str(col_name).lower() for keyword in ['paraffin', 'olefin', 'btx', 'total']) and
                         str(col_name).lower() != 'carbon'):
                         numeric_columns.add(i)
                 
@@ -1135,8 +1166,8 @@ class Resume:
                 charts_to_create.append(("products_c1_c8", "Products repartition (C1–C8)"))
 
             # Chart layout constants
-            CHART_HEIGHT = 35  # Vertical space per chart row
-            CHART_WIDTH = 8    # Horizontal space per chart (in columns) - reduced from 14 to 8
+            CHART_HEIGHT = 19  # Vertical space per chart row (~15 lignes graphique + 4 lignes gap)
+            CHART_WIDTH = 3    # Horizontal space per chart (réduit de 3 colonnes)
             START_ROW = 14     # First chart row
             START_COL = 20     # First chart column (Column T)
             CHARTS_PER_ROW = 2 # Maximum charts per row

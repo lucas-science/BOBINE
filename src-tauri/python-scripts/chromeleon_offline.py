@@ -283,7 +283,7 @@ class ChromeleonOffline:
 
             for carbon in carbon_ranges:
                 linear_val = 0
-                isomers_val = 0
+                olefin_val = 0
 
                 linear_patterns = [
                     f'^n-{carbon}$',
@@ -291,7 +291,7 @@ class ChromeleonOffline:
                     f'^{carbon}\\s*linear$',
                 ]
 
-                isomers_patterns = [
+                olefin_patterns = [
                     f'^{carbon}\\s*isomers?$',
                     f'^{carbon}\\s*iso$',
                     f'^iso-{carbon}$',
@@ -314,14 +314,14 @@ class ChromeleonOffline:
                             linear_val = area_value
                             break
 
-                    for pattern in isomers_patterns:
+                    for pattern in olefin_patterns:
                         if re.match(pattern, peakname, re.IGNORECASE):
-                            isomers_val = area_value
+                            olefin_val = area_value
                             break
 
                 results[carbon] = {
                     'Paraffin': linear_val,
-                    'Isomers': isomers_val
+                    'Olefin': olefin_val
                 }
 
             btx_values = {'C6': 0, 'C7': 0, 'C8': 0}
@@ -350,15 +350,15 @@ class ChromeleonOffline:
                             break
 
             total_linear = sum(results[carbon]['Paraffin'] for carbon in carbon_ranges)
-            total_isomers = sum(results[carbon]['Isomers'] for carbon in carbon_ranges)
+            total_olefin = sum(results[carbon]['Olefin'] for carbon in carbon_ranges)
             total_btx = sum(btx_values.values())
 
 
-            return results, total_linear, total_isomers, btx_values, total_btx
+            return results, total_linear, total_olefin, btx_values, total_btx
 
-        results_R1, total_linear_R1, total_isomers_R1, btx_values_R1, total_btx_R1 = process_data(
+        results_R1, total_linear_R1, total_olefin_R1, btx_values_R1, total_btx_R1 = process_data(
             R1_data)
-        results_R2, total_linear_R2, total_isomers_R2, btx_values_R2, total_btx_R2 = process_data(
+        results_R2, total_linear_R2, total_olefin_R2, btx_values_R2, total_btx_R2 = process_data(
             R2_data)
 
         carbon_ranges = [f'C{i}' for i in range(6, 33)]
@@ -368,14 +368,14 @@ class ChromeleonOffline:
 
             for carbon in carbon_ranges:
                 linear = results[carbon]['Paraffin']
-                isomers = results[carbon]['Isomers']
+                olefin = results[carbon]['Olefin']
                 btx = btx_values.get(carbon, 0)
-                total = linear + isomers + btx
+                total = linear + olefin + btx
 
                 data_list.append({
                     'Carbon': carbon,
                     'Paraffin': linear,
-                    'Isomers': isomers,
+                    'Olefin': olefin,
                     'BTX': btx,
                     'Total': total
                 })
@@ -388,10 +388,10 @@ class ChromeleonOffline:
         df_Moyenne = pd.DataFrame({
             'Carbon': carbon_ranges,
             'Paraffin': [(results_R1[carbon]['Paraffin'] + results_R2[carbon]['Paraffin']) / 2 for carbon in carbon_ranges],
-            'Isomers': [(results_R1[carbon]['Isomers'] + results_R2[carbon]['Isomers']) / 2 for carbon in carbon_ranges],
+            'Olefin': [(results_R1[carbon]['Olefin'] + results_R2[carbon]['Olefin']) / 2 for carbon in carbon_ranges],
             'BTX': [(btx_values_R1.get(carbon, 0) + btx_values_R2.get(carbon, 0)) / 2 for carbon in carbon_ranges],
-            'Total': [((results_R1[carbon]['Paraffin'] + results_R1[carbon]['Isomers'] + btx_values_R1.get(carbon, 0)) +
-                      (results_R2[carbon]['Paraffin'] + results_R2[carbon]['Isomers'] + btx_values_R2.get(carbon, 0))) / 2
+            'Total': [((results_R1[carbon]['Paraffin'] + results_R1[carbon]['Olefin'] + btx_values_R1.get(carbon, 0)) +
+                      (results_R2[carbon]['Paraffin'] + results_R2[carbon]['Olefin'] + btx_values_R2.get(carbon, 0))) / 2
                       for carbon in carbon_ranges]
         })
 
@@ -403,24 +403,25 @@ class ChromeleonOffline:
         autres_R2 = 100 - total_identified_R2
         autres_Moyenne = (autres_R1 + autres_R2) / 2
 
-        def add_totals(df, autres_val, total_linear, total_isomers, total_btx):
-            total_sum = total_linear + total_isomers + total_btx
+        def add_totals(df, autres_val, total_linear, total_olefin, total_btx):
+            # Total global = somme des familles + composés non identifiés (Autres)
+            total_sum = total_linear + total_olefin + total_btx + autres_val
             totals = pd.DataFrame({
                 'Carbon': ['Autres', 'Total'],
                 'Paraffin': [0, total_linear],
-                'Isomers': [0, total_isomers],
+                'Olefin': [0, total_olefin],
                 'BTX': [0, total_btx],
                 'Total': [autres_val, total_sum]
             })
             return pd.concat([df, totals], ignore_index=True)
 
         df_R1 = add_totals(df_R1, autres_R1, total_linear_R1,
-                           total_isomers_R1, total_btx_R1)
+                           total_olefin_R1, total_btx_R1)
         df_R2 = add_totals(df_R2, autres_R2, total_linear_R2,
-                           total_isomers_R2, total_btx_R2)
+                           total_olefin_R2, total_btx_R2)
         df_Moyenne = add_totals(df_Moyenne, autres_Moyenne,
                                 (total_linear_R1 + total_linear_R2) / 2,
-                                (total_isomers_R1 + total_isomers_R2) / 2,
+                                (total_olefin_R1 + total_olefin_R2) / 2,
                                 (total_btx_R1 + total_btx_R2) / 2)
 
         return {
@@ -714,7 +715,7 @@ class ChromeleonOffline:
                 ws.cell(row=start_row, column=anchor_col,
                         value=title).font = title_font
 
-                headers = ["Carbon", "Paraffin", "Isomers", "BTX", "Total"]
+                headers = ["Carbon", "Paraffin", "Olefin", "BTX", "Total"]
                 for i, h in enumerate(headers):
                     rr, cc = start_row + 1, anchor_col + i
                     ws.cell(row=rr, column=cc, value=h).font = header_font
@@ -726,16 +727,16 @@ class ChromeleonOffline:
                 for _, row in df.iterrows():
                     carbon_value = row["Carbon"]
                     is_total_row = carbon_value in ["Autres", "Total", "Total:"]
-                    
+
                     # Cellule Carbon
                     carbon_cell = ws.cell(row=r, column=anchor_col + 0, value=carbon_value)
                     carbon_cell.border = border
                     if is_total_row:
                         carbon_cell.fill = gray_fill
                         carbon_cell.font = header_font
-                    
+
                     # Cellules de valeurs
-                    for j, key in enumerate(["Paraffin", "Isomers", "BTX", "Total"], start=1):
+                    for j, key in enumerate(["Paraffin", "Olefin", "BTX", "Total"], start=1):
                         val = float(row[key]) if pd.notna(row[key]) else None
                         c = ws.cell(row=r, column=anchor_col + j, value=val)
                         c.number_format = "0.00"
