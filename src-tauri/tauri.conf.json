@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Export_results_V2",
   "version": "0.1.0",
-  "identifier": "com.etic.export_results_v2",
+  "identifier": "com.etic.export-results-v2",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
