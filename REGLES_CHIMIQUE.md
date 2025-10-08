@@ -6,10 +6,104 @@ Ce document recense toutes les formules et règles chimiques utilisées dans le 
 
 ## Table des matières
 
-1. [chromeleon_online.py - GC-Online (Phase Gaz)](#chromeleon_onlinepy---gc-online-phase-gaz)
-2. [chromeleon_offline.py - GC-Offline (Phase Liquide R1/R2)](#chromeleon_offlinepy---gc-offline-phase-liquide-r1r2)
-3. [chromeleon_online_permanent.py - GC-Online Permanent Gas](#chromeleon_online_permanentpy---gc-online-permanent-gas)
-4. [resume.py - Rapport de Synthèse](#resumepy---rapport-de-synthèse)
+1. [Charte Graphique](#charte-graphique)
+2. [chromeleon_online.py - GC-Online (Phase Gaz)](#chromeleon_onlinepy---gc-online-phase-gaz)
+3. [chromeleon_offline.py - GC-Offline (Phase Liquide R1/R2)](#chromeleon_offlinepy---gc-offline-phase-liquide-r1r2)
+4. [chromeleon_online_permanent.py - GC-Online Permanent Gas](#chromeleon_online_permanentpy---gc-online-permanent-gas)
+5. [resume.py - Rapport de Synthèse](#resumepy---rapport-de-synthèse)
+
+---
+
+## Charte Graphique
+
+Cette section définit les styles de polices et de mise en forme utilisés dans tous les rapports Excel générés par BOBINE.
+
+### Tableaux
+
+**Titres de tableaux :**
+- Police : **Futura PT Demi**
+- Taille : **11 pt**
+- Style : **Gras** (bold=True)
+
+**En-têtes de colonnes :**
+- Police : **Futura PT Demi**
+- Taille : **11 pt**
+- Style : **Gras** (bold=True)
+- Remplissage : Gris (#DDDDDD)
+
+**Valeurs de données :**
+- Police : **Futura PT Light**
+- Taille : **11 pt**
+- Style : Normal
+
+### Graphiques (LineChart, BarChart)
+
+**Titre du graphique :**
+- Police : **Futura PT Medium**
+- Taille : **18 pt**
+
+**Titres des axes :**
+- Police : **Futura PT Medium**
+- Taille : **12 pt**
+
+**Valeurs des axes :**
+- Police : **Futura PT Light**
+- Taille : **10 pt**
+
+**Légende :**
+- Police : **Futura PT Light**
+- Taille : **11 pt**
+- Position : **En haut (top)** pour les histogrammes (BarChart)
+- Position : **En bas (bottom)** pour les graphiques linéaires (LineChart)
+
+**Couleurs des familles chimiques (BarChart uniquement) :**
+- **Paraffin** : #D9FFAD (vert clair)
+- **Olefin** : #FFD836 (jaune/orange)
+- **BTX** : #FFFB91 (jaune clair)
+
+### Camemberts (PieChart)
+
+**Titre du camembert :**
+- Police : **Futura PT Medium**
+- Taille : **18 pt**
+
+**Texte des données (data labels) :**
+- Police : **Futura PT Light**
+- Taille : **9 pt**
+
+**Séparation des quartiers :**
+- Trait blanc entre les quartiers (showLeaderLines=True pour les petites valeurs)
+
+**Couleurs (palette jaune + residue) :**
+- Palette jaune (nuances distinctes) : #FFF036, #FFFB91, #FFD836, #F2FFAE, #E6E900, #FFE570
+- **Residue** : #2F292B (gris foncé)
+
+**Mapping par graphique :**
+- **Global Repartition** (4 séries) :
+  1. Other Hydrocarbons gas → #FFF036 (jaune vif)
+  2. Other Hydrocarbons liquid → #FFFB91 (jaune clair)
+  3. Residue → #2F292B (gris foncé)
+  4. HVC → #FFD836 (jaune orangé)
+
+- **HVC Repartition** (6 séries) :
+  1. Ethylene → #FFF036 (jaune vif)
+  2. Propylene → #FFFB91 (jaune clair)
+  3. C4= → #FFD836 (jaune orangé)
+  4. Benzene → #F2FFAE (jaune pâle)
+  5. Toluene → #E6E900 (jaune citron)
+  6. Xylene → #FFE570 (jaune doré)
+
+- **Phase Repartition** (3 séries) :
+  1. %gas → #FFF036
+  2. %liq → #FFFB91
+  3. % cracking residue → #2F292B
+
+### Notes d'implémentation
+
+- Les styles de polices sont centralisés dans le module `utils/chart_styles.py`
+- Les styles de tableaux sont gérés par `utils/excel_formatting.py`
+- Les polices Futura PT doivent être installées sur le système pour un rendu correct
+- En l'absence de Futura PT, Excel utilisera une police de remplacement (Calibri par défaut)
 
 ---
 

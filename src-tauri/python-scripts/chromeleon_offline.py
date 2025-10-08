@@ -8,6 +8,7 @@ from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 from typing import Optional, Dict, Any, Tuple
+from utils.chart_styles import get_table_title_font, get_table_header_font, get_table_data_font
 
 MASSE_INJECTEE="masse injectée (kg)"
 MASSE_RECETTE="masse recette 1 (kg)"
@@ -439,8 +440,9 @@ class ChromeleonOffline:
         start_col: int,
         start_row: int
     ) -> Tuple[int, int]:
-        title_font = Font(bold=True, size=12)
-        header_font = Font(bold=True)
+        title_font = get_table_title_font()  # Futura PT Demi 11 gras
+        header_font = get_table_header_font()  # Futura PT Demi 11 gras
+        data_font = get_table_data_font()  # Futura PT Light 11
         gray_fill = PatternFill("solid", fgColor="DDDDDD")
         center = Alignment(horizontal="center", vertical="center")
         right = Alignment(horizontal="right", vertical="center")
@@ -487,14 +489,16 @@ class ChromeleonOffline:
             no_cell = ws.cell(row=r, column=start_col + 0, value=row["No."])
             no_cell.alignment = right
             no_cell.border = border
+            no_cell.font = data_font  # Futura PT Light 11
             if is_total_row:
                 no_cell.fill = gray_fill
-            
+
             peakname_cell = ws.cell(row=r, column=start_col + 1, value=row["Peakname"])
             peakname_cell.border = border
+            peakname_cell.font = data_font  # Futura PT Light 11
             if is_total_row:
                 peakname_cell.fill = gray_fill
-                
+
             try:
                 rt = float(str(row["Retention Time"]).replace(",", "."))
             except Exception:
@@ -502,9 +506,10 @@ class ChromeleonOffline:
             rt_cell = ws.cell(row=r, column=start_col + 2, value=rt)
             rt_cell.number_format = "0.000"
             rt_cell.border = border
+            rt_cell.font = data_font  # Futura PT Light 11
             if is_total_row:
                 rt_cell.fill = gray_fill
-                
+
             try:
                 ra = float(str(row["Relative Area"]).replace(",", "."))
             except Exception:
@@ -512,6 +517,7 @@ class ChromeleonOffline:
             ra_cell = ws.cell(row=r, column=start_col + 3, value=ra)
             ra_cell.number_format = "0.00"
             ra_cell.border = border
+            ra_cell.font = data_font  # Futura PT Light 11
             if is_total_row:
                 ra_cell.fill = gray_fill
                 
@@ -565,11 +571,12 @@ class ChromeleonOffline:
         thick = Side(style="thick", color="000000")
         yellow_fill = PatternFill("solid", fgColor="FFF2CC")
 
+        # Titre fusionné sur tout le bloc (Futura PT Demi 11 gras)
         worksheet.merge_cells(start_row=start_row, start_column=start_col,
                             end_row=start_row, end_column=end_col)
         t = worksheet.cell(row=start_row, column=start_col, value="Bilan matière")
         t.alignment = Alignment(horizontal="center", vertical="center")
-        t.font = Font(bold=True)
+        t.font = get_table_title_font()
 
         header_r = start_row + 1
         cWt1 = start_col + 1
@@ -705,8 +712,9 @@ class ChromeleonOffline:
             tables = self.get_relative_area_by_carbon_tables()
             
             def write_summary(df, anchor_col, title):
-                title_font = Font(bold=True, size=12)
-                header_font = Font(bold=True)
+                title_font = get_table_title_font()  # Futura PT Demi 11 gras
+                header_font = get_table_header_font()  # Futura PT Demi 11 gras
+                data_font = get_table_data_font()  # Futura PT Light 11
                 gray_fill = PatternFill("solid", fgColor="DDDDDD")
                 center = Alignment(horizontal="center", vertical="center")
                 thin = Side(style="thin", color="999999")
@@ -731,9 +739,9 @@ class ChromeleonOffline:
                     # Cellule Carbon
                     carbon_cell = ws.cell(row=r, column=anchor_col + 0, value=carbon_value)
                     carbon_cell.border = border
+                    carbon_cell.font = data_font if not is_total_row else header_font  # Futura PT Light 11
                     if is_total_row:
                         carbon_cell.fill = gray_fill
-                        carbon_cell.font = header_font
 
                     # Cellules de valeurs
                     for j, key in enumerate(["Paraffin", "Olefin", "BTX", "Total"], start=1):
@@ -741,9 +749,9 @@ class ChromeleonOffline:
                         c = ws.cell(row=r, column=anchor_col + j, value=val)
                         c.number_format = "0.00"
                         c.border = border
+                        c.font = data_font if not is_total_row else header_font  # Futura PT Light 11
                         if is_total_row:
                             c.fill = gray_fill
-                            c.font = header_font
                     r += 1
 
                 widths = [10, 13, 13, 11, 15]

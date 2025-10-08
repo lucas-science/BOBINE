@@ -17,6 +17,7 @@ from utils.column_mapping import standardize_column_name, get_rel_area_columns, 
 from utils.data_processing import create_summary_table1, process_table1_with_grouping, create_summary_table2, sort_data_by_time, create_relative_area_summary, process_injection_times, validate_data_availability
 from utils.chart_creation import create_chart_configuration, calculate_chart_positions
 from utils.file_operations import get_first_excel_file, read_excel_summary, extract_experience_number_simple
+from utils.chart_styles import apply_line_chart_styles, apply_bar_chart_styles
 
 class ChromeleonOnline:
     def __init__(self, dir_root: str):
@@ -533,6 +534,9 @@ class ChromeleonOnline:
 
                 self._apply_safe_mono_series_styling(line_chart, num_elements)
 
+                # Appliquer la charte graphique (Futura PT Medium 18 pour titre, légende en bas)
+                apply_line_chart_styles(line_chart, "Hydrocarbons mass fractions in Gas", legend_position='b')
+
                 ws.add_chart(line_chart, line_position)
         
         if chart_config['want_bar']:
@@ -552,14 +556,14 @@ class ChromeleonOnline:
 
             try:
                 from openpyxl.chart.layout import Layout, ManualLayout
-                # Ajuster la zone du graphique pour laisser de l'espace aux titres et légende en bas
+                # Layout adjusted for top legend with space for title + legend
                 bar_chart.layout = Layout(
                     manualLayout=ManualLayout(
                         xMode="edge", yMode="edge",
                         x=0.1,   # Marge gauche pour titre Y (ordonnées)
-                        y=0.1,   # Marge haute pour titre principal
+                        y=0.18,  # Marge haute augmentée pour titre + légende en haut
                         w=0.85,  # Largeur élargie (pas de légende à droite)
-                        h=0.78   # Hauteur augmentée pour réduire espace avec légende
+                        h=0.72   # Hauteur réduite pour compenser la marge haute
                     )
                 )
             except:
@@ -568,7 +572,7 @@ class ChromeleonOnline:
             if num_families <= 1:
                 bar_chart.legend = None
             else:
-                bar_chart.legend.position = 'b'  # Légende en bas
+                bar_chart.legend.position = 't'  # Légende en haut (sera confirmée par apply_bar_chart_styles)
                 bar_chart.legend.overlay = False
 
             bar_chart.type = "col"
@@ -610,6 +614,9 @@ class ChromeleonOnline:
                                            min_row=table2_row + 2,
                                            max_row=table2_row + 1 + num_carbon_rows)
                             bar_chart.set_categories(cats)
+
+            # Appliquer la charte graphique (Futura PT Medium 18 pour titre, légende en haut pour histogrammes)
+            apply_bar_chart_styles(bar_chart, "Products repartition in Gas", legend_position='t')
 
             ws.add_chart(bar_chart, bar_position)
         

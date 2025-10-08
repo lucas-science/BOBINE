@@ -13,6 +13,10 @@ from typing import Optional, Dict, Any
 from chromeleon_online import ChromeleonOnline
 from chromeleon_offline import ChromeleonOffline
 from context import ExcelContextData
+from utils.chart_styles import (
+    get_table_title_font, get_table_header_font, get_table_data_font,
+    apply_pie_chart_styles, apply_bar_chart_styles
+)
 
 
 
@@ -427,6 +431,9 @@ class Resume:
         chart.dataLabels.showLeaderLines = True  # Lignes de repère pour étiquettes sortantes
         chart.dataLabels.separator     = "; "
 
+        # Appliquer la charte graphique (Futura PT Medium 18 pour titre, Futura PT Light 9 pour texte)
+        apply_pie_chart_styles(chart, "Global Repartition")
+
         ws.add_chart(chart, ws.cell(row=chart_start_row, column=chart_start_col).coordinate)
 
     def _create_hvc_repartition_chart(
@@ -472,6 +479,9 @@ class Resume:
             )
         except:
             pass
+
+        # Appliquer la charte graphique (Futura PT Medium 18 pour titre, Futura PT Light 9 pour texte)
+        apply_pie_chart_styles(chart, "HVC Repartition")
 
         ws.add_chart(chart, ws.cell(row=chart_start_row, column=chart_start_col).coordinate)
 
@@ -524,6 +534,9 @@ class Resume:
             )
         except:
             pass
+
+        # Appliquer la charte graphique (Futura PT Medium 18 pour titre, Futura PT Light 9 pour texte)
+        apply_pie_chart_styles(chart, "Phase Repartition")
 
         ws.add_chart(chart, ws.cell(row=chart_start_row, column=chart_start_col).coordinate)
 
@@ -594,26 +607,26 @@ class Resume:
         chart.width = 12
         chart.height = 6.5
 
-        # Layout adjusted for bottom legend with reduced gap
+        # Layout adjusted for top legend with space for title + legend
         try:
             from openpyxl.chart.layout import Layout, ManualLayout
             chart.layout = Layout(
                 manualLayout=ManualLayout(
                     xMode="edge", yMode="edge",
                     x=0.1,   # Marge gauche pour titre Y (ordonnées)
-                    y=0.1,   # Marge haute pour titre principal
+                    y=0.18,  # Marge haute augmentée pour titre + légende en haut
                     w=0.85,  # Largeur étendue (pas besoin d'espace à droite)
-                    h=0.78   # Hauteur augmentée pour réduire espace avec légende
+                    h=0.72   # Hauteur réduite pour compenser la marge haute
                 )
             )
         except:
             pass
 
-        # Legend at bottom
+        # Legend at top (changed by apply_bar_chart_styles)
         if num_families <= 1:
             chart.legend = None
         else:
-            chart.legend.position = 'b'
+            chart.legend.position = 't'  # Position temporaire, sera confirmée par apply_bar_chart_styles
             chart.legend.overlay = False
 
         # Type stacked (empilé)
@@ -632,6 +645,9 @@ class Resume:
 
         chart.add_data(data_ref, titles_from_data=True)
         chart.set_categories(cat_ref)
+
+        # Appliquer la charte graphique (Futura PT Medium 18 pour titre, légende en haut)
+        apply_bar_chart_styles(chart, title, legend_position='t')
 
         ws.add_chart(chart, ws.cell(row=chart_start_row, column=chart_start_col).coordinate)
 
@@ -731,9 +747,9 @@ class Resume:
             
             # Function to apply formatting to Summary table
             def apply_summary_formatting(worksheet, start_row, start_col, end_row, end_col):
-                # Format title "Summary" - centré et en gras
+                # Format title "Summary" - centré et en gras (Futura PT Demi 11)
                 title_cell = worksheet.cell(row=start_row, column=start_col)
-                title_cell.font = Font(bold=True)
+                title_cell.font = get_table_title_font()
                 title_cell.alignment = Alignment(horizontal="center", vertical="center")
 
                 # Fusionner le titre sur toute la largeur du tableau (6 colonnes)
@@ -806,12 +822,12 @@ class Resume:
                 thick = Side(style="thick", color="000000")
                 yellow_fill = PatternFill("solid", fgColor="FFF2CC")
 
-                # Titre fusionné sur tout le bloc
+                # Titre fusionné sur tout le bloc (Futura PT Demi 11 gras)
                 worksheet.merge_cells(start_row=start_row, start_column=start_col,
                                     end_row=start_row,   end_column=end_col)
                 t = worksheet.cell(row=start_row, column=start_col, value="Mass balance")
                 t.alignment = Alignment(horizontal="center", vertical="center")
-                t.font = Font(bold=True)
+                t.font = get_table_title_font()
 
                 header_r = start_row + 1
                 cR1 = start_col + 1
@@ -1044,11 +1060,11 @@ class Resume:
                 # Calculate number of columns first for title formatting
                 ncols = len(df.columns)
                 
-                # Title (only if not empty) - Bold and centered across table width
+                # Title (only if not empty) - Futura PT Demi 11 gras, centered
                 r = start_row
                 if title:
                     title_cell = ws.cell(row=start_row, column=start_col, value=title)
-                    title_cell.font = Font(bold=True)
+                    title_cell.font = get_table_title_font()
                     title_cell.alignment = Alignment(horizontal="center", vertical="center")
                     
                     # Merge title across table width if table has multiple columns

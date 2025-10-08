@@ -34,6 +34,7 @@ from utils.pignat.pignat_constants import (
     DELTA_PRESSURE_DISPLAY_TITLE,
     DISPLAY_NAME_MAPPING
 )
+from utils.chart_styles import get_table_title_font, get_table_header_font, get_table_data_font, apply_line_chart_styles
 
 
 class PignatData:
@@ -306,10 +307,13 @@ class PignatData:
         metrics_wanted: list,
         sheet_name: str = "Pignat"
     ) -> Workbook:
-        
+
         ws = wb.create_sheet(title=sheet_name)
-        
-        header_font = Font(bold=True)
+
+        # Polices selon charte graphique
+        title_font = get_table_title_font()  # Futura PT Demi 11 gras
+        header_font = get_table_header_font()  # Futura PT Demi 11 gras
+        data_font = get_table_data_font()  # Futura PT Light 11
         thin_border = Border(
             left=Side(style='thin'),
             right=Side(style='thin'),
@@ -372,10 +376,10 @@ class PignatData:
                     df_display = df.copy()
 
                 df_table = df_display.copy()
-                
+
                 title = metric_data['name'].replace('=', '-')
                 title_cell = ws.cell(row=1, column=current_col, value=title)
-                title_cell.font = header_font
+                title_cell.font = title_font  # Futura PT Demi 11 gras
                 
                 for j, col_name in enumerate(df_table.columns):
                     header_cell = ws.cell(row=2, column=current_col + j, value=col_name)
@@ -390,6 +394,7 @@ class PignatData:
                     for col_idx, value in enumerate(row_data):
                         data_cell = ws.cell(row=3 + row_idx, column=current_col + col_idx, value=value)
                         data_cell.border = thin_border
+                        data_cell.font = data_font  # Futura PT Light 11
                 
                 chart = LineChart()
                 chart.title = title
@@ -496,6 +501,10 @@ class PignatData:
                 
                 chart.x_axis.crosses = "min"
                 chart.y_axis.crosses = "min"
+
+                # Appliquer la charte graphique (Futura PT Medium 18 pour titre, légende selon config)
+                legend_pos = 'r' if not is_mono_series else 'b'  # Légende à droite pour multi-séries
+                apply_line_chart_styles(chart, title, legend_position=legend_pos)
 
                 try:
                     if hasattr(chart.y_axis, 'scaling'):

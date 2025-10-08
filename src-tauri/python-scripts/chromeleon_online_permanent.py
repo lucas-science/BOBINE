@@ -16,6 +16,7 @@ from utils.column_mapping import standardize_column_name, get_rel_area_columns, 
 from utils.data_processing import create_summary_table1, create_summary_table2, sort_data_by_time, create_relative_area_summary, process_injection_times, validate_data_availability, calculate_mean_retention_time
 from utils.chart_creation import create_chart_configuration, calculate_chart_positions
 from utils.file_operations import get_first_excel_file, read_excel_summary, extract_experience_number_adaptive
+from utils.chart_styles import apply_line_chart_styles
 
 
 class ChromeleonOnlinePermanent:
@@ -397,6 +398,9 @@ class ChromeleonOnlinePermanent:
                     line_chart.set_categories(cats)
 
                 self._apply_safe_mono_series_styling(line_chart, num_elements)
+
+                # Appliquer la charte graphique (Futura PT Medium 18 pour titre, légende en bas)
+                apply_line_chart_styles(line_chart, "Permanent Gas mass fractions", legend_position='b')
 
                 ws.add_chart(line_chart, line_position)
 

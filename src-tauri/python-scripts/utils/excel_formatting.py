@@ -9,13 +9,18 @@ from openpyxl.worksheet.worksheet import Worksheet
 def get_standard_styles() -> dict:
     """
     Retourne les styles Excel standards utilisés dans les rapports.
-    
+    Utilise la charte graphique Futura PT.
+
     Returns:
         Dictionnaire contenant tous les styles standards
     """
     return {
-        'title_font': Font(bold=True, size=12),
-        'header_font': Font(bold=True),
+        # Titre : Futura PT Demi 11 gras (pour titres de tableaux principaux)
+        'title_font': Font(name="Futura PT", size=11, bold=True),
+        # Header : Futura PT Demi 11 gras (pour en-têtes de colonnes)
+        'header_font': Font(name="Futura PT", size=11, bold=True),
+        # Data : Futura PT Light 11 (pour valeurs - appliqué dans format_data_table si nécessaire)
+        'data_font': Font(name="Futura PT Light", size=11),
         'gray_fill': PatternFill("solid", fgColor="DDDDDD"),
         'center': Alignment(horizontal="center", vertical="center"),
         'center_wrap': Alignment(horizontal="center", vertical="center", wrap_text=True),
@@ -74,17 +79,21 @@ def apply_cell_formatting(cell, value, cell_type: str = "text", is_special_row: 
         cell.alignment = styles['center_wrap']
     elif cell_type == "retention_time":
         cell.number_format = "0.000"
+        cell.font = styles.get('data_font', None)  # Futura PT Light 11 pour les données
         if is_special_row:
             cell.fill = styles['gray_fill']
     elif cell_type == "number":
         cell.number_format = "0.00"
+        cell.font = styles.get('data_font', None)  # Futura PT Light 11 pour les données
         if is_special_row:
             cell.fill = styles['gray_fill']
     elif cell_type == "time":
         cell.alignment = styles['center']
+        cell.font = styles.get('data_font', None)  # Futura PT Light 11 pour les données
         if is_special_row:
             cell.fill = styles['gray_fill']
     else:  # text
+        cell.font = styles.get('data_font', None)  # Futura PT Light 11 pour les données
         if is_special_row:
             cell.fill = styles['gray_fill']
 
