@@ -92,7 +92,7 @@ export const SensorCard: React.FC<SensorCardProps> = ({
         <MetricItem
           key={metricKey}
           metricKey={metricKey}
-          name={pignatMetric.name}
+          name={pignatMetric.displayName || pignatMetric.name}
           available={pignatMetric.available}
           selected={isSelected}
           onToggle={() => onMetricToggle(metricKey, pignatMetric.available)}
@@ -107,7 +107,7 @@ export const SensorCard: React.FC<SensorCardProps> = ({
       <MetricItem
         key={metricKey}
         metricKey={metricKey}
-        name={metric.name}
+        name={metric.displayName || metric.name}
         available={metric.available}
         selected={isSelected}
         onToggle={() => onMetricToggle(metricKey, metric.available)}

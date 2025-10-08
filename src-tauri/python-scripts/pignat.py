@@ -16,6 +16,7 @@ from utils.pignat.pignat_constants import (
     TT301,
     TT302,
     TT303,
+    TT206,
     FT240,
     PI177,
     PT230,
@@ -25,8 +26,15 @@ from utils.pignat.pignat_constants import (
     DEBIMETRIC_RESPONSE_DEPENDING_TIME,
     PRESSURE_PYROLYSEUR_DEPENDING_TIME,
     PRESSURE_POMPE_DEPENDING_TIME,
-    DELTA_PRESSURE_DEPENDING_TIME
+    DELTA_PRESSURE_DEPENDING_TIME,
+    TEMPERATURE_DISPLAY_TITLE,
+    DEBIMETRIC_DISPLAY_TITLE,
+    PRESSURE_PYROLYSEUR_DISPLAY_TITLE,
+    PRESSURE_POMPE_DISPLAY_TITLE,
+    DELTA_PRESSURE_DISPLAY_TITLE,
+    DISPLAY_NAME_MAPPING
 )
+from utils.chart_styles import get_table_title_font, get_table_header_font, get_table_data_font, apply_line_chart_styles
 
 
 class PignatData:
@@ -51,57 +59,47 @@ class PignatData:
 
         encodings_to_try = ['utf-8', 'utf-8-sig', 'latin1', 'cp1252']
         separator = ','
-        
+
         for encoding in encodings_to_try:
             try:
-                print(f"[PIGNAT DEBUG] Trying to read file with encoding: {encoding}", file=sys.stderr)
                 with open(self.first_file, 'r', encoding=encoding) as f:
                     first_line = f.readline()
                     if first_line.count(';') > first_line.count(','):
                         separator = ';'
                     else:
                         separator = ','
-                    
-                    print(f"[PIGNAT DEBUG] Detected separator: '{separator}' with encoding: {encoding}", file=sys.stderr)
                 break
-            except UnicodeDecodeError as e:
-                print(f"[PIGNAT DEBUG] Failed with encoding {encoding}: {e}", file=sys.stderr)
-                if encoding == encodings_to_try[-1]:  # Last encoding failed
+            except UnicodeDecodeError:
+                if encoding == encodings_to_try[-1]:
                     raise UnicodeDecodeError(f"Failed to read file with any encoding: {encodings_to_try}")
                 continue
-        
+
         for encoding in encodings_to_try:
             try:
-                print(f"[PIGNAT DEBUG] Reading CSV with encoding: {encoding} and separator: '{separator}'", file=sys.stderr)
                 self.data_frame = pd.read_csv(self.first_file, sep=separator, encoding=encoding)
-                print(f"[PIGNAT DEBUG] Successfully read CSV: {len(self.data_frame)} rows, {len(self.data_frame.columns)} columns", file=sys.stderr)
                 break
-            except (UnicodeDecodeError, pd.errors.EmptyDataError, pd.errors.ParserError) as e:
-                print(f"[PIGNAT DEBUG] Failed to read CSV with encoding {encoding}: {e}", file=sys.stderr)
-                if encoding == encodings_to_try[-1]:  # Last encoding failed
+            except (UnicodeDecodeError, pd.errors.EmptyDataError, pd.errors.ParserError):
+                if encoding == encodings_to_try[-1]:
                     raise ValueError(f"Failed to read CSV file with any encoding: {encodings_to_try}")
                 continue
-                
+
         self.columns = self.data_frame.columns.tolist()
-        print(f"[PIGNAT DEBUG] Available columns: {self.columns}", file=sys.stderr)
         self.missing_columns = set(DATA_REQUIRED) - set(self.columns)
-        print(f"[PIGNAT DEBUG] Missing required columns: {self.missing_columns}", file=sys.stderr)
 
     def _select_columns(self, columns: list[str]) -> pd.DataFrame:
         missing_columns = [col for col in columns if col not in self.data_frame.columns]
         if missing_columns:
-            print(f"[PIGNAT ERROR] Missing columns: {missing_columns}. Available columns: {list(self.data_frame.columns)}", file=sys.stderr)
             raise ValueError(f"Missing required columns: {missing_columns}")
-        
+
         return self.data_frame[columns]
 
     def _filter_by_time_range(self, df: pd.DataFrame, start_time=None, end_time=None) -> pd.DataFrame:
         if start_time is None and end_time is None:
             return df
-        
+
         if TIME not in df.columns:
             return df
-            
+
         sample_timestamp = df[TIME].iloc[0] if len(df) > 0 else None
 
         if sample_timestamp and ':' in str(sample_timestamp) and len(str(sample_timestamp).split()) == 1:
@@ -126,7 +124,7 @@ class PignatData:
                 mask &= (df[TIME] >= start_time)
             if end_time is not None:
                 mask &= (df[TIME] <= end_time)
-        
+
         filtered_df = df[mask]
         return filtered_df
 
@@ -137,11 +135,13 @@ class PignatData:
     def get_available_graphs(self) -> list[dict]:
         graphs = []
         for graph in GRAPHS:
-            if all(col in self.columns for col in graph['columns']):
-                graph['available'] = True
-            else:
-                graph['available'] = False
-            graphs.append(graph)
+            graph_dict = {
+                'name': graph['name'],  # Internal ID (ASCII, no accents)
+                'displayName': DISPLAY_NAME_MAPPING.get(graph['name'], graph['name']),  # Beautiful name for UI
+                'available': all(col in self.columns for col in graph['columns']),
+                'columns': graph['columns']
+            }
+            graphs.append(graph_dict)
         return graphs
 
     def get_time_range(self) -> dict:
@@ -206,7 +206,7 @@ class PignatData:
 
 
     def _get_temperature_over_time(self, start_time=None, end_time=None) -> pd.DataFrame:
-        cols = [TIME, TT301, TT302, TT303]
+        cols = [TIME, TT301, TT302, TT303, TT206]
         df = self._select_columns(cols).copy()
         return self._filter_by_time_range(df, start_time, end_time)
 
@@ -235,82 +235,70 @@ class PignatData:
 
 
     def get_json_metrics(self, metric: str, start_time=None, end_time=None):
-        print(f"[PIGNAT DEBUG] Getting JSON metrics for: '{metric}'", file=sys.stderr)
-
         try:
-            if metric == TEMPERATURE_DEPENDING_TIME or metric == 'Température par rapport au temps':
-                print(f"[PIGNAT DEBUG] ✅ Processing TEMPERATURE metric", file=sys.stderr)
-                required_cols = [TIME, TT301, TT302, TT303]
+            if metric == TEMPERATURE_DEPENDING_TIME:
+                required_cols = [TIME, TT301, TT302, TT303, TT206]
                 missing_cols = [col for col in required_cols if col not in self.columns]
                 if missing_cols:
                     raise ValueError(f"Missing columns for temperature metric: {missing_cols}")
 
                 return {
-                    "name": TEMPERATURE_DEPENDING_TIME,
+                    "name": TEMPERATURE_DISPLAY_TITLE,
                     "data": self._get_temperature_over_time(start_time, end_time),
                     "x_axis": TIME,
-                    "y_axis": [TT301, TT302, TT303]
+                    "y_axis": [TT301, TT302, TT303, TT206]
                 }
-            elif metric == DEBIMETRIC_RESPONSE_DEPENDING_TIME or metric == 'Réponse débimétrique par rapport au temps' or metric == 'Réponsse débimétrique par rapport au temps':
-                print(f"[PIGNAT DEBUG] ✅ Processing DEBIMETRIC metric", file=sys.stderr)
+            elif metric == DEBIMETRIC_RESPONSE_DEPENDING_TIME:
                 required_cols = [TIME, FT240]
                 missing_cols = [col for col in required_cols if col not in self.columns]
                 if missing_cols:
                     raise ValueError(f"Missing columns for debimetric metric: {missing_cols}")
 
                 return {
-                    "name": DEBIMETRIC_RESPONSE_DEPENDING_TIME,
+                    "name": DEBIMETRIC_DISPLAY_TITLE,
                     "data": self._get_debimetrique_response_over_time(start_time, end_time),
                     "x_axis": TIME,
                     "y_axis": [FT240]
                 }
             elif metric == PRESSURE_PYROLYSEUR_DEPENDING_TIME:
-                print(f"[PIGNAT DEBUG] ✅ Processing PRESSURE_PYROLYSEUR metric", file=sys.stderr)
                 required_cols = [TIME, PI177]
                 missing_cols = [col for col in required_cols if col not in self.columns]
                 if missing_cols:
                     raise ValueError(f"Missing columns for pyrolyseur pressure metric: {missing_cols}")
 
                 return {
-                    "name": PRESSURE_PYROLYSEUR_DEPENDING_TIME,
+                    "name": PRESSURE_PYROLYSEUR_DISPLAY_TITLE,
                     "data": self._get_pression_pyrolyseur_over_time(start_time, end_time),
                     "x_axis": TIME,
                     "y_axis": [PI177]
                 }
             elif metric == PRESSURE_POMPE_DEPENDING_TIME:
-                print(f"[PIGNAT DEBUG] ✅ Processing PRESSURE_POMPE metric", file=sys.stderr)
                 required_cols = [TIME, PT230]
                 missing_cols = [col for col in required_cols if col not in self.columns]
                 if missing_cols:
                     raise ValueError(f"Missing columns for pump pressure metric: {missing_cols}")
 
                 return {
-                    "name": PRESSURE_POMPE_DEPENDING_TIME,
+                    "name": PRESSURE_POMPE_DISPLAY_TITLE,
                     "data": self._get_pression_sortie_pompe_over_time(start_time, end_time),
                     "x_axis": TIME,
                     "y_axis": [PT230]
                 }
             elif metric == DELTA_PRESSURE_DEPENDING_TIME:
-                print(f"[PIGNAT DEBUG] ✅ Processing DELTA_PRESSURE metric", file=sys.stderr)
                 required_cols = [TIME, PI177, PT230]
                 missing_cols = [col for col in required_cols if col not in self.columns]
                 if missing_cols:
                     raise ValueError(f"Missing columns for delta pressure metric: {missing_cols}")
 
                 return {
-                    "name": DELTA_PRESSURE_DEPENDING_TIME,
+                    "name": DELTA_PRESSURE_DISPLAY_TITLE,
                     "data": self._get_delta_pression_over_time(start_time, end_time),
                     "x_axis": TIME,
                     "y_axis": [f"Delta_Pression_{PI177}_minus_{PT230}"]
                 }
             else:
-                print(f"[PIGNAT ERROR] Metric '{metric}' is NOT RECOGNIZED!", file=sys.stderr)
-                print(f"[PIGNAT ERROR] Check exact string matching - no extra spaces or characters", file=sys.stderr)
                 raise ValueError(f"Metric '{metric}' is not recognized.")
-        except Exception as e:
-            print(f"[PIGNAT ERROR] Failed to get JSON metrics for {metric}: {str(e)}", file=sys.stderr)
-            print(f"[PIGNAT ERROR] Available columns: {self.columns}", file=sys.stderr)
-            print(f"[PIGNAT ERROR] Missing columns: {self.missing_columns}", file=sys.stderr)
+        except Exception:
             raise
 
 
@@ -319,29 +307,27 @@ class PignatData:
         metrics_wanted: list,
         sheet_name: str = "Pignat"
     ) -> Workbook:
-        
+
         ws = wb.create_sheet(title=sheet_name)
-        
-        header_font = Font(bold=True)
+
+        # Polices selon charte graphique
+        title_font = get_table_title_font()  # Futura PT Demi 11 gras
+        header_font = get_table_header_font()  # Futura PT Demi 11 gras
+        data_font = get_table_data_font()  # Futura PT Light 11
         thin_border = Border(
             left=Side(style='thin'),
             right=Side(style='thin'),
             top=Side(style='thin'),
             bottom=Side(style='thin')
         )
-        
+
         current_col = 1
-        
-        print(f"[PIGNAT DEBUG] Starting workbook generation with {len(metrics_wanted)} metrics", file=sys.stderr)
-        
+
         for i, metric_config in enumerate(metrics_wanted):
-            print(f"[PIGNAT DEBUG] Processing metric {i+1}/{len(metrics_wanted)}: {metric_config}", file=sys.stderr)
-            
             try:
                 if metric_config is None:
-                    print(f"[PIGNAT DEBUG] Metric {i+1} is None, skipping", file=sys.stderr)
                     continue
-                
+
                 if isinstance(metric_config, dict):
                     metric_name = metric_config.get("name")
                     if metric_name is None:
@@ -353,32 +339,47 @@ class PignatData:
                     metric_name = metric_config
                     start_time = None
                     end_time = None
-                
+
                 if not metric_name:
-                    print(f"[PIGNAT DEBUG] Metric {i+1} has no name, skipping", file=sys.stderr)
                     continue
 
-                print(f"[PIGNAT DEBUG] ===== STARTING METRIC PROCESSING =====", file=sys.stderr)
-                print(f"[PIGNAT DEBUG] Metric name: '{metric_name}'", file=sys.stderr)
-                print(f"[PIGNAT DEBUG] Time range: {start_time} to {end_time}", file=sys.stderr)
-                print(f"[PIGNAT DEBUG] About to call get_json_metrics...", file=sys.stderr)
-
                 metric_data = self.get_json_metrics(metric_name, start_time, end_time)
-                print(f"[PIGNAT DEBUG] ✅ SUCCESS: get_json_metrics returned data", file=sys.stderr)
-                print(f"[PIGNAT DEBUG] Retrieved metric data for {metric_name}: {len(metric_data['data'])} rows", file=sys.stderr)
                 df = metric_data['data']
-                
-                if len(df) > 100:
-                    step = max(1, len(df) // 80)
-                    df_display = df.iloc[::step].copy()
+
+                # Resample to 1 point per minute for precise granularity
+                if not df.empty and TIME in df.columns:
+                    try:
+                        df_copy = df.copy()
+                        sample_time = str(df_copy[TIME].iloc[0])
+
+                        if ':' in sample_time and len(sample_time.split()) == 1:
+                            df_copy['_datetime'] = pd.to_datetime('2000-01-01 ' + df_copy[TIME].astype(str))
+                        else:
+                            df_copy['_datetime'] = pd.to_datetime(df_copy[TIME])
+
+                        df_copy.set_index('_datetime', inplace=True)
+                        numeric_cols = [col for col in df_copy.columns if col != TIME and pd.api.types.is_numeric_dtype(df_copy[col])]
+                        df_resampled = df_copy[numeric_cols].resample('1T').mean().dropna(how='all')
+                        df_resampled.reset_index(inplace=True)
+
+                        if ':' in sample_time and len(sample_time.split()) == 1:
+                            df_resampled[TIME] = df_resampled['_datetime'].dt.strftime('%H:%M:%S')
+                        else:
+                            df_resampled[TIME] = df_resampled['_datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
+
+                        df_resampled.drop('_datetime', axis=1, inplace=True)
+                        cols_order = [TIME] + [col for col in df_resampled.columns if col != TIME]
+                        df_display = df_resampled[cols_order]
+                    except Exception:
+                        df_display = df.copy()
                 else:
                     df_display = df.copy()
-                
+
                 df_table = df_display.copy()
-                
+
                 title = metric_data['name'].replace('=', '-')
                 title_cell = ws.cell(row=1, column=current_col, value=title)
-                title_cell.font = header_font
+                title_cell.font = title_font  # Futura PT Demi 11 gras
                 
                 for j, col_name in enumerate(df_table.columns):
                     header_cell = ws.cell(row=2, column=current_col + j, value=col_name)
@@ -393,6 +394,7 @@ class PignatData:
                     for col_idx, value in enumerate(row_data):
                         data_cell = ws.cell(row=3 + row_idx, column=current_col + col_idx, value=value)
                         data_cell.border = thin_border
+                        data_cell.font = data_font  # Futura PT Light 11
                 
                 chart = LineChart()
                 chart.title = title
@@ -411,14 +413,23 @@ class PignatData:
                 chart.y_axis.tickLblPos = "low"
 
                 num_data_points = len(df_table)
-                if num_data_points > 100:
-                    tick_interval = max(1, num_data_points // 20)
-                elif num_data_points > 30:
-                    tick_interval = max(1, num_data_points // 8)
+
+                # Pour ~1440 points (24h à 1pt/min), viser 8-10 lignes de grille max
+                if num_data_points > 720:  # > 12h
+                    tick_interval = max(1, num_data_points // 24)  # ~24 labels
+                    grid_interval = max(1, num_data_points // 8)   # ~8 lignes de grille
+                elif num_data_points > 180:  # 3h-12h
+                    tick_interval = max(1, num_data_points // 15)
+                    grid_interval = max(1, num_data_points // 6)
+                elif num_data_points > 60:   # 1h-3h
+                    tick_interval = max(1, num_data_points // 10)
+                    grid_interval = max(1, num_data_points // 4)
                 else:
                     tick_interval = max(1, num_data_points // 5)
+                    grid_interval = max(1, num_data_points // 3)
 
                 chart.x_axis.tickLblSkip = max(0, tick_interval - 1) if tick_interval > 2 else 0
+                chart.x_axis.tickMarkSkip = max(0, grid_interval - 1) if grid_interval > 1 else 0
 
                 chart.y_axis.tickLblSkip = 0
                 chart.y_axis.majorGridlines = ChartLines()
@@ -491,6 +502,10 @@ class PignatData:
                 chart.x_axis.crosses = "min"
                 chart.y_axis.crosses = "min"
 
+                # Appliquer la charte graphique (Futura PT Medium 18 pour titre, légende selon config)
+                legend_pos = 'r' if not is_mono_series else 'b'  # Légende à droite pour multi-séries
+                apply_line_chart_styles(chart, title, legend_position=legend_pos)
+
                 try:
                     if hasattr(chart.y_axis, 'scaling'):
                         chart.y_axis.scaling.min = None
@@ -516,9 +531,9 @@ class PignatData:
                     if hasattr(chart.y_axis, 'title') and chart.y_axis.title:
                         chart.y_axis.title.tx.rich.p[0].r.rPr.sz = 1200
 
-                except AttributeError as e:
-                    print(f"[PIGNAT DEBUG] Advanced axis configuration not available: {e}", file=sys.stderr)
-                
+                except AttributeError:
+                    pass
+
                 chart_col = current_col + len(df_table.columns) + 1
                 chart_col_letter = get_column_letter(chart_col)
                 ws.add_chart(chart, f"{chart_col_letter}2")
@@ -526,25 +541,11 @@ class PignatData:
                 data_width = len(df_table.columns)
                 chart_width = int(chart.width) if hasattr(chart, 'width') else 22
 
-                print(f"[PIGNAT DEBUG] Successfully processed metric {metric_name} at column {current_col}", file=sys.stderr)
+                current_col += data_width + chart_width
 
-                current_col += data_width + chart_width 
-                
             except Exception as e:
-                try:
-                    if metric_config is None:
-                        metric_name = "Unknown"
-                    elif isinstance(metric_config, dict):
-                        metric_name = metric_config.get("name", "Unknown")
-                    else:
-                        metric_name = str(metric_config)
-                except Exception:
-                    metric_name = "Unknown"
-
-                print(f"[PIGNAT ERROR] Failed to process metric {i+1} ({metric_name}): {str(e)}", file=sys.stderr)
-                print(f"[PIGNAT ERROR] Traceback: {traceback.format_exc()}", file=sys.stderr)
-
-                print(f"[PIGNAT DEBUG] Skipping failed metric '{metric_name}', continuing with next", file=sys.stderr)
+                print(f"[PIGNAT ERROR] Failed to process metric: {str(e)}", file=sys.stderr)
+                continue
         
         return wb
 

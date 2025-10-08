@@ -13,6 +13,10 @@ from typing import Optional, Dict, Any
 from chromeleon_online import ChromeleonOnline
 from chromeleon_offline import ChromeleonOffline
 from context import ExcelContextData
+from utils.chart_styles import (
+    get_table_title_font, get_table_header_font, get_table_data_font,
+    apply_pie_chart_styles, apply_bar_chart_styles
+)
 
 
 
@@ -102,9 +106,9 @@ class Resume:
         # Reset index to make Carbon a column instead of index
         gas_phase_df = gas_phase_df.reset_index()
         
-        gas_phase_df["% linear"] = gas_phase_df["Linear"] * gas_percent / 100
-        gas_phase_df["% iso+olefin"] = gas_phase_df["Olefin"] * gas_percent / 100  
-        gas_phase_df["% BTX"] = gas_phase_df["BTX gas"] * gas_percent / 100
+        gas_phase_df["% Paraffin"] = gas_phase_df["Paraffin"] * gas_percent / 100
+        gas_phase_df["% iso+Olefin"] = gas_phase_df["Olefin"] * gas_percent / 100
+        gas_phase_df["% BTX"] = gas_phase_df["BTX"] * gas_percent / 100
         gas_phase_df["% total"] = gas_phase_df["Total"] * gas_percent / 100
         
         return gas_phase_df
@@ -121,13 +125,11 @@ class Resume:
         
         liquid_phase_df = self.offline_relative_area_by_carbon.copy()
 
-        liquid_phase_df = liquid_phase_df.rename(columns={
-            'Linear': 'iCn',
-            'Isomers': 'nCn'
-        })
-        
-        liquid_phase_df["% iCn"] = liquid_phase_df["iCn"] * liquide_percent / 100
-        liquid_phase_df["% nCn"] = liquid_phase_df["nCn"] * liquide_percent / 100
+        # Garder les noms de familles cohérents (Paraffin, Olefin, BTX)
+        # Pas de renommage en iCn/nCn
+
+        liquid_phase_df["% Paraffin"] = liquid_phase_df["Paraffin"] * liquide_percent / 100
+        liquid_phase_df["% Olefin"] = liquid_phase_df["Olefin"] * liquide_percent / 100
         liquid_phase_df["% BTX"] = liquid_phase_df["BTX"] * liquide_percent / 100
         liquid_phase_df["% Total"] = liquid_phase_df["Total"] * liquide_percent / 100
         
@@ -152,24 +154,24 @@ class Resume:
             
             gas_row = gas_phase_df[gas_phase_df['Carbon'] == carbon]
             if not gas_row.empty:
-                linear_pct += gas_row['% linear'].iloc[0] if '% linear' in gas_row.columns else 0.0
-                olefin_pct += gas_row['% iso+olefin'].iloc[0] if '% iso+olefin' in gas_row.columns else 0.0
+                linear_pct += gas_row['% Paraffin'].iloc[0] if '% Paraffin' in gas_row.columns else 0.0
+                olefin_pct += gas_row['% iso+Olefin'].iloc[0] if '% iso+Olefin' in gas_row.columns else 0.0
                 btx_pct += gas_row['% BTX'].iloc[0] if '% BTX' in gas_row.columns else 0.0
                 total_pct += gas_row['% total'].iloc[0] if '% total' in gas_row.columns else 0.0
             
             # Get values from liquid phase (if carbon exists in liquid phase)
             liquid_row = liquid_phase_df[liquid_phase_df['Carbon'] == carbon]
             if not liquid_row.empty:
-                # For liquid phase: iCn is linear, nCn is olefin
-                linear_pct += liquid_row['% iCn'].iloc[0] if '% iCn' in liquid_row.columns else 0.0
-                olefin_pct += liquid_row['% nCn'].iloc[0] if '% nCn' in liquid_row.columns else 0.0
+                # For liquid phase: Paraffin (linear), Olefin (branched)
+                linear_pct += liquid_row['% Paraffin'].iloc[0] if '% Paraffin' in liquid_row.columns else 0.0
+                olefin_pct += liquid_row['% Olefin'].iloc[0] if '% Olefin' in liquid_row.columns else 0.0
                 btx_pct += liquid_row['% BTX'].iloc[0] if '% BTX' in liquid_row.columns else 0.0
                 total_pct += liquid_row['% Total'].iloc[0] if '% Total' in liquid_row.columns else 0.0
             
             result_data.append({
                 'Carbon': carbon,
-                '% linear': linear_pct,
-                '% olefin': olefin_pct,
+                '% Paraffin': linear_pct,
+                '% Olefin': olefin_pct,
                 '% BTX': btx_pct,
                 '% Total': total_pct
             })
@@ -184,23 +186,23 @@ class Resume:
             # Check gas phase
             gas_special = gas_phase_df[gas_phase_df['Carbon'] == special_row]
             if not gas_special.empty:
-                linear_pct += gas_special['% linear'].iloc[0] if '% linear' in gas_special.columns else 0.0
-                olefin_pct += gas_special['% iso+olefin'].iloc[0] if '% iso+olefin' in gas_special.columns else 0.0
+                linear_pct += gas_special['% Paraffin'].iloc[0] if '% Paraffin' in gas_special.columns else 0.0
+                olefin_pct += gas_special['% iso+Olefin'].iloc[0] if '% iso+Olefin' in gas_special.columns else 0.0
                 btx_pct += gas_special['% BTX'].iloc[0] if '% BTX' in gas_special.columns else 0.0
                 total_pct += gas_special['% total'].iloc[0] if '% total' in gas_special.columns else 0.0
             
             # Check liquid phase
             liquid_special = liquid_phase_df[liquid_phase_df['Carbon'] == special_row]
             if not liquid_special.empty:
-                linear_pct += liquid_special['% iCn'].iloc[0] if '% iCn' in liquid_special.columns else 0.0
-                olefin_pct += liquid_special['% nCn'].iloc[0] if '% nCn' in liquid_special.columns else 0.0
+                linear_pct += liquid_special['% Paraffin'].iloc[0] if '% Paraffin' in liquid_special.columns else 0.0
+                olefin_pct += liquid_special['% Olefin'].iloc[0] if '% Olefin' in liquid_special.columns else 0.0
                 btx_pct += liquid_special['% BTX'].iloc[0] if '% BTX' in liquid_special.columns else 0.0
                 total_pct += liquid_special['% Total'].iloc[0] if '% Total' in liquid_special.columns else 0.0
             
             result_data.append({
                 'Carbon': special_row,
-                '% linear': linear_pct,
-                '% olefin': olefin_pct,
+                '% Paraffin': linear_pct,
+                '% Olefin': olefin_pct,
                 '% BTX': btx_pct,
                 '% Total': total_pct
             })
@@ -224,24 +226,24 @@ class Resume:
             return row[column].iloc[0] if not row.empty and column in row.columns else 0.0
         
         # --- SUMMARY CALCULATIONS ---
-        
-        # Light olefin = Somme olefin de C2 à C6 dans total phase table
-        light_olefin = sum(get_value(total_phase_df, f'C{i}', '% olefin') for i in range(2, 7))
-        
+
+        # Light olefin = C2 + C3 + C4 olefins only
+        light_olefin = sum(get_value(total_phase_df, f'C{i}', '% Olefin') for i in range(2, 5))
+
         # Aromatics = Somme BTX de C6 à C8 dans total phase table
         aromatics = sum(get_value(total_phase_df, f'C{i}', '% BTX') for i in range(6, 9))
         
-        # Other Hydrocarbons gas = %linear de C1 à C8 dans gas phase + C5 et C6 en % iso + olefin dans gas phase + %total de autres dans gas phase table
+        # Other Hydrocarbons gas = %Paraffin de C1 à C8 dans gas phase + C5 et C6 en % iso + Olefin dans gas phase + %total de autres dans gas phase table
         other_hc_gas = (
-            sum(get_value(gas_phase_df, f'C{i}', '% linear') for i in range(1, 9)) +
-            get_value(gas_phase_df, 'C5', '% iso+olefin') +
-            get_value(gas_phase_df, 'C6', '% iso+olefin') +
+            sum(get_value(gas_phase_df, f'C{i}', '% Paraffin') for i in range(1, 9)) +
+            get_value(gas_phase_df, 'C5', '% iso+Olefin') +
+            get_value(gas_phase_df, 'C6', '% iso+Olefin') +
             get_value(gas_phase_df, 'Autres', '% total')
         )
         
-        # Other Hydrocarbons liquid = Somme toute valeur de %iCn et %nCn de C6 à C32 dans table liquide phase + %total de autres dans table liquide phase
+        # Other Hydrocarbons liquid = Somme toute valeur de %Paraffin et %Olefin de C6 à C32 dans table liquide phase + %total de autres dans table liquide phase
         other_hc_liquid = (
-            sum(get_value(liquid_phase_df, f'C{i}', '% iCn') + get_value(liquid_phase_df, f'C{i}', '% nCn') for i in range(6, 33)) +
+            sum(get_value(liquid_phase_df, f'C{i}', '% Paraffin') + get_value(liquid_phase_df, f'C{i}', '% Olefin') for i in range(6, 33)) +
             get_value(liquid_phase_df, 'Autres', '% Total')
         )
         
@@ -250,15 +252,15 @@ class Resume:
         residue = mass_percentages.get("Residue (%)", 0) or 0
         
         # Individual components from total phase
-        ethylene = get_value(total_phase_df, 'C2', '% olefin')
-        propylene = get_value(total_phase_df, 'C3', '% olefin') 
-        c4_eq = get_value(total_phase_df, 'C4', '% olefin')
+        ethylene = get_value(total_phase_df, 'C2', '% Olefin')
+        propylene = get_value(total_phase_df, 'C3', '% Olefin')
+        c4_eq = get_value(total_phase_df, 'C4', '% Olefin')
         benzene = get_value(total_phase_df, 'C6', '% BTX')
         toluene = get_value(total_phase_df, 'C7', '% BTX')
         xylene = get_value(total_phase_df, 'C8', '% BTX')
-        
-        # HVC = Ethylène + Propylène + C4 + Benzène + Toluène + Xylène
-        hvc = ethylene + propylene + c4_eq + benzene + toluene + xylene
+
+        # HVC = Light Olefins + Aromatics
+        hvc = light_olefin + aromatics
         
         # Create summary DataFrame
         summary_data = {
@@ -284,10 +286,10 @@ class Resume:
         masse_recette_1 = self.masses.get("masse recette 1 (kg)", 0)
         masse_recette_2 = self.masses.get("masse recette 2 (kg)", 0)
         m_liquide = masse_recette_1 + masse_recette_2
-        
+
         # Calculer wt% R1/R2 sur la fraction liquide uniquement (comme dans ChromeleonOffline)
-        wt_r1 = round(masse_recette_1 / m_liquide, 2) if m_liquide > 0 else 0.0
-        wt_r2 = round(masse_recette_2 / m_liquide, 2) if m_liquide > 0 else 0.0
+        wt_r1 = masse_recette_1 / m_liquide if m_liquide > 0 else 0.0
+        wt_r2 = masse_recette_2 / m_liquide if m_liquide > 0 else 0.0
 
         mass_balance_data = {
             "Flask 1 weight (kg)": [self.masses.get("masse recette 1 (kg)", None)],
@@ -334,7 +336,7 @@ class Resume:
             
             graphs = [
                 {
-                    'name': "Summary repartition",
+                    'name': "Global Repartition",
                     'available': has_summary_data,
                     'description': "Other Hydrocarbons gas + liquid + Residue + HVC"
                 },
@@ -365,7 +367,7 @@ class Resume:
         except Exception as e:
             graphs = [
                 {
-                    'name': "Summary repartition",
+                    'name': "Global Repartition",
                     'available': False
                 },
                 {
@@ -385,7 +387,7 @@ class Resume:
                     'available': False,
                 },
             ]
-            
+
             return graphs
 
 
@@ -404,29 +406,33 @@ class Resume:
         r_hvc   = summary_table_start_row + 6  # "HVC"
 
         chart = PieChart()
-        chart.title = "Summary Repartition"
+        chart.title = "Global Repartition"
         data = Reference(ws, min_col=cV2, min_row=r_gas, max_row=r_hvc)
         cats = Reference(ws, min_col=cL2, min_row=r_gas, max_row=r_hvc)
 
         chart.add_data(data, titles_from_data=False)
         chart.set_categories(cats)
 
-        # 1) rendre le camembert bien grand
-        chart.height = 15
-        chart.width = 24
+        # Dimensions réduites pour meilleure lisibilité
+        chart.height = 7.5
+        chart.width = 12
 
-        # 3) ne pas laisser la légende rétrécir le tracé
-        chart.legend.position = "r"   # "t"=top (tu peux garder "r" si tu préfères)
-        chart.legend.overlay = True   # la légende “flotte” et n’enlève pas de place au camembert
+        # Légende à droite sans chevauchement
+        chart.legend.position = "r"
+        chart.legend.overlay = False  # La légende ne chevauche pas le camembert
 
-        # 4) étiquettes propres: Catégorie + %, pas de nom de série ni pastilles carrées
+        # Étiquettes avec leader lines pour les petites valeurs
         chart.dataLabels = DataLabelList()
         chart.dataLabels.showCatName   = True
-        chart.dataLabels.showPercent   = True
-        chart.dataLabels.showVal       = False
+        chart.dataLabels.showPercent   = False
+        chart.dataLabels.showVal       = True
         chart.dataLabels.showSerName   = False
-        chart.dataLabels.showLegendKey = False   # petits carrés près des étiquettes
+        chart.dataLabels.showLegendKey = False
+        chart.dataLabels.showLeaderLines = True  # Lignes de repère pour étiquettes sortantes
         chart.dataLabels.separator     = "; "
+
+        # Appliquer la charte graphique (Futura PT Medium 18 pour titre, Futura PT Light 9 pour texte)
+        apply_pie_chart_styles(chart, "Global Repartition")
 
         ws.add_chart(chart, ws.cell(row=chart_start_row, column=chart_start_col).coordinate)
 
@@ -451,8 +457,31 @@ class Resume:
         chart.dataLabels = DataLabelList()
         chart.dataLabels.showCatName = True
         chart.dataLabels.showVal = True
-        chart.height = 15
-        chart.width = 24
+        chart.dataLabels.showPercent = False
+        chart.dataLabels.showSerName = False
+        chart.dataLabels.showLegendKey = False
+        chart.dataLabels.showLeaderLines = True  # Lignes de repère pour étiquettes sortantes
+        chart.dataLabels.separator = "; "
+        chart.height = 7.5
+        chart.width = 12
+
+        # Layout pour augmenter l'espace entre titre et contenu
+        try:
+            from openpyxl.chart.layout import Layout, ManualLayout
+            chart.layout = Layout(
+                manualLayout=ManualLayout(
+                    xMode="edge", yMode="edge",
+                    x=0.1,   # Marge gauche
+                    y=0.18,  # Marge haute augmentée pour plus d'espace sous le titre
+                    w=0.8,   # Largeur
+                    h=0.7    # Hauteur
+                )
+            )
+        except:
+            pass
+
+        # Appliquer la charte graphique (Futura PT Medium 18 pour titre, Futura PT Light 9 pour texte)
+        apply_pie_chart_styles(chart, "HVC Repartition")
 
         ws.add_chart(chart, ws.cell(row=chart_start_row, column=chart_start_col).coordinate)
 
@@ -465,7 +494,7 @@ class Resume:
         cL1 = summary_table_start_col + 0  # labels gauche
         cV1 = summary_table_start_col + 1  # valeurs gauche
 
-        r1 = summary_table_start_row + 1   # %gaz
+        r1 = summary_table_start_row + 1   # %gas
         r2 = summary_table_start_row + 2   # %liq
         r3 = summary_table_start_row + 3   # % cracking residue
 
@@ -479,11 +508,64 @@ class Resume:
         chart.dataLabels = DataLabelList()
         chart.dataLabels.showCatName = True
         chart.dataLabels.showVal = True
-        chart.height = 15
-        chart.width = 24
+        chart.dataLabels.showPercent = False
+        chart.dataLabels.showSerName = False
+        chart.dataLabels.showLegendKey = False
+        chart.dataLabels.showLeaderLines = True  # Lignes de repère pour étiquettes sortantes
+        chart.dataLabels.separator = "; "
+        chart.height = 7.5
+        chart.width = 12
+
+        # Légende en bas
+        chart.legend.position = 'b'
+        chart.legend.overlay = False
+
+        # Layout pour augmenter l'espace entre titre et contenu
+        try:
+            from openpyxl.chart.layout import Layout, ManualLayout
+            chart.layout = Layout(
+                manualLayout=ManualLayout(
+                    xMode="edge", yMode="edge",
+                    x=0.1,   # Marge gauche
+                    y=0.18,  # Marge haute augmentée pour plus d'espace sous le titre
+                    w=0.8,   # Largeur
+                    h=0.65   # Hauteur réduite pour légende en bas
+                )
+            )
+        except:
+            pass
+
+        # Appliquer la charte graphique (Futura PT Medium 18 pour titre, Futura PT Light 9 pour texte)
+        apply_pie_chart_styles(chart, "Phase Repartition")
 
         ws.add_chart(chart, ws.cell(row=chart_start_row, column=chart_start_col).coordinate)
 
+
+    def _apply_ultra_safe_chart_styling(self, chart, chart_type: str = "bar"):
+        """Apply safe chart styling - same as chromeleon_online.py"""
+        chart.style = 2
+
+        # Axe Y : toujours "mass %"
+        chart.y_axis.title = "mass %"
+
+        # Axe X : vide pour bar chart
+        chart.x_axis.title = ""
+
+        try:
+            chart.x_axis.delete = False
+            chart.y_axis.delete = False
+            chart.x_axis.crosses = "min"
+            chart.y_axis.crosses = "min"
+            chart.x_axis.axPos = "b"
+            chart.y_axis.axPos = "l"
+        except:
+            pass
+
+        try:
+            chart.y_axis.tickLblPos = "low"
+            chart.x_axis.tickLblPos = "low"
+        except:
+            pass
 
     def _create_product_repartition_chart_range(
         self,
@@ -499,7 +581,7 @@ class Resume:
         c_end: int,
         title: str,
     ):
-        """Histogramme empilé (stacked) Linear | Olefin | BTX, plage C{c_start}..C{c_end}."""
+        """Bar chart (clustered) Paraffin | Olefin | BTX - same style as chromeleon_online.py"""
         if total_phase_df.empty:
             return
 
@@ -508,17 +590,49 @@ class Resume:
         data_start = header_row + 1            # première ligne data = C1
         data_end   = min(data_start + (c_end - c_start), total_table_end_row)
 
-        # séries = % linear, % olefin, % BTX
+        # séries = % Paraffin, % Olefin, % BTX
         series_min_col = total_table_start_col + 1
         series_max_col = total_table_start_col + 3
 
+        # Number of families (Paraffin, Olefin, BTX)
+        num_families = 3
+
         chart = BarChart()
         chart.title = title
-        chart.y_axis.title = "Percentage (%)"
-        chart.x_axis.title = "Carbon Number"
+
+        # Apply same styling as chromeleon_online.py
+        self._apply_ultra_safe_chart_styling(chart, "bar")
+
+        # Dimensions réduites pour meilleure lisibilité
+        chart.width = 12
+        chart.height = 6.5
+
+        # Layout adjusted for top legend with space for title + legend
+        try:
+            from openpyxl.chart.layout import Layout, ManualLayout
+            chart.layout = Layout(
+                manualLayout=ManualLayout(
+                    xMode="edge", yMode="edge",
+                    x=0.1,   # Marge gauche pour titre Y (ordonnées)
+                    y=0.18,  # Marge haute augmentée pour titre + légende en haut
+                    w=0.85,  # Largeur étendue (pas besoin d'espace à droite)
+                    h=0.72   # Hauteur réduite pour compenser la marge haute
+                )
+            )
+        except:
+            pass
+
+        # Legend at top (changed by apply_bar_chart_styles)
+        if num_families <= 1:
+            chart.legend = None
+        else:
+            chart.legend.position = 't'  # Position temporaire, sera confirmée par apply_bar_chart_styles
+            chart.legend.overlay = False
+
+        # Type stacked (empilé)
         chart.type = "col"
-        chart.grouping = "stacked"   # <— empilé
-        chart.overlap = 100          # empilement visuel franc
+        chart.grouping = "stacked"
+        chart.overlap = 100
 
         data_ref = Reference(
             ws, min_col=series_min_col, min_row=header_row,
@@ -531,8 +645,9 @@ class Resume:
 
         chart.add_data(data_ref, titles_from_data=True)
         chart.set_categories(cat_ref)
-        chart.height = 12
-        chart.width = 22
+
+        # Appliquer la charte graphique (Futura PT Medium 18 pour titre, légende en haut)
+        apply_bar_chart_styles(chart, title, legend_position='t')
 
         ws.add_chart(chart, ws.cell(row=chart_start_row, column=chart_start_col).coordinate)
 
@@ -576,7 +691,7 @@ class Resume:
                 data.append(["Summary", "", "", "", "", ""])  # titre
 
                 # ligne 1
-                data.append(["%gaz", n(mp.get("Gas (%)")),
+                data.append(["%gas", n(mp.get("Gas (%)")),
                             "Light olefin", get("Light olefin"),
                             "Ethylene", get("Ethylene")])
 
@@ -611,37 +726,36 @@ class Resume:
                 # Get mass percentages
                 mp = self._get_pourcentage_by_mass()
 
-                def fmt2(x):
-                    try:
-                        return f"{float(x):.2f}"
-                    except Exception:
-                        return ""
-
-                def fmt0(x):
-                    try:
-                        return f"{float(x):.0f}"
-                    except Exception:
-                        return ""
-
                 f1 = mass_balance_df['Flask 1 weight (kg)'].iloc[0] if not mass_balance_df.empty else None
                 f2w = mass_balance_df['Flask 2 weight (kg)'].iloc[0] if not mass_balance_df.empty else None
                 cen = mass_balance_df['Masse cendrier (kg)'].iloc[0] if not mass_balance_df.empty else None
                 intr = mass_balance_df['Intrant weight (kg)'].iloc[0] if not mass_balance_df.empty else None
+                wt_r1 = mass_balance_df['wt% R1'].iloc[0] if not mass_balance_df.empty else None
+                wt_r2 = mass_balance_df['wt% R2'].iloc[0] if not mass_balance_df.empty else None
 
                 # 5 colonnes: [Label, R1, R2, Yield-Label, Yield-Value]
                 data = []
-                data.append(["Mass balance", "", "", "", ""])                               # titre (fusionné)
-                data.append(["", "wt% R1/R2", "", "Yield (wieght %)", ""])                  # ligne d'en-tête
-                data.append(["Flask 1 weight (kg)", fmt2(f1), "0,54", "Liquide (%)", fmt2(mp.get("Liquide (%)"))])
-                data.append(["Flask 2 weight (kg)", fmt2(f2w), "0,46", "Gas (%)",     fmt2(mp.get("Gas (%)"))])
-                data.append(["Masse cendrier (kg)", fmt2(cen), "",     "Residue (%)", fmt2(mp.get("Residue (%)"))])
-                data.append(["Intrant weight (kg)", fmt0(intr), "",    "",            ""])
+                data.append(["Mass balance", None, None, None, None])                               # titre (fusionné)
+                data.append([None, "wt% R1/R2", None, "Yield (weight %)", None])                    # ligne d'en-tête
+                data.append(["Flask 1 weight (kg)", f1, wt_r1, "Liquide (%)", mp.get("Liquide (%)")])
+                data.append(["Flask 2 weight (kg)", f2w, wt_r2, "Gas (%)", mp.get("Gas (%)")])
+                data.append(["Masse cendrier (kg)", cen, None, "Residue (%)", mp.get("Residue (%)")])
+                data.append(["Intrant weight (kg)", intr, None, None, None])
 
                 return pd.DataFrame(data)
 
             
             # Function to apply formatting to Summary table
             def apply_summary_formatting(worksheet, start_row, start_col, end_row, end_col):
+                # Format title "Summary" - centré et en gras (Futura PT Demi 11)
+                title_cell = worksheet.cell(row=start_row, column=start_col)
+                title_cell.font = get_table_title_font()
+                title_cell.alignment = Alignment(horizontal="center", vertical="center")
+
+                # Fusionner le titre sur toute la largeur du tableau (6 colonnes)
+                worksheet.merge_cells(start_row=start_row, start_column=start_col,
+                                    end_row=start_row, end_column=end_col)
+
                 # Define border styles
                 thin_border = Border(
                     left=Side(style='thin'),
@@ -649,7 +763,7 @@ class Resume:
                     top=Side(style='thin'),
                     bottom=Side(style='thin')
                 )
-                
+
                 # Light green fill for specific cells
                 light_green_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
                 
@@ -657,7 +771,7 @@ class Resume:
                 for row_idx in range(1, 7):  # 6 data rows (skip header)
                     current_row = start_row + row_idx
                     
-                    # Group 1: Columns 1-2 (%gaz, %liq, % cracking residue) - borders for first 3 rows only
+                    # Group 1: Columns 1-2 (%gas, %liq, % cracking residue) - borders for first 3 rows only
                     if row_idx <= 3:
                         worksheet.cell(row=current_row, column=start_col).border = thin_border
                         worksheet.cell(row=current_row, column=start_col + 1).border = thin_border
@@ -690,9 +804,9 @@ class Resume:
                             left=left_border,
                             right=right_border
                         )
-                # Affichage "65 %" mais valeur numérique 65.0 (utilisable en chart)
-                for rr in range(start_row + 1, start_row + 4):  # %gaz / %liq / % cracking residue
-                    ws.cell(row=rr, column=start_col + 1).number_format = '0" %"'  # ou '0.00" %"' si tu veux 2 décimales
+                # Affichage "65.00 %" mais valeur numérique 65.0 (utilisable en chart)
+                for rr in range(start_row + 1, start_row + 4):  # %gas / %liq / % cracking residue
+                    ws.cell(row=rr, column=start_col + 1).number_format = '0.00" %"'
 
                 # Valeurs numériques au centre (Light olefin ... HVC)
                 for rr in range(start_row + 1, start_row + 7):
@@ -708,12 +822,12 @@ class Resume:
                 thick = Side(style="thick", color="000000")
                 yellow_fill = PatternFill("solid", fgColor="FFF2CC")
 
-                # Titre fusionné sur tout le bloc
+                # Titre fusionné sur tout le bloc (Futura PT Demi 11 gras)
                 worksheet.merge_cells(start_row=start_row, start_column=start_col,
                                     end_row=start_row,   end_column=end_col)
                 t = worksheet.cell(row=start_row, column=start_col, value="Mass balance")
                 t.alignment = Alignment(horizontal="center", vertical="center")
-                t.font = Font(bold=True)
+                t.font = get_table_title_font()
 
                 header_r = start_row + 1
                 cR1 = start_col + 1
@@ -725,20 +839,38 @@ class Resume:
                 worksheet.cell(row=header_r, column=cR1, value="wt% R1/R2")
                 worksheet.merge_cells(start_row=header_r, start_column=cR1,
                                     end_row=header_r,   end_column=cR2)
-                worksheet.cell(row=header_r, column=cR1).alignment = Alignment(horizontal="center", vertical="center")
+                worksheet.cell(row=header_r, column=cR1).alignment = Alignment(horizontal="right", vertical="center")
 
-                worksheet.cell(row=header_r, column=cYL, value="Yield (wieght %)")
+                worksheet.cell(row=header_r, column=cYL, value="Yield (weight %)")
                 worksheet.merge_cells(start_row=header_r, start_column=cYL,
                                     end_row=header_r,   end_column=cYV)
                 worksheet.cell(row=header_r, column=cYL).alignment = Alignment(horizontal="center", vertical="center")
 
-                # Alignements (lignes de données)
+                # Alignements et formats numériques (lignes de données)
                 for r in range(start_row + 2, end_row + 1):
-                    worksheet.cell(row=r, column=start_col).alignment = Alignment(horizontal="left",  vertical="center")  # labels gauche
-                    worksheet.cell(row=r, column=cR1).alignment        = Alignment(horizontal="right", vertical="center") # R1 droite
-                    worksheet.cell(row=r, column=cR2).alignment        = Alignment(horizontal="right", vertical="center") # R2 droite
-                    worksheet.cell(row=r, column=cYL).alignment        = Alignment(horizontal="left",  vertical="center") # Yield label gauche
-                    worksheet.cell(row=r, column=cYV).alignment        = Alignment(horizontal="right", vertical="center") # Yield valeur droite
+                    # Labels gauche
+                    worksheet.cell(row=r, column=start_col).alignment = Alignment(horizontal="left", vertical="center")
+
+                    # Colonne masses (kg) - format 2 décimales
+                    mass_cell = worksheet.cell(row=r, column=cR1)
+                    mass_cell.alignment = Alignment(horizontal="right", vertical="center")
+                    if mass_cell.value is not None and isinstance(mass_cell.value, (int, float)):
+                        mass_cell.number_format = '0.00'
+
+                    # Colonne wt% R1/R2 - format 2 décimales
+                    wt_cell = worksheet.cell(row=r, column=cR2)
+                    wt_cell.alignment = Alignment(horizontal="right", vertical="center")
+                    if wt_cell.value is not None and isinstance(wt_cell.value, (int, float)):
+                        wt_cell.number_format = '0.00'
+
+                    # Yield label gauche
+                    worksheet.cell(row=r, column=cYL).alignment = Alignment(horizontal="left", vertical="center")
+
+                    # Colonne Rendement % - format 2 décimales
+                    yield_cell = worksheet.cell(row=r, column=cYV)
+                    yield_cell.alignment = Alignment(horizontal="right", vertical="center")
+                    if yield_cell.value is not None and isinstance(yield_cell.value, (int, float)):
+                        yield_cell.number_format = '0.00'
 
                 # Surlignage jaune pour les cellules saisies (R1 de Flask1/Flask2/Intrant)
                 for rr in (start_row + 2, start_row + 3, start_row + 6):
@@ -773,8 +905,8 @@ class Resume:
                 # Identify numeric columns (columns with % or known numeric column names)
                 numeric_columns = []
                 for i, col_name in enumerate(df.columns):
-                    if (('%' in str(col_name)) or 
-                        any(keyword in str(col_name).lower() for keyword in ['linear', 'olefin', 'btx', 'icn', 'ncn', 'total']) and
+                    if (('%' in str(col_name)) or
+                        any(keyword in str(col_name).lower() for keyword in ['paraffin', 'olefin', 'btx', 'total']) and
                         str(col_name).lower() != 'carbon'):  # Exclude 'Carbon' column
                         numeric_columns.append(i)
                 
@@ -841,8 +973,8 @@ class Resume:
                 # Identify numeric columns (same logic as apply_numeric_formatting)
                 numeric_columns = set()
                 for i, col_name in enumerate(df.columns):
-                    if (('%' in str(col_name)) or 
-                        any(keyword in str(col_name).lower() for keyword in ['linear', 'olefin', 'btx', 'icn', 'ncn', 'total']) and
+                    if (('%' in str(col_name)) or
+                        any(keyword in str(col_name).lower() for keyword in ['paraffin', 'olefin', 'btx', 'total']) and
                         str(col_name).lower() != 'carbon'):
                         numeric_columns.add(i)
                 
@@ -928,11 +1060,11 @@ class Resume:
                 # Calculate number of columns first for title formatting
                 ncols = len(df.columns)
                 
-                # Title (only if not empty) - Bold and centered across table width
+                # Title (only if not empty) - Futura PT Demi 11 gras, centered
                 r = start_row
                 if title:
                     title_cell = ws.cell(row=start_row, column=start_col, value=title)
-                    title_cell.font = Font(bold=True)
+                    title_cell.font = get_table_title_font()
                     title_cell.alignment = Alignment(horizontal="center", vertical="center")
                     
                     # Merge title across table width if table has multiple columns
@@ -1034,8 +1166,8 @@ class Resume:
             # Dynamic chart positioning - collect charts to create first
             charts_to_create = []
             
-            if has("summary repartition"):
-                charts_to_create.append(("summary_repartition", "Summary repartition"))
+            if has("summary repartition") or has("global repartition"):
+                charts_to_create.append(("summary_repartition", "Global Repartition"))
                 
             if has("phase repartition"):
                 charts_to_create.append(("phase_repartition", "Phase repartition"))
@@ -1050,8 +1182,8 @@ class Resume:
                 charts_to_create.append(("products_c1_c8", "Products repartition (C1–C8)"))
 
             # Chart layout constants
-            CHART_HEIGHT = 35  # Vertical space per chart row
-            CHART_WIDTH = 8    # Horizontal space per chart (in columns) - reduced from 14 to 8
+            CHART_HEIGHT = 19  # Vertical space per chart row (~15 lignes graphique + 4 lignes gap)
+            CHART_WIDTH = 3    # Horizontal space per chart (réduit de 3 colonnes)
             START_ROW = 14     # First chart row
             START_COL = 20     # First chart column (Column T)
             CHARTS_PER_ROW = 2 # Maximum charts per row
@@ -1114,7 +1246,7 @@ class Resume:
 
 if __name__ == "__main__":
     try:
-        resume = Resume("/home/lucaslhm/Bureau/online","/home/lucaslhm/Bureau/offline","/home/lucaslhm/Bureau/context")
+        resume = Resume("C:/Users/lucas/OneDrive/Documents/Bobine_data/chromeleon/online","C:/Users/lucas/OneDrive/Documents/Bobine_data/chromeleon/offline","C:/Users/lucas/OneDrive/Documents/Bobine_data/context/context")
         
         # Test mass percentages
         mass_percentages = resume._get_pourcentage_by_mass()
@@ -1153,7 +1285,7 @@ if __name__ == "__main__":
             print(f"  {status} {graph['name']}")
         
         # Test new chart-enabled Excel creation
-        excel_path = "/home/lucaslhm/Bureau/resume_with_charts.xlsx"
+        excel_path = "C:/Users/lucas/Bureau/resume_with_charts.xlsx"
         if excel_path:
             # Create workbook
             wb = Workbook()

@@ -327,14 +327,6 @@ fn parse_python_json(stdout: &str) -> Result<JsonValue, String> {
 /// ---------- Commandes par action ----------
 
 #[tauri::command]
-fn context_is_correct(python_service: State<PythonServiceState>, dir_path: String) -> Result<bool, String> {
-    let out = run_python_with_service(&python_service, &["CONTEXT_IS_CORRECT", &dir_path])?;
-    let json = parse_python_json(&out.stdout)?;
-    json.as_bool()
-        .ok_or_else(|| "Invalid JSON: expected boolean".into())
-}
-
-#[tauri::command]
 fn validate_context(python_service: State<PythonServiceState>, dir_path: String) -> Result<JsonValue, String> {
     let out = run_python_with_service(&python_service, &["VALIDATE_CONTEXT", &dir_path])?;
     let json = parse_python_json(&out.stdout)?;
@@ -523,7 +515,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             // Python actions exposées une par une :
-            context_is_correct,
             validate_context,
             get_context_masses,
             get_context_b64,

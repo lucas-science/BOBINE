@@ -8,6 +8,7 @@ from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
 from typing import Optional, Dict, Any, Tuple
+from utils.chart_styles import get_table_title_font, get_table_header_font, get_table_data_font
 
 MASSE_INJECTEE="masse injectée (kg)"
 MASSE_RECETTE="masse recette 1 (kg)"
@@ -120,7 +121,7 @@ class ChromeleonOffline:
 
     def get_graphs_available(self) -> list[dict]:
         graphs = [{
-            'name': "Résultats d'intégration de R1 et R2 avec bilan matière",
+            'name': "Résultats d'intégration R1/R2 avec bilan matière",
             'available': False,
         }]
         try:
@@ -283,7 +284,7 @@ class ChromeleonOffline:
 
             for carbon in carbon_ranges:
                 linear_val = 0
-                isomers_val = 0
+                olefin_val = 0
 
                 linear_patterns = [
                     f'^n-{carbon}$',
@@ -291,7 +292,7 @@ class ChromeleonOffline:
                     f'^{carbon}\\s*linear$',
                 ]
 
-                isomers_patterns = [
+                olefin_patterns = [
                     f'^{carbon}\\s*isomers?$',
                     f'^{carbon}\\s*iso$',
                     f'^iso-{carbon}$',
@@ -314,14 +315,14 @@ class ChromeleonOffline:
                             linear_val = area_value
                             break
 
-                    for pattern in isomers_patterns:
+                    for pattern in olefin_patterns:
                         if re.match(pattern, peakname, re.IGNORECASE):
-                            isomers_val = area_value
+                            olefin_val = area_value
                             break
 
                 results[carbon] = {
-                    'Linear': linear_val,
-                    'Isomers': isomers_val
+                    'Paraffin': linear_val,
+                    'Olefin': olefin_val
                 }
 
             btx_values = {'C6': 0, 'C7': 0, 'C8': 0}
@@ -349,16 +350,16 @@ class ChromeleonOffline:
                             btx_values[carbon_key] = area_value
                             break
 
-            total_linear = sum(results[carbon]['Linear'] for carbon in carbon_ranges)
-            total_isomers = sum(results[carbon]['Isomers'] for carbon in carbon_ranges)
+            total_linear = sum(results[carbon]['Paraffin'] for carbon in carbon_ranges)
+            total_olefin = sum(results[carbon]['Olefin'] for carbon in carbon_ranges)
             total_btx = sum(btx_values.values())
 
 
-            return results, total_linear, total_isomers, btx_values, total_btx
+            return results, total_linear, total_olefin, btx_values, total_btx
 
-        results_R1, total_linear_R1, total_isomers_R1, btx_values_R1, total_btx_R1 = process_data(
+        results_R1, total_linear_R1, total_olefin_R1, btx_values_R1, total_btx_R1 = process_data(
             R1_data)
-        results_R2, total_linear_R2, total_isomers_R2, btx_values_R2, total_btx_R2 = process_data(
+        results_R2, total_linear_R2, total_olefin_R2, btx_values_R2, total_btx_R2 = process_data(
             R2_data)
 
         carbon_ranges = [f'C{i}' for i in range(6, 33)]
@@ -367,15 +368,15 @@ class ChromeleonOffline:
             data_list = []
 
             for carbon in carbon_ranges:
-                linear = results[carbon]['Linear']
-                isomers = results[carbon]['Isomers']
+                linear = results[carbon]['Paraffin']
+                olefin = results[carbon]['Olefin']
                 btx = btx_values.get(carbon, 0)
-                total = linear + isomers + btx
+                total = linear + olefin + btx
 
                 data_list.append({
                     'Carbon': carbon,
-                    'Linear': linear,
-                    'Isomers': isomers,
+                    'Paraffin': linear,
+                    'Olefin': olefin,
                     'BTX': btx,
                     'Total': total
                 })
@@ -387,11 +388,11 @@ class ChromeleonOffline:
 
         df_Moyenne = pd.DataFrame({
             'Carbon': carbon_ranges,
-            'Linear': [(results_R1[carbon]['Linear'] + results_R2[carbon]['Linear']) / 2 for carbon in carbon_ranges],
-            'Isomers': [(results_R1[carbon]['Isomers'] + results_R2[carbon]['Isomers']) / 2 for carbon in carbon_ranges],
+            'Paraffin': [(results_R1[carbon]['Paraffin'] + results_R2[carbon]['Paraffin']) / 2 for carbon in carbon_ranges],
+            'Olefin': [(results_R1[carbon]['Olefin'] + results_R2[carbon]['Olefin']) / 2 for carbon in carbon_ranges],
             'BTX': [(btx_values_R1.get(carbon, 0) + btx_values_R2.get(carbon, 0)) / 2 for carbon in carbon_ranges],
-            'Total': [((results_R1[carbon]['Linear'] + results_R1[carbon]['Isomers'] + btx_values_R1.get(carbon, 0)) +
-                      (results_R2[carbon]['Linear'] + results_R2[carbon]['Isomers'] + btx_values_R2.get(carbon, 0))) / 2
+            'Total': [((results_R1[carbon]['Paraffin'] + results_R1[carbon]['Olefin'] + btx_values_R1.get(carbon, 0)) +
+                      (results_R2[carbon]['Paraffin'] + results_R2[carbon]['Olefin'] + btx_values_R2.get(carbon, 0))) / 2
                       for carbon in carbon_ranges]
         })
 
@@ -401,25 +402,27 @@ class ChromeleonOffline:
 
         autres_R1 = 100 - total_identified_R1
         autres_R2 = 100 - total_identified_R2
-        autres_Moyenne = 100 - total_identified_Moyenne
+        autres_Moyenne = (autres_R1 + autres_R2) / 2
 
-        def add_totals(df, autres_val, total_linear, total_isomers, total_btx):
+        def add_totals(df, autres_val, total_linear, total_olefin, total_btx):
+            # Total global = somme des familles + composés non identifiés (Autres)
+            total_sum = total_linear + total_olefin + total_btx + autres_val
             totals = pd.DataFrame({
                 'Carbon': ['Autres', 'Total'],
-                'Linear': [0, total_linear],
-                'Isomers': [0, total_isomers],
+                'Paraffin': [0, total_linear],
+                'Olefin': [0, total_olefin],
                 'BTX': [0, total_btx],
-                'Total': [autres_val, 100]
+                'Total': [autres_val, total_sum]
             })
             return pd.concat([df, totals], ignore_index=True)
 
         df_R1 = add_totals(df_R1, autres_R1, total_linear_R1,
-                           total_isomers_R1, total_btx_R1)
+                           total_olefin_R1, total_btx_R1)
         df_R2 = add_totals(df_R2, autres_R2, total_linear_R2,
-                           total_isomers_R2, total_btx_R2)
+                           total_olefin_R2, total_btx_R2)
         df_Moyenne = add_totals(df_Moyenne, autres_Moyenne,
                                 (total_linear_R1 + total_linear_R2) / 2,
-                                (total_isomers_R1 + total_isomers_R2) / 2,
+                                (total_olefin_R1 + total_olefin_R2) / 2,
                                 (total_btx_R1 + total_btx_R2) / 2)
 
         return {
@@ -437,8 +440,9 @@ class ChromeleonOffline:
         start_col: int,
         start_row: int
     ) -> Tuple[int, int]:
-        title_font = Font(bold=True, size=12)
-        header_font = Font(bold=True)
+        title_font = get_table_title_font()  # Futura PT Demi 11 gras
+        header_font = get_table_header_font()  # Futura PT Demi 11 gras
+        data_font = get_table_data_font()  # Futura PT Light 11
         gray_fill = PatternFill("solid", fgColor="DDDDDD")
         center = Alignment(horizontal="center", vertical="center")
         right = Alignment(horizontal="right", vertical="center")
@@ -485,14 +489,16 @@ class ChromeleonOffline:
             no_cell = ws.cell(row=r, column=start_col + 0, value=row["No."])
             no_cell.alignment = right
             no_cell.border = border
+            no_cell.font = data_font  # Futura PT Light 11
             if is_total_row:
                 no_cell.fill = gray_fill
-            
+
             peakname_cell = ws.cell(row=r, column=start_col + 1, value=row["Peakname"])
             peakname_cell.border = border
+            peakname_cell.font = data_font  # Futura PT Light 11
             if is_total_row:
                 peakname_cell.fill = gray_fill
-                
+
             try:
                 rt = float(str(row["Retention Time"]).replace(",", "."))
             except Exception:
@@ -500,9 +506,10 @@ class ChromeleonOffline:
             rt_cell = ws.cell(row=r, column=start_col + 2, value=rt)
             rt_cell.number_format = "0.000"
             rt_cell.border = border
+            rt_cell.font = data_font  # Futura PT Light 11
             if is_total_row:
                 rt_cell.fill = gray_fill
-                
+
             try:
                 ra = float(str(row["Relative Area"]).replace(",", "."))
             except Exception:
@@ -510,6 +517,7 @@ class ChromeleonOffline:
             ra_cell = ws.cell(row=r, column=start_col + 3, value=ra)
             ra_cell.number_format = "0.00"
             ra_cell.border = border
+            ra_cell.font = data_font  # Futura PT Light 11
             if is_total_row:
                 ra_cell.fill = gray_fill
                 
@@ -533,25 +541,19 @@ class ChromeleonOffline:
                     value="Bilan matière").font = Font(bold=True, size=12)
             return start_row, start_col + 4
 
-        def fmt2(x):
-            try:
-                return f"{float(x):.2f}".replace(".", ",")
-            except Exception:
-                return ""
-
         wt_vals = data.get("wt% R1/R2", [0, 0])
-        wt_r1 = fmt2(wt_vals[0]) if len(wt_vals) > 0 else ""
-        wt_r2 = fmt2(wt_vals[1]) if len(wt_vals) > 1 else ""
-        
+        wt_r1 = wt_vals[0] if len(wt_vals) > 0 else 0.0
+        wt_r2 = wt_vals[1] if len(wt_vals) > 1 else 0.0
+
         rend = data.get("Rendement (massique)", {})
-        
+
         table_data = []
-        table_data.append(["Bilan matière", "", "", "", ""])
-        table_data.append(["", "wt% R1/R2", "", "Rendement (massique)", ""])
-        table_data.append(["Masse recette 1 (kg)", fmt2(data.get("Masse recette 1 (kg)", 0)), wt_r1, "Liquide (%)", fmt2(rend.get("Liquide (%)", 0))])
-        table_data.append(["Masse recette 2 (kg)", fmt2(data.get("Masse recette 2 (kg)", 0)), wt_r2, "Gaz (%)", fmt2(rend.get("Gaz (%)", 0))])
-        table_data.append(["Masse cendrier (kg)", fmt2(data.get("Masse cendrier (kg)", 0)), "", "Residue (%)", fmt2(rend.get("Residue (%)", 0))])
-        table_data.append(["Masse injectée (kg)", fmt2(data.get("Masse injectée (kg)", 0)), "", "", ""])
+        table_data.append(["Bilan matière", None, None, None, None])
+        table_data.append([None, "wt% R1/R2", None, "Rendement (massique)", None])
+        table_data.append(["Masse recette 1 (kg)", data.get("Masse recette 1 (kg)", 0.0), wt_r1, "Liquide (%)", rend.get("Liquide (%)", 0.0)])
+        table_data.append(["Masse recette 2 (kg)", data.get("Masse recette 2 (kg)", 0.0), wt_r2, "Gas (%)", rend.get("Gas (%)", 0.0)])
+        table_data.append(["Masse cendrier (kg)", data.get("Masse cendrier (kg)", 0.0), None, "Residue (%)", rend.get("Residue (%)", 0.0)])
+        table_data.append(["Masse injectée (kg)", data.get("Masse injectée (kg)", 0.0), None, None, None])
 
         for row_idx, row_data in enumerate(table_data):
             for col_idx, value in enumerate(row_data):
@@ -559,9 +561,9 @@ class ChromeleonOffline:
 
         end_row = start_row + len(table_data) - 1
         end_col = start_col + 4  # 5 colonnes (0-4)
-        
+
         self._apply_bilan_matiere_formatting(ws, start_row, start_col, end_row, end_col)
-        
+
         return end_row, end_col
 
     def _apply_bilan_matiere_formatting(self, worksheet, start_row, start_col, end_row, end_col):
@@ -569,11 +571,12 @@ class ChromeleonOffline:
         thick = Side(style="thick", color="000000")
         yellow_fill = PatternFill("solid", fgColor="FFF2CC")
 
+        # Titre fusionné sur tout le bloc (Futura PT Demi 11 gras)
         worksheet.merge_cells(start_row=start_row, start_column=start_col,
                             end_row=start_row, end_column=end_col)
         t = worksheet.cell(row=start_row, column=start_col, value="Bilan matière")
         t.alignment = Alignment(horizontal="center", vertical="center")
-        t.font = Font(bold=True)
+        t.font = get_table_title_font()
 
         header_r = start_row + 1
         cWt1 = start_col + 1
@@ -584,19 +587,38 @@ class ChromeleonOffline:
         worksheet.cell(row=header_r, column=cWt1, value="wt% R1/R2")
         worksheet.merge_cells(start_row=header_r, start_column=cWt1,
                             end_row=header_r, end_column=cWt2)
-        worksheet.cell(row=header_r, column=cWt1).alignment = Alignment(horizontal="center", vertical="center")
+        worksheet.cell(row=header_r, column=cWt1).alignment = Alignment(horizontal="right", vertical="center")
 
         worksheet.cell(row=header_r, column=cRL, value="Rendement (massique)")
         worksheet.merge_cells(start_row=header_r, start_column=cRL,
                             end_row=header_r, end_column=cRV)
         worksheet.cell(row=header_r, column=cRL).alignment = Alignment(horizontal="center", vertical="center")
 
+        # Appliquer les formats numériques et alignements
         for r in range(start_row + 2, end_row + 1):
+            # Colonne labels (gauche)
             worksheet.cell(row=r, column=start_col).alignment = Alignment(horizontal="left", vertical="center")
-            worksheet.cell(row=r, column=start_col + 1).alignment = Alignment(horizontal="right", vertical="center")
-            worksheet.cell(row=r, column=cWt2).alignment = Alignment(horizontal="right", vertical="center")
+
+            # Colonne masses (kg) - format 4 décimales
+            mass_cell = worksheet.cell(row=r, column=start_col + 1)
+            mass_cell.alignment = Alignment(horizontal="right", vertical="center")
+            if mass_cell.value is not None and isinstance(mass_cell.value, (int, float)):
+                mass_cell.number_format = "0.0000"
+
+            # Colonne wt% R1/R2 - format 2 décimales
+            wt_cell = worksheet.cell(row=r, column=cWt2)
+            wt_cell.alignment = Alignment(horizontal="right", vertical="center")
+            if wt_cell.value is not None and isinstance(wt_cell.value, (int, float)):
+                wt_cell.number_format = "0.00"
+
+            # Colonne Rendement label (gauche)
             worksheet.cell(row=r, column=cRL).alignment = Alignment(horizontal="left", vertical="center")
-            worksheet.cell(row=r, column=cRV).alignment = Alignment(horizontal="right", vertical="center")
+
+            # Colonne Rendement % - format 2 décimales
+            rend_cell = worksheet.cell(row=r, column=cRV)
+            rend_cell.alignment = Alignment(horizontal="right", vertical="center")
+            if rend_cell.value is not None and isinstance(rend_cell.value, (int, float)):
+                rend_cell.number_format = "0.00"
 
         for rr in range(start_row + 2, start_row + 6):
             if start_row <= rr <= end_row:
@@ -628,17 +650,17 @@ class ChromeleonOffline:
 
         m_liquide = masse_recette_1 + masse_recette_2
         m_residu = masse_cendrier
-        m_gaz = masse_injectee - (m_liquide + m_residu)
+        m_gas = masse_injectee - (m_liquide + m_residu)
 
-        if m_gaz < 0:
-            m_gaz = 0.0
+        if m_gas < 0:
+            m_gas = 0.0
 
-        p_liquide = round(100.0 * m_liquide / masse_injectee, 2)
-        p_gaz = round(100.0 * m_gaz / masse_injectee, 2)
-        p_residu = round(100.0 * m_residu / masse_injectee, 2)
+        p_liquide = 100.0 * m_liquide / masse_injectee
+        p_gas = 100.0 * m_gas / masse_injectee
+        p_residu = 100.0 * m_residu / masse_injectee
 
-        wt_r1 = round(masse_recette_1 / m_liquide, 2) if m_liquide > 0 else 0.0
-        wt_r2 = round(masse_recette_2 / m_liquide, 2) if m_liquide > 0 else 0.0
+        wt_r1 = masse_recette_1 / m_liquide if m_liquide > 0 else 0.0
+        wt_r2 = masse_recette_2 / m_liquide if m_liquide > 0 else 0.0
 
         return {
             "wt% R1/R2": [wt_r1, wt_r2],
@@ -648,7 +670,7 @@ class ChromeleonOffline:
             "Masse injectée (kg)": masse_injectee,
             "Rendement (massique)": {
                 "Liquide (%)": p_liquide,
-                "Gaz (%)": p_gaz,
+                "Gas (%)": p_gas,
                 "Residue (%)": p_residu,
             },
         }
@@ -690,8 +712,9 @@ class ChromeleonOffline:
             tables = self.get_relative_area_by_carbon_tables()
             
             def write_summary(df, anchor_col, title):
-                title_font = Font(bold=True, size=12)
-                header_font = Font(bold=True)
+                title_font = get_table_title_font()  # Futura PT Demi 11 gras
+                header_font = get_table_header_font()  # Futura PT Demi 11 gras
+                data_font = get_table_data_font()  # Futura PT Light 11
                 gray_fill = PatternFill("solid", fgColor="DDDDDD")
                 center = Alignment(horizontal="center", vertical="center")
                 thin = Side(style="thin", color="999999")
@@ -700,7 +723,7 @@ class ChromeleonOffline:
                 ws.cell(row=start_row, column=anchor_col,
                         value=title).font = title_font
 
-                headers = ["Carbon", "Linear", "Isomers", "BTX", "Total"]
+                headers = ["Carbon", "Paraffin", "Olefin", "BTX", "Total"]
                 for i, h in enumerate(headers):
                     rr, cc = start_row + 1, anchor_col + i
                     ws.cell(row=rr, column=cc, value=h).font = header_font
@@ -712,23 +735,23 @@ class ChromeleonOffline:
                 for _, row in df.iterrows():
                     carbon_value = row["Carbon"]
                     is_total_row = carbon_value in ["Autres", "Total", "Total:"]
-                    
+
                     # Cellule Carbon
                     carbon_cell = ws.cell(row=r, column=anchor_col + 0, value=carbon_value)
                     carbon_cell.border = border
+                    carbon_cell.font = data_font if not is_total_row else header_font  # Futura PT Light 11
                     if is_total_row:
                         carbon_cell.fill = gray_fill
-                        carbon_cell.font = header_font
-                    
+
                     # Cellules de valeurs
-                    for j, key in enumerate(["Linear", "Isomers", "BTX", "Total"], start=1):
+                    for j, key in enumerate(["Paraffin", "Olefin", "BTX", "Total"], start=1):
                         val = float(row[key]) if pd.notna(row[key]) else None
                         c = ws.cell(row=r, column=anchor_col + j, value=val)
                         c.number_format = "0.00"
                         c.border = border
+                        c.font = data_font if not is_total_row else header_font  # Futura PT Light 11
                         if is_total_row:
                             c.fill = gray_fill
-                            c.font = header_font
                     r += 1
 
                 widths = [10, 13, 13, 11, 15]

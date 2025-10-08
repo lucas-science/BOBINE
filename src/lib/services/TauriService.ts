@@ -6,10 +6,6 @@ class TauriService {
     return await invoke<string>("get_documents_dir");
   }
 
-  async checkContext(dirPath: string): Promise<boolean> {
-    return await invoke<boolean>("context_is_correct", { dirPath });
-  }
-
   async validateContext(dirPath: string): Promise<{valid: boolean; error_message: string}> {
     return await invoke<{valid: boolean; error_message: string}>("validate_context", { dirPath });
   }
@@ -52,6 +48,14 @@ class TauriService {
 
   async copyFile(sourcePath: string, destinationPath: string): Promise<void> {
     return await invoke("copy_file", { sourcePath, destinationPath });
+  }
+
+  async removeDir(dirPath: string): Promise<void> {
+    return await invoke("remove_dir", { dirPath });
+  }
+
+  async writeFile(destinationPath: string, contents: number[]): Promise<void> {
+    return await invoke("write_file", { destinationPath, contents });
   }
 }
 

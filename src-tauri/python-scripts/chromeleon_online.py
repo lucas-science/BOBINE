@@ -17,6 +17,7 @@ from utils.column_mapping import standardize_column_name, get_rel_area_columns, 
 from utils.data_processing import create_summary_table1, process_table1_with_grouping, create_summary_table2, sort_data_by_time, create_relative_area_summary, process_injection_times, validate_data_availability
 from utils.chart_creation import create_chart_configuration, calculate_chart_positions
 from utils.file_operations import get_first_excel_file, read_excel_summary, extract_experience_number_simple
+from utils.chart_styles import apply_line_chart_styles, apply_bar_chart_styles
 
 class ChromeleonOnline:
     def __init__(self, dir_root: str):
@@ -27,35 +28,35 @@ class ChromeleonOnline:
     def get_graphs_available(self) -> list[dict]:
         graphs = []
 
-        # Graphique 1: %mass gaz en fonction du temps
+        # Graphique 1: %mass gas en fonction du temps
         try:
             rel = self.get_relative_area_by_injection()
             validation = validate_data_availability(rel)
-            
+
             graphs.append({
-                'name': '%mass gaz en fonction du temps',
+                'name': 'Hydrocarbons mass fractions in Gas',
                 'available': validation['has_enough_timepoints'] and validation['has_numeric_data'],
                 'chimicalElements': validation['chemical_elements']
             })
         except Exception:
             graphs.append({
-                'name': '%mass gaz en fonction du temps',
+                'name': 'Hydrocarbons mass fractions in Gas',
                 'available': False,
             })
 
-        # Graphique 2: products repartition gaz phase
+        # Graphique 2: products repartition gas phase
         try:
             _, table2 = self.make_summary_tables()
-            fam_cols = [c for c in ['Linear', 'Olefin', 'BTX gas'] if c in table2.columns]
+            fam_cols = [c for c in ['Paraffin', 'Olefin', 'BTX gas'] if c in table2.columns]
             has_nonzero = (table2[fam_cols].to_numpy().sum() > 0) if fam_cols else False
 
             graphs.append({
-                'name': 'products repartition gaz phase',
+                'name': 'Products repartition in Gas',
                 'available': bool(has_nonzero)
             })
         except Exception:
             graphs.append({
-                'name': 'products repartition gaz phase',
+                'name': 'Products repartition in Gas',
                 'available': False
             })
 
@@ -142,12 +143,63 @@ class ChromeleonOnline:
     def make_summary_tables(self):
         rel_df = self.get_relative_area_by_injection()
         data_by_elements = self._get_data_by_elements()
-        
+
         table1 = create_summary_table1(rel_df, data_by_elements)
-        
         table1 = process_table1_with_grouping(table1)
-        
+
+        # Ajouter la ligne "Non reporté" avant Total:
+        if not table1.empty and 'Total:' in table1['Peakname'].values:
+            # Séparer les lignes de données et la ligne Total
+            data_rows = table1[table1['Peakname'] != 'Total:'].copy()
+
+            # Calculer la somme des Relative Area des lignes de données
+            sum_reported = data_rows['Relative Area'].sum()
+
+            # Créer la ligne "Non reporté"
+            non_reporte_value = 100.0 - sum_reported
+            non_reporte_row = pd.DataFrame({
+                'Peakname': ['Non reporté'],
+                'RetentionTime': [''],
+                'Relative Area': [non_reporte_value]
+            })
+
+            # Créer la ligne Total avec valeur mise à jour (incluant Non reporté)
+            # Total = sum_reported + non_reporte_value = 100.0
+            total_row = pd.DataFrame({
+                'Peakname': ['Total:'],
+                'RetentionTime': [''],
+                'Relative Area': [100.0]
+            })
+
+            # Reconstruire table1 : données + Non reporté + Total
+            table1 = pd.concat([data_rows, non_reporte_row, total_row], ignore_index=True)
+
         table2 = create_summary_table2(table1, COMPOUND_MAPPING, CARBON_ROWS, FAMILIES)
+
+        # Recalculer "Autres" = 100 - somme(C1 à C8)
+        c1_c8_carbons = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7', 'C8']
+
+        if all(c in table2.index for c in c1_c8_carbons):
+            # Somme des totaux identifiés (C1→C8)
+            total_identified = table2.loc[c1_c8_carbons, 'Total'].sum()
+            autres_total = 100.0 - total_identified
+
+            # Mettre à jour la ligne "Autres"
+            if 'Autres' in table2.index:
+                table2.loc['Autres', 'Total'] = autres_total
+                # Familles à 0 car composés non identifiés
+                for family in FAMILIES:
+                    table2.loc['Autres', family] = 0.0
+
+            # Recalculer le Total global comme somme réelle
+            if 'Total' in table2.index:
+                # Total pour chaque famille = somme de toutes les lignes (C1→C8 + Autres)
+                for family in FAMILIES:
+                    table2.loc['Total', family] = table2.loc[c1_c8_carbons + ['Autres'], family].sum()
+
+                # Total global = somme de tous les carbones (C1→C8 + Autres) dans la colonne Total
+                # NOTE: On ne peut PAS sommer les familles car Autres a des familles = 0 mais Total != 0
+                table2.loc['Total', 'Total'] = table2.loc[c1_c8_carbons + ['Autres'], 'Total'].sum()
 
         return table1, table2
 
@@ -225,8 +277,11 @@ class ChromeleonOnline:
     def _apply_ultra_safe_chart_styling(self, chart, chart_type: str = "line"):
         chart.style = 2
 
-        chart.y_axis.title = "Rel. Area (%)" if chart_type == "line" else "Pourcentage (%)"
-        chart.x_axis.title = "Injection Time" if chart_type == "line" else "Carbone"
+        # Axe Y : toujours "mass %"
+        chart.y_axis.title = "mass %"
+
+        # Axe X : "Injection Time" pour line chart, vide pour bar chart
+        chart.x_axis.title = "Injection Time" if chart_type == "line" else ""
 
         try:
             chart.x_axis.delete = False
@@ -342,22 +397,24 @@ class ChromeleonOnline:
             apply_standard_column_widths(ws, "carbon_family")
         
         hvc_col = 12
-        create_title_cell(ws, table1_row, hvc_col, "composition moyenne principaux HVC (%)", styles)
+        create_title_cell(ws, table1_row, hvc_col, "COMPOSITION MOYENNE PRINCIPAUX HVC (%)", styles)
         
         hvc_headers = ["Molécule", "Moyenne (%)"]
         format_table_headers(ws, hvc_headers, table1_row + 1, hvc_col, styles=styles)
-        
+
         hvc_data = []
-        for display_name, carbon, family in HVC_CATEGORIES:
+        for display_name, carbons, family in HVC_CATEGORIES:
+            val = 0.0
             try:
-                if carbon in table2.index and family in table2.columns:
-                    val = float(table2.loc[carbon, family])
-                else:
-                    val = 0.0
+                # Support multi-carbones (liste) ou single carbone (string legacy)
+                carbon_list = carbons if isinstance(carbons, list) else [carbons]
+                for carbon in carbon_list:
+                    if carbon in table2.index and family in table2.columns:
+                        val += float(table2.loc[carbon, family])
             except:
                 val = 0.0
             hvc_data.append({"Molécule": display_name, "Moyenne (%)": val})
-        
+
         hvc_df = pd.DataFrame(hvc_data)
         format_data_table(ws, hvc_df, table1_row + 2, hvc_col, styles=styles)
         apply_standard_column_widths(ws, "hvc")
@@ -374,7 +431,7 @@ class ChromeleonOnline:
         chart_positions = calculate_chart_positions(graphs_to_create, first_chart_row)
 
         if len(graphs_to_create) == 2:
-            separation_offset = 22  # Plus d'espace entre les graphiques
+            separation_offset = 12  # Espace réduit entre les graphiques
         else:
             separation_offset = 8
 
@@ -393,7 +450,7 @@ class ChromeleonOnline:
                 layout_config = self._calculate_optimal_chart_layout(num_elements, "line")
 
                 line_chart = LineChart()
-                line_chart.title = "%mass gaz en fonction du temps"
+                line_chart.title = "Hydrocarbons mass fractions in Gas"
 
                 self._apply_ultra_safe_chart_styling(line_chart, "line")
 
@@ -477,6 +534,9 @@ class ChromeleonOnline:
 
                 self._apply_safe_mono_series_styling(line_chart, num_elements)
 
+                # Appliquer la charte graphique (Futura PT Medium 18 pour titre, légende en bas)
+                apply_line_chart_styles(line_chart, "Hydrocarbons mass fractions in Gas", legend_position='b')
+
                 ws.add_chart(line_chart, line_position)
         
         if chart_config['want_bar']:
@@ -487,7 +547,7 @@ class ChromeleonOnline:
             bar_layout_config = self._calculate_optimal_chart_layout(num_families, "bar")
 
             bar_chart = BarChart()
-            bar_chart.title = "products repartition gaz phase"
+            bar_chart.title = "Products repartition in Gas"
 
             self._apply_ultra_safe_chart_styling(bar_chart, "bar")
 
@@ -496,14 +556,14 @@ class ChromeleonOnline:
 
             try:
                 from openpyxl.chart.layout import Layout, ManualLayout
-                # Ajuster la zone du graphique pour laisser de l'espace aux titres
+                # Layout adjusted for top legend with space for title + legend
                 bar_chart.layout = Layout(
                     manualLayout=ManualLayout(
                         xMode="edge", yMode="edge",
                         x=0.1,   # Marge gauche pour titre Y (ordonnées)
-                        y=0.1,   # Marge haute pour titre principal
-                        w=0.75,  # Largeur réduite pour espace légende à droite
-                        h=0.7    # Hauteur réduite pour espace titre X (abscisses) en bas
+                        y=0.18,  # Marge haute augmentée pour titre + légende en haut
+                        w=0.85,  # Largeur élargie (pas de légende à droite)
+                        h=0.72   # Hauteur réduite pour compenser la marge haute
                     )
                 )
             except:
@@ -512,23 +572,28 @@ class ChromeleonOnline:
             if num_families <= 1:
                 bar_chart.legend = None
             else:
-                bar_chart.legend.position = 'r'
+                bar_chart.legend.position = 't'  # Légende en haut (sera confirmée par apply_bar_chart_styles)
                 bar_chart.legend.overlay = False
 
             bar_chart.type = "col"
-            bar_chart.grouping = "clustered"
+            bar_chart.grouping = "stacked"
+            bar_chart.overlap = 100
 
             if not table2.empty:
-                filtered_table2 = table2.loc[table2.index.intersection(CARBON_ROWS)]
+                # Filtrer pour ne garder que C1 à C7 (sans C8 ni Autres)
+                chart_carbons = ['C1', 'C2', 'C3', 'C4', 'C5', 'C6', 'C7']
+                filtered_table2 = table2.loc[table2.index.intersection(chart_carbons)]
 
                 if not filtered_table2.empty:
-                    family_cols = [f for f in FAMILIES if f in table2.columns]
+                    # Utiliser seulement Paraffin, Olefin, BTX (pas Autres ni Total)
+                    family_cols = [f for f in ['Paraffin', 'Olefin', 'BTX'] if f in table2.columns]
 
                     if family_cols:
                         family_col_indices = []
                         for family in family_cols:
                             family_idx = list(table2.columns).index(family)
-                            excel_col = table2_col + 1 + family_idx + 1
+                            # table2_col = colonne "Carbon", +1 pour sauter Carbon, +family_idx pour la famille
+                            excel_col = table2_col + 1 + family_idx
                             family_col_indices.append(excel_col)
 
                         if family_col_indices:
@@ -549,6 +614,9 @@ class ChromeleonOnline:
                                            min_row=table2_row + 2,
                                            max_row=table2_row + 1 + num_carbon_rows)
                             bar_chart.set_categories(cats)
+
+            # Appliquer la charte graphique (Futura PT Medium 18 pour titre, légende en haut pour histogrammes)
+            apply_bar_chart_styles(bar_chart, "Products repartition in Gas", legend_position='t')
 
             ws.add_chart(bar_chart, bar_position)
         
@@ -622,7 +690,7 @@ if __name__ == "__main__":
             if graph['available']:
                 metric_config = {"name": graph['name']}
                 # Pour le graphique temporel, utiliser les éléments spécifiques configurés
-                if graph['name'] == "%mass gaz en fonction du temps" and 'chimicalElements' in graph:
+                if graph['name'] == "%mass gas en fonction du temps" and 'chimicalElements' in graph:
                     # Sélectionner uniquement les éléments spécifiés dans la configuration de test
                     all_elements = graph['chimicalElements']
                     selected_elements = [elem for elem in ELEMENTS_CHIMIQUES_TEST if elem in all_elements]

@@ -16,6 +16,7 @@ from utils.column_mapping import standardize_column_name, get_rel_area_columns, 
 from utils.data_processing import create_summary_table1, create_summary_table2, sort_data_by_time, create_relative_area_summary, process_injection_times, validate_data_availability, calculate_mean_retention_time
 from utils.chart_creation import create_chart_configuration, calculate_chart_positions
 from utils.file_operations import get_first_excel_file, read_excel_summary, extract_experience_number_adaptive
+from utils.chart_styles import apply_line_chart_styles
 
 
 class ChromeleonOnlinePermanent:
@@ -133,20 +134,12 @@ class ChromeleonOnlinePermanent:
             rel = self.get_relative_area_by_injection()
             validation = validate_data_availability(rel)
             graphs.append({
-                'name': "Suivi des concentrations au cours de l'essai",
+                'name': "Permanent Gas mass fractions",
                 'available': validation['has_enough_timepoints'] and validation['has_numeric_data'],
                 'chimicalElements': validation['chemical_elements']
             })
         except Exception:
-            graphs.append({'name': "Suivi des concentrations au cours de l'essai", 'available': False})
-
-        try:
-            _, table2 = self.make_summary_tables()
-            fam_cols = [c for c in FAMILIES if c in table2.columns]
-            has_nonzero = (table2[fam_cols].to_numpy().sum() > 0) if fam_cols else False
-            graphs.append({'name': 'Products repartition Gas phase', 'available': bool(has_nonzero)})
-        except Exception:
-            graphs.append({'name': 'Products repartition Gas phase', 'available': False})
+            graphs.append({'name': "Permanent Gas mass fractions", 'available': False})
 
         return graphs
 
@@ -282,7 +275,7 @@ class ChromeleonOnlinePermanent:
         chart_config = create_chart_configuration(metrics_wanted or [])
         asked_names = {(m.get("name") or "").strip() for m in (metrics_wanted or [])}
         chart_config['want_line'] = any(name in asked_names for name in [
-            "Suivi des concentrations au cours de l'essai", "%mass gaz en fonction du temps"
+            "Permanent Gas mass fractions"
         ])
         
         rel_df = self.get_relative_area_by_injection()
@@ -308,43 +301,16 @@ class ChromeleonOnlinePermanent:
         format_table_headers(ws, headers1, table1_row + 1, styles=styles)
         format_data_table(ws, table1, table1_row + 2, special_row_identifier="Total:", styles=styles)
         apply_standard_column_widths(ws, "summary")
-        
-        table2_col = 6
-        table2_row = table1_row
-        if not table2.empty:
-            create_title_cell(ws, table2_row, table2_col, "Regroupement par carbone / famille", styles)
-            headers2 = ["Carbon"] + list(table2.columns)
-            format_table_headers(ws, headers2, table2_row + 1, table2_col, styles=styles)
-            r = table2_row + 2
-            for _, row in table2.reset_index().iterrows():
-                is_total_row = str(row["Carbon"]).lower() == "total"
-                for j, colname in enumerate(["Carbon"] + list(table2.columns)):
-                    val = row[colname] if colname in row else 0
-                    cell = ws.cell(row=r, column=table2_col + j, value=val)
-                    cell.border = styles['border']
-                    if isinstance(val, (int, float)) and colname != "Carbon":
-                        cell.number_format = "0.00"
-                    if is_total_row:
-                        cell.fill = styles['gray_fill']
-                r += 1
-            apply_standard_column_widths(ws, "carbon_family")
-        
-        chart_col = "P"
-        first_chart_row = table1_row
-        graphs_to_create = []
-        if chart_config['want_line']:
-            graphs_to_create.append("line")
-        if chart_config['want_bar']:
-            graphs_to_create.append("bar")
-        chart_positions = calculate_chart_positions(graphs_to_create, first_chart_row)
 
-        if len(graphs_to_create) == 2:
-            separation_offset = 22
-        else:
-            separation_offset = 8
+        # Adapter la colonne du graphique selon la largeur du tableau rel_df
+        from openpyxl.utils import get_column_letter
+        num_cols_rel_df = len(rel_df.columns)
+        chart_col_index = num_cols_rel_df + 3  # Décalage de 3 colonnes après le tableau
+        chart_col = get_column_letter(chart_col_index)
+        first_chart_row = 1
 
         if chart_config['want_line']:
-            line_position = f"{chart_col}{chart_positions.get('line', first_chart_row)}"
+            line_position = f"{chart_col}{first_chart_row}"
             selected_elements = chart_config['selected_elements']
 
             # Si aucun élément sélectionné, utiliser tous les éléments disponibles
@@ -358,7 +324,7 @@ class ChromeleonOnlinePermanent:
                 layout_config = self._calculate_optimal_chart_layout(num_elements, "line")
 
                 line_chart = LineChart()
-                line_chart.title = "Suivi des concentrations au cours de l'essai"
+                line_chart.title = "Permanent Gas mass fractions"
 
                 self._apply_ultra_safe_chart_styling(line_chart, "line")
 
@@ -433,77 +399,10 @@ class ChromeleonOnlinePermanent:
 
                 self._apply_safe_mono_series_styling(line_chart, num_elements)
 
+                # Appliquer la charte graphique (Futura PT Medium 18 pour titre, légende en bas)
+                apply_line_chart_styles(line_chart, "Permanent Gas mass fractions", legend_position='b')
+
                 ws.add_chart(line_chart, line_position)
-
-        if chart_config['want_bar']:
-            bar_row = chart_positions.get('bar', first_chart_row) + separation_offset
-            bar_position = f"{chart_col}{bar_row}"
-
-            num_families = len([f for f in FAMILIES if f in table2.columns]) if not table2.empty else 0
-            bar_layout_config = self._calculate_optimal_chart_layout(num_families, "bar")
-
-            bar_chart = BarChart()
-            bar_chart.title = "Products repartition Gas phase"
-
-            self._apply_ultra_safe_chart_styling(bar_chart, "bar")
-
-            bar_chart.width = bar_layout_config['width']
-            bar_chart.height = bar_layout_config['height']
-
-            try:
-                from openpyxl.chart.layout import Layout, ManualLayout
-                bar_chart.layout = Layout(
-                    manualLayout=ManualLayout(
-                        xMode="edge", yMode="edge",
-                        x=0.1, y=0.1, w=0.75, h=0.7
-                    )
-                )
-            except:
-                pass
-
-            if num_families <= 1:
-                bar_chart.legend = None
-            else:
-                bar_chart.legend.position = 'r'
-                bar_chart.legend.overlay = False
-
-            bar_chart.type = "col"
-            bar_chart.grouping = "clustered"
-
-
-            if not table2.empty:
-                filtered_table2 = table2.loc[table2.index.intersection(CARBON_ROWS)]
-
-                if not filtered_table2.empty:
-                    family_cols = [f for f in FAMILIES if f in table2.columns]
-
-                    if family_cols:
-                        family_col_indices = []
-                        for family in family_cols:
-                            family_idx = list(table2.columns).index(family)
-                            excel_col = table2_col + 1 + family_idx + 1
-                            family_col_indices.append(excel_col)
-
-                        if family_col_indices:
-                            num_carbon_rows = len(filtered_table2)
-
-                            min_col_families = min(family_col_indices)
-                            max_col_families = max(family_col_indices)
-                            data_ref = Reference(ws,
-                                               min_col=min_col_families,
-                                               min_row=table2_row + 1,
-                                               max_col=max_col_families,
-                                               max_row=table2_row + 1 + num_carbon_rows)
-                            bar_chart.add_data(data_ref, titles_from_data=True)
-
-                            carbon_col = table2_col
-                            cats = Reference(ws,
-                                           min_col=carbon_col,
-                                           min_row=table2_row + 2,
-                                           max_row=table2_row + 1 + num_carbon_rows)
-                            bar_chart.set_categories(cats)
-
-            ws.add_chart(bar_chart, bar_position)
 
         return wb
 

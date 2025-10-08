@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect } from "react";
 import { FILE_ZONE } from "@/src/lib/utils/uploadFile.utils";
+import { UPLOAD_ZONE_DISPLAY_NAMES } from "@/src/lib/config/constants";
 import FileUploadCard from "@/src/components/upload/FileUploadCard";
 import { useUploadState } from "@/src/hooks/useUploadState";
 import { copyAllFilesToDocuments } from "@/src/lib/copyAllFilesToDocuments";
@@ -113,16 +114,6 @@ export default function Page() {
     setError(null);
   };
 
-  const getZoneDisplayName = (zoneKey: string) => {
-    const zoneNames: Record<string, string> = {
-      context: "Context",
-      pignat: "Pignat", 
-      chromeleon: "Chromeleon",
-      chromeleon_online_permanent_gas: "Chromeleon online Permanent Gas"
-    };
-    return zoneNames[zoneKey] || zoneKey.charAt(0).toUpperCase() + zoneKey.slice(1);
-  };
-
   return (
     <div className="min-h-screen">
       {/* ErrorAlert sticky en haut avec z-index approprié */}
@@ -137,14 +128,14 @@ export default function Page() {
       </div>
 
       {/* Contenu principal */}
-      <div className="max-w-6xl mx-auto pb-24">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">File Upload Center</h1>
+      <div className="max-w-6xl mx-auto pb-24 px-4">
+        <h1 className="text-2xl font-bold text-gray-900 mb-8">File Upload Center</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {Object.keys(FILE_ZONE).map((zoneKey) => (
             <FileUploadCard
               key={zoneKey}
-              title={getZoneDisplayName(zoneKey)}
+              title={UPLOAD_ZONE_DISPLAY_NAMES[zoneKey as keyof typeof UPLOAD_ZONE_DISPLAY_NAMES] || zoneKey}
               zoneKey={zoneKey as keyof typeof FILE_ZONE}
               onFilesChange={handleFilesChange}
             />
