@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useId, useRef } from "react";
 import { Upload, X, File, FileText, FileImage, FileVideo } from "lucide-react";
 import { useFileDrop } from "@/src/contexts/FileDropContext";
-import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { pathsToFiles } from "@/src/lib/fileUtils";
 
 export interface FileUploadZoneProps {
@@ -41,10 +41,36 @@ export default function FileUploadZone({
   const [errorMessage, setErrorMessage] = useState("");
   const dropZoneRef = useRef<HTMLDivElement>(null);
   const dragCounterRef = useRef(0);
+  const activeZoneIdRef = useRef<string | null>(null);
 
   const isAtLimit = selectedFiles.length >= maxFiles;
   const remainingSlots = maxFiles - selectedFiles.length;
-  const isThisZoneActive = activeZoneId === zoneId;
+
+  // Log component mount
+  useEffect(() => {
+    console.log(`[FileUploadZone ${description}] Component mounted with zoneId: ${zoneId}`);
+
+    // More detailed Tauri detection
+    const isTauri = typeof window !== 'undefined' && !!(window as any).__TAURI_INTERNALS__;
+    const hasTauriWindow = typeof getCurrentWebviewWindow === 'function';
+
+    console.log(`[FileUploadZone ${description}] Tauri environment:`, {
+      __TAURI__: !!(window as any).__TAURI__,
+      __TAURI_INTERNALS__: !!(window as any).__TAURI_INTERNALS__,
+      hasTauriWindow,
+      isTauri,
+      userAgent: navigator.userAgent
+    });
+
+    return () => {
+      console.log(`[FileUploadZone ${description}] Component unmounting`);
+    };
+  }, [description, zoneId]);
+
+  // Keep activeZoneId in sync with ref
+  useEffect(() => {
+    activeZoneIdRef.current = activeZoneId;
+  }, [activeZoneId]);
 
   const handleNewFiles = (newFiles: File[]) => {
     console.log(`[FileUploadZone ${description}] handleNewFiles called with ${newFiles.length} files`);
@@ -75,131 +101,328 @@ export default function FileUploadZone({
   // Setup Tauri file drop listeners
   useEffect(() => {
     let unlistenDrop: (() => void) | undefined;
+    let isMounted = true;
+    let isListenerRegistered = false;
 
     const setupListeners = async () => {
       try {
-        const appWindow = getCurrentWindow();
+        // Check if we're in Tauri environment (Tauri 2.x uses __TAURI_INTERNALS__)
+        const isTauriEnv = typeof window !== 'undefined' &&
+                          ((window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__);
 
-        // Listen for file drop events
-        unlistenDrop = await appWindow.onFileDropEvent(async (event) => {
-          console.log(`[FileUploadZone ${description}] File drop event:`, event);
+        if (!isTauriEnv) {
+          console.log(`[FileUploadZone ${description}] Not in Tauri environment, skipping Tauri listeners`);
+          return;
+        }
 
-          if (event.payload.type === "hover") {
-            console.log(`[FileUploadZone ${description}] Hover detected`);
-            // Don't set drag over here, let HTML events handle it
-          } else if (event.payload.type === "drop") {
-            console.log(`[FileUploadZone ${description}] Drop detected, active zone:`, activeZoneId);
+        console.log(`[FileUploadZone ${description}] ✅ Tauri environment detected!`);
 
-            // Only process if this is the active zone
-            if (isThisZoneActive && event.payload.paths && event.payload.paths.length > 0) {
-              try {
-                console.log(`[FileUploadZone ${description}] Converting paths:`, event.payload.paths);
-                const files = await pathsToFiles(event.payload.paths);
-                console.log(`[FileUploadZone ${description}] Converted ${files.length} files`);
-                handleNewFiles(files);
-              } catch (error) {
-                console.error(`[FileUploadZone ${description}] Error converting files:`, error);
-                setErrorMessage("Erreur lors de la lecture des fichiers.");
+        const appWebview = getCurrentWebviewWindow();
+        if (!appWebview) {
+          console.warn(`[FileUploadZone ${description}] Could not get current webview`);
+          return;
+        }
+
+        console.log(`[FileUploadZone ${description}] Setting up Tauri drag-drop listeners (zoneId: ${zoneId})`);
+
+        // Listen for drag and drop events
+        const unlisten = await appWebview.onDragDropEvent(async (event) => {
+          if (!isMounted) return;
+
+          console.log(`[FileUploadZone ${description}] Tauri event:`, event.payload.type, {
+            position: event.payload.position,
+            paths: event.payload.paths,
+            zoneId,
+            activeZoneId: activeZoneIdRef.current,
+            isAtLimit
+          });
+
+          if (event.payload.type === "enter" || event.payload.type === "over") {
+            // Check if cursor is over this zone using position
+            if (dropZoneRef.current && event.payload.position) {
+              const rect = dropZoneRef.current.getBoundingClientRect();
+
+              // Try WITHOUT dividing by DPR first - Tauri may already provide logical coordinates
+              let x = event.payload.position.x;
+              let y = event.payload.position.y;
+
+              console.log(`[FileUploadZone ${description}] Position check:`, {
+                cursorX: x,
+                cursorY: y,
+                rectLeft: rect.left,
+                rectRight: rect.right,
+                rectTop: rect.top,
+                rectBottom: rect.bottom,
+                dpr: window.devicePixelRatio
+              });
+
+              let isOver = (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
+
+              // If not over, try WITH DPR correction (for high-DPI screens)
+              if (!isOver) {
+                const dpr = window.devicePixelRatio || 1;
+                x = event.payload.position.x / dpr;
+                y = event.payload.position.y / dpr;
+                isOver = (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom);
+                console.log(`[FileUploadZone ${description}] Retrying with DPR correction:`, {
+                  cursorX: x,
+                  cursorY: y,
+                  isOver
+                });
+              }
+
+              if (isOver && !isAtLimit) {
+                console.log(`[FileUploadZone ${description}] ✅ Cursor is OVER this zone, setting as active`);
+                setIsDragOver(true);
+                setActiveZoneId(zoneId);
+                activeZoneIdRef.current = zoneId;
+                dragCounterRef.current = 1; // Reset counter
+              } else if (activeZoneIdRef.current === zoneId && !isOver) {
+                // Left this zone
+                console.log(`[FileUploadZone ${description}] ❌ Cursor LEFT this zone`);
+                setIsDragOver(false);
+                setActiveZoneId(null);
+                activeZoneIdRef.current = null;
+                dragCounterRef.current = 0;
               }
             }
+          } else if (event.payload.type === "drop") {
+            const currentActiveZone = activeZoneIdRef.current;
+            console.log(`[FileUploadZone ${description}] 🎯 DROP detected, activeZone:`, currentActiveZone, 'thisZone:', zoneId);
 
+            // Only process if this is the active zone
+            if (currentActiveZone === zoneId && event.payload.paths && event.payload.paths.length > 0) {
+              try {
+                console.log(`[FileUploadZone ${description}] 📁 Converting ${event.payload.paths.length} paths:`, event.payload.paths);
+                const files = await pathsToFiles(event.payload.paths);
+                console.log(`[FileUploadZone ${description}] ✅ Converted ${files.length} files successfully`);
+                handleNewFiles(files);
+              } catch (error) {
+                console.error(`[FileUploadZone ${description}] ❌ Error converting files:`, error);
+                setErrorMessage("Erreur lors de la lecture des fichiers.");
+              }
+            } else {
+              console.log(`[FileUploadZone ${description}] ⏭️ Ignoring drop (not active zone or no paths)`);
+            }
+
+            // Reset state after drop
             setIsDragOver(false);
-            dragCounterRef.current = 0;
             setActiveZoneId(null);
+            activeZoneIdRef.current = null;
+            dragCounterRef.current = 0;
+          } else if (event.payload.type === "leave") {
+            console.log(`[FileUploadZone ${description}] 👋 Drag LEAVE event`);
+            // Only clear if this was the active zone
+            if (activeZoneIdRef.current === zoneId) {
+              setIsDragOver(false);
+              setActiveZoneId(null);
+              activeZoneIdRef.current = null;
+              dragCounterRef.current = 0;
+            }
           } else if (event.payload.type === "cancel") {
-            console.log(`[FileUploadZone ${description}] Drop cancelled`);
+            console.log(`[FileUploadZone ${description}] 🚫 Drag CANCELLED`);
             setIsDragOver(false);
-            dragCounterRef.current = 0;
             setActiveZoneId(null);
+            activeZoneIdRef.current = null;
+            dragCounterRef.current = 0;
           }
         });
 
-        console.log(`[FileUploadZone ${description}] Tauri listeners setup complete`);
+        if (!unlisten || typeof unlisten !== 'function') {
+          console.error(`[FileUploadZone ${description}] ❌ unlisten is not a function:`, typeof unlisten);
+          return;
+        }
+
+        if (isMounted) {
+          unlistenDrop = unlisten;
+          isListenerRegistered = true;
+          console.log(`[FileUploadZone ${description}] ✅ Tauri listeners setup complete`);
+        } else {
+          // Component unmounted during setup, cleanup immediately
+          try {
+            unlisten();
+          } catch (error) {
+            console.error(`[FileUploadZone ${description}] Error calling unlisten during setup:`, error);
+          }
+        }
       } catch (error) {
-        console.log(`[FileUploadZone ${description}] Tauri API not available:`, error);
+        console.error(`[FileUploadZone ${description}] ❌ Failed to setup Tauri listeners:`, error);
       }
     };
 
     setupListeners();
 
     return () => {
-      if (unlistenDrop) unlistenDrop();
+      isMounted = false;
+
+      // Only try to cleanup if the listener was successfully registered
+      if (isListenerRegistered && unlistenDrop) {
+        // Skip cleanup in development mode to avoid hot reload issues
+        // Listeners will be automatically cleaned up when window closes
+        const isDev = process.env.NODE_ENV === 'development';
+
+        if (isDev) {
+          console.log(`[FileUploadZone ${description}] Skipping listener cleanup in dev mode`);
+          return;
+        }
+
+        // In production, defer cleanup to avoid race conditions
+        setTimeout(() => {
+          try {
+            // Extra safety checks before calling unlisten
+            if (typeof unlistenDrop !== 'function') {
+              return;
+            }
+
+            // Verify Tauri environment still exists
+            const isTauriEnv = typeof window !== 'undefined' &&
+                              ((window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__);
+
+            if (!isTauriEnv) {
+              return;
+            }
+
+            console.log(`[FileUploadZone ${description}] 🧹 Cleaning up listeners`);
+            unlistenDrop();
+          } catch (error) {
+            // Silently ignore cleanup errors
+          }
+        }, 0);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [description, isThisZoneActive]);
+  }, [description, zoneId, isAtLimit]);
 
   return (
     <div className="space-y-4">
       {/* Zone de drop - masquée quand limite atteinte */}
       {!isAtLimit && (
-        <div
-          ref={dropZoneRef}
-          className={`
-            border-2 border-dashed p-6 rounded-lg flex flex-col items-center justify-center
-            transition-all duration-300 ease-in-out
-            ${isDragOver
-              ? "border-primary border-4 bg-primary/15 scale-[1.03] shadow-xl ring-4 ring-primary/20"
-              : "border-border bg-background hover:border-primary/30"
-            }
-            hover:bg-muted/30 cursor-pointer
-          `}
-          onDragEnter={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dragCounterRef.current++;
-            console.log(`[FileUploadZone ${description}] Drag enter, counter: ${dragCounterRef.current}`);
-            if (dragCounterRef.current === 1 && !isAtLimit) {
-              setIsDragOver(true);
-              setActiveZoneId(zoneId);
-              console.log(`[FileUploadZone ${description}] Set as active zone`);
-            }
-          }}
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-          }}
-          onDragLeave={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            dragCounterRef.current--;
-            console.log(`[FileUploadZone ${description}] Drag leave, counter: ${dragCounterRef.current}`);
-            if (dragCounterRef.current === 0) {
-              setIsDragOver(false);
-              setActiveZoneId(null);
-              console.log(`[FileUploadZone ${description}] Unset active zone`);
-            }
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log(`[FileUploadZone ${description}] HTML drop event received`);
-            dragCounterRef.current = 0;
-            setIsDragOver(false);
+        <div className="relative" style={{ isolation: 'isolate' }}>
+          {/* Drag overlay with animations */}
+          {isDragOver && (
+            <>
+              {/* Primary glow - moving gradient yellow/blue mix */}
+              <div
+                className="absolute inset-0 rounded-lg pointer-events-none"
+                style={{
+                  background: 'linear-gradient(135deg, rgba(227, 234, 45, 0.3), rgba(59, 130, 246, 0.25), rgba(227, 234, 45, 0.3), rgba(59, 130, 246, 0.25))',
+                  backgroundSize: '400% 400%',
+                  animation: 'glowMove 4s ease-in-out infinite, glowPulse 2s ease-in-out infinite',
+                  zIndex: 1,
+                }}
+              />
+              {/* Secondary glow - blue accent pulse */}
+              <div
+                className="absolute inset-0 rounded-lg pointer-events-none"
+                style={{
+                  background: 'radial-gradient(ellipse at center, rgba(59, 130, 246, 0.2), rgba(227, 234, 45, 0.15), transparent 70%)',
+                  animation: 'glowPulse 3s ease-in-out infinite 0.5s',
+                  zIndex: 1,
+                }}
+              />
+              {/* Animated dashed border SVG */}
+              <svg
+                className="absolute inset-0 pointer-events-none"
+                width="100%"
+                height="100%"
+                style={{ zIndex: 2 }}
+              >
+                <rect
+                  x="2"
+                  y="2"
+                  width="calc(100% - 4px)"
+                  height="calc(100% - 4px)"
+                  rx="8"
+                  fill="none"
+                  stroke="hsl(211, 100%, 57%)"
+                  strokeWidth="3"
+                  strokeDasharray="12 8"
+                  strokeDashoffset="0"
+                  style={{
+                    animation: 'dashedRotate 20s linear infinite',
+                  }}
+                />
+              </svg>
+            </>
+          )}
 
-            // For HTML5 file selection (dev mode in browser only)
-            // In Tauri, this will be empty and files come via onFileDropEvent
-            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-              console.log(`[FileUploadZone ${description}] Processing ${e.dataTransfer.files.length} files from HTML5 drop`);
-              handleNewFiles(Array.from(e.dataTransfer.files));
-              setActiveZoneId(null);
-            }
-          }}
-        >
-          <label className="cursor-pointer flex flex-col justify-center items-center w-full">
-            <p className={`mb-4 text-center font-medium transition-all duration-300 ${
-              isDragOver ? "text-primary text-lg" : "text-foreground"
-            }`}>
-              {isDragOver ? "Déposez les fichiers ici !" : description}
-            </p>
+          <div
+            ref={dropZoneRef}
+            className={`
+              relative border-2 p-6 rounded-lg flex flex-col items-center justify-center
+              transition-all duration-300 ease-out bg-background
+              ${isDragOver
+                ? "border-transparent"
+                : "border-dashed border-border hover:border-primary/30"
+              }
+              hover:bg-muted/30 cursor-pointer group
+            `}
+            style={{ zIndex: 0 }}
+          >
+            <label
+              className="cursor-pointer flex flex-col justify-center items-center w-full"
+              onDragEnter={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                // Only use HTML5 drag events in browser (dev mode)
+                const isTauri = (window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__;
+                if (!isTauri) {
+                  dragCounterRef.current++;
+                  if (dragCounterRef.current === 1 && !isAtLimit) {
+                    console.log(`[FileUploadZone ${description}] HTML5 DragEnter`);
+                    setIsDragOver(true);
+                    setActiveZoneId(zoneId);
+                  }
+                }
+              }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                // Only use HTML5 drag events in browser (dev mode)
+                const isTauri = (window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__;
+                if (!isTauri) {
+                  dragCounterRef.current--;
+                  if (dragCounterRef.current === 0) {
+                    console.log(`[FileUploadZone ${description}] HTML5 DragLeave`);
+                    setIsDragOver(false);
+                    setActiveZoneId(null);
+                  }
+                }
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
 
-            <div className="flex items-center space-x-4 mb-4">
-              <div className={`p-3 rounded-lg transition-all duration-300 ${
-                isDragOver
-                  ? "bg-primary text-primary-foreground scale-110"
-                  : "bg-secondary hover:bg-secondary/80"
-              }`}>
-                <Upload className={`transition-all duration-300 ${
-                  isDragOver ? "text-primary-foreground animate-bounce" : "text-secondary-foreground"
+                // Only use HTML5 drag events in browser (dev mode)
+                // In Tauri, files come via onDragDropEvent
+                const isTauri = (window as any).__TAURI_INTERNALS__ || (window as any).__TAURI__;
+                if (!isTauri) {
+                  dragCounterRef.current = 0;
+                  setIsDragOver(false);
+
+                  if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    console.log(`[FileUploadZone ${description}] HTML5 Drop with ${e.dataTransfer.files.length} files`);
+                    handleNewFiles(Array.from(e.dataTransfer.files));
+                    setActiveZoneId(null);
+                  }
+                }
+              }}
+            >
+              {/* Title */}
+              <p className="mb-4 text-center font-medium text-foreground">
+                {description}
+              </p>
+
+              {/* Icon and counter */}
+              <div className="flex items-center space-x-4 mb-4">
+                <div className="p-3 rounded-lg bg-secondary">
+                  <Upload
+                    className={`text-secondary-foreground ${
+                      isDragOver ? "animate-bounce-smooth" : "group-hover-bounce-smooth"
                 }`} size={24} />
               </div>
 
@@ -221,12 +444,12 @@ export default function FileUploadZone({
               aria-label={description}
             />
 
-            <p className={`text-sm transition-all duration-300 ${
-              isDragOver ? "text-primary font-semibold" : "text-muted-foreground"
-            }`}>
-              {isDragOver ? "Relâchez pour ajouter" : "Glissez-déposez vos fichiers ou cliquez pour parcourir"}
-            </p>
-          </label>
+              {/* Helper text */}
+              <p className="text-sm text-muted-foreground">
+                Glissez-déposez vos fichiers ou cliquez pour parcourir
+              </p>
+            </label>
+          </div>
         </div>
       )}
 

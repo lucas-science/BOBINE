@@ -3,6 +3,7 @@
   "identifier": "main-capability",
   "description": "Capability for main application window",
   "windows": ["main"],
+  "webviews": ["main"],
   "permissions": [
     "core:default",
     "core:event:allow-listen",
