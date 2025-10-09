@@ -13,6 +13,7 @@ import NextButton from "@/src/components/shared/nextButton";
 import { StepLoader } from "@/src/components/shared/loaders";
 import ErrorAlert from "@/src/components/upload/ErrorAlert";
 import { info } from "@tauri-apps/plugin-log";
+import { FileDropProvider } from "@/src/contexts/FileDropContext";
 
 export default function Page() {
   const router = useRouter();
@@ -115,48 +116,50 @@ export default function Page() {
   };
 
   return (
-    <div className="min-h-screen">
-      {/* ErrorAlert sticky en haut avec z-index approprié */}
-      <div className="sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4">
-          <ErrorAlert
-            error={error}
-            onDismiss={dismissError}
-            title="Erreur lors du traitement"
-          />
-        </div>
-      </div>
-
-      {/* Contenu principal */}
-      <div className="max-w-6xl mx-auto pb-24 px-4">
-        <h1 className="text-2xl font-bold text-gray-900 mb-8">File Upload Center</h1>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {Object.keys(FILE_ZONE).map((zoneKey) => (
-            <FileUploadCard
-              key={zoneKey}
-              title={UPLOAD_ZONE_DISPLAY_NAMES[zoneKey as keyof typeof UPLOAD_ZONE_DISPLAY_NAMES] || zoneKey}
-              zoneKey={zoneKey as keyof typeof FILE_ZONE}
-              onFilesChange={handleFilesChange}
+    <FileDropProvider>
+      <div className="min-h-screen">
+        {/* ErrorAlert sticky en haut avec z-index approprié */}
+        <div className="sticky top-0 z-10">
+          <div className="max-w-6xl mx-auto px-4">
+            <ErrorAlert
+              error={error}
+              onDismiss={dismissError}
+              title="Erreur lors du traitement"
             />
-          ))}
+          </div>
         </div>
-      </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-4 z-50">
-        <div className="flex justify-between items-center w-full mx-auto">
-          <BackButton onClick={handleBack} disable={!prevPath} />
-          <NextButton onClick={handleNext} disable={!nextPath} />
+        {/* Contenu principal */}
+        <div className="max-w-6xl mx-auto pb-24 px-4">
+          <h1 className="text-2xl font-bold text-gray-900 mb-8">File Upload Center</h1>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {Object.keys(FILE_ZONE).map((zoneKey) => (
+              <FileUploadCard
+                key={zoneKey}
+                title={UPLOAD_ZONE_DISPLAY_NAMES[zoneKey as keyof typeof UPLOAD_ZONE_DISPLAY_NAMES] || zoneKey}
+                zoneKey={zoneKey as keyof typeof FILE_ZONE}
+                onFilesChange={handleFilesChange}
+              />
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* ----- Overlay au premier plan ----- */}
-      <StepLoader
-        open={overlayOpen}
-        currentStep={Math.min(currentStep, TOTAL_STEPS)}
-        totalSteps={TOTAL_STEPS}
-        currentTask={currentTask}
-      />
-    </div>
+        <div className="fixed bottom-0 left-0 right-0 p-4 z-50">
+          <div className="flex justify-between items-center w-full mx-auto">
+            <BackButton onClick={handleBack} disable={!prevPath} />
+            <NextButton onClick={handleNext} disable={!nextPath} />
+          </div>
+        </div>
+
+        {/* ----- Overlay au premier plan ----- */}
+        <StepLoader
+          open={overlayOpen}
+          currentStep={Math.min(currentStep, TOTAL_STEPS)}
+          totalSteps={TOTAL_STEPS}
+          currentTask={currentTask}
+        />
+      </div>
+    </FileDropProvider>
   );
 }
