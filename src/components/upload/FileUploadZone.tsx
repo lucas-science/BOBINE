@@ -2,9 +2,8 @@
 import React, { useState, useEffect, useId, useRef, useCallback } from "react";
 import { Upload } from "lucide-react";
 import { useFileDrop } from "@/src/contexts/FileDropContext";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { pathsToFiles } from "@/src/lib/fileUtils";
-import { isTauriEnv, checkPositionOver } from "@/src/lib/utils/tauriHelpers";
+import { isTauriEnv } from "@/src/lib/utils/tauriHelpers";
+import { useTauriDragDrop } from "@/src/hooks/useTauriDragDrop";
 import DragOverlay from "./DragOverlay";
 import FileList from "./FileList";
 import UploadZoneError from "./UploadZoneError";
@@ -70,95 +69,20 @@ export default function FileUploadZone({
     };
   }, [zoneId, registerZone, unregisterZone]);
 
-  // Setup Tauri file drop listeners
-  useEffect(() => {
-    let unlistenDrop: (() => void) | undefined;
-    let isMounted = true;
-    let isListenerRegistered = false;
-
-    const setupListeners = async () => {
-      try {
-        if (!isTauriEnv()) return;
-
-        const appWebview = getCurrentWebviewWindow();
-        if (!appWebview) return;
-
-        const unlisten = await appWebview.onDragDropEvent(async (event) => {
-          if (!isMounted) return;
-
-          const payload = event.payload as {
-            type: string;
-            position?: { x: number; y: number };
-            paths?: string[];
-          };
-          const { type, position, paths } = payload;
-
-          if (type === "enter" || type === "over") {
-            if (dropZoneRef.current && position) {
-              const rect = dropZoneRef.current.getBoundingClientRect();
-              const isOver = checkPositionOver(rect, position);
-
-              if (isOver && !isAtLimit) {
-                setIsDragOver(true);
-                setActiveZoneId(zoneId);
-                activeZoneIdRef.current = zoneId;
-                dragCounterRef.current = 1;
-              } else if (activeZoneIdRef.current === zoneId && !isOver) {
-                resetDragState();
-              }
-            }
-          } else if (type === "drop") {
-            if (activeZoneIdRef.current === zoneId && paths?.length) {
-              try {
-                const files = await pathsToFiles(paths);
-                handleNewFiles(files);
-              } catch (error) {
-                console.error(`[FileUploadZone ${description}] Error converting files:`, error);
-                setErrorMessage("Erreur lors de la lecture des fichiers.");
-              }
-            }
-            resetDragState();
-          } else if (type === "leave") {
-            if (activeZoneIdRef.current === zoneId) {
-              resetDragState();
-            }
-          } else if (type === "cancel") {
-            resetDragState();
-          }
-        });
-
-        if (unlisten && typeof unlisten === 'function' && isMounted) {
-          unlistenDrop = unlisten;
-          isListenerRegistered = true;
-        } else if (unlisten) {
-          unlisten();
-        }
-      } catch (error) {
-        console.error(`[FileUploadZone ${description}] Failed to setup Tauri listeners:`, error);
-      }
-    };
-
-    setupListeners();
-
-    return () => {
-      isMounted = false;
-
-      if (isListenerRegistered && unlistenDrop) {
-        const isDev = process.env.NODE_ENV === 'development';
-        if (isDev) return;
-
-        setTimeout(() => {
-          try {
-            if (typeof unlistenDrop === 'function' && isTauriEnv()) {
-              unlistenDrop();
-            }
-          } catch {
-            // Silently ignore cleanup errors
-          }
-        }, 0);
-      }
-    };
-  }, [description, zoneId, isAtLimit, handleNewFiles, resetDragState, setActiveZoneId]);
+  // Setup Tauri drag-and-drop listeners
+  useTauriDragDrop({
+    zoneId,
+    description,
+    isAtLimit,
+    dropZoneRef,
+    activeZoneIdRef,
+    dragCounterRef,
+    setIsDragOver,
+    setActiveZoneId,
+    handleNewFiles,
+    resetDragState,
+    onError: setErrorMessage,
+  });
 
   return (
     <div className="space-y-4">
