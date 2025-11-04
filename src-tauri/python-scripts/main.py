@@ -3,6 +3,7 @@ import sys
 import os
 import json
 import io
+import traceback
 import pandas as pd
 from openpyxl import Workbook
 from openpyxl.chart import LineChart, Series, Reference
@@ -311,11 +312,12 @@ def process_command(args):
                 wb.save(out_path)
                 response = {"result": out_path}
             except Exception as e:
-                response = {"error": str(e)}
+                response = {"error": str(e), "traceback": traceback.format_exc()}
 
     except Exception as e:
         print(f"[PROCESS_COMMAND] {e}", file=sys.stderr)
-        response = {"error": str(e)}
+        print(traceback.format_exc(), file=sys.stderr)
+        response = {"error": str(e), "traceback": traceback.format_exc()}
 
     return response
 
@@ -348,7 +350,8 @@ def run_interactive_mode():
             break
         except Exception as e:
             print(f"[INTERACTIVE] Error: {e}", file=sys.stderr)
-            error_response = {"error": str(e)}
+            print(traceback.format_exc(), file=sys.stderr)
+            error_response = {"error": str(e), "traceback": traceback.format_exc()}
             print(json.dumps(error_response, ensure_ascii=False, default=str), flush=True)
             print("<<<END_RESPONSE>>>", flush=True)
 

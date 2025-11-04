@@ -20,6 +20,8 @@ import {
 import RestartButton from "@/src/components/export/restartButton";
 import ButtonLoading from "@/src/components/export/buttonLoading";
 import { info } from "@tauri-apps/plugin-log";
+import { ErrorDebugDialog } from "@/src/components/shared/ErrorDebugDialog";
+import { parseError, ErrorDetails } from "@/src/lib/utils/errorFormatter";
 
 export default function Page() {
   const router = useRouter();
@@ -30,12 +32,16 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [savedPath, setSavedPath] = useState("");
+  const [debugDialogOpen, setDebugDialogOpen] = useState(false);
+  const [errorDetails, setErrorDetails] = useState<ErrorDetails | null>(null);
 
   const { overlayOpen, handleNavigateWithLoader } = useNavigationWithLoader(prevPath || undefined);
 
   const handleGenerateExcel = async () => {
     setLoading(true);
     await new Promise<void>((r) => requestAnimationFrame(() => r()));
+
+    let backendTraceback: string | undefined;
 
     try {
       const sel = localStorage.getItem("selectedMetrics");
@@ -61,15 +67,30 @@ export default function Page() {
       if (!absPath) throw new Error("Enregistrement annulé");
 
       const res = await tauriService.generateAndSaveExcel(docsDir, metrics, absPath);
-      if (!res || res.error) throw new Error(res?.error || "L'export a échoué");
+      if (!res || res.error) {
+        // Capture traceback if available (Python stack trace)
+        backendTraceback = res?.traceback || res?.error;
+        throw new Error(res?.error || "L'export a échoué");
+      }
 
       setSavedPath(res.result ?? absPath);
       setDialogOpen(true);
     } catch (e: unknown) {
       console.error(e);
+
+      // Parse error details for debugging (use traceback if available)
+      const details = parseError(e, backendTraceback);
+      setErrorDetails(details);
+
+      // Show user-friendly toast message
       toast.error(
         e instanceof Error ? e.message : "Une erreur est survenue lors de l'export"
       );
+
+      // In development mode, also show debug dialog
+      if (process.env.NODE_ENV === "development") {
+        setDebugDialogOpen(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -144,6 +165,12 @@ export default function Page() {
         currentStep={1}
         totalSteps={1}
         currentTask="Retour en cours…"
+      />
+
+      <ErrorDebugDialog
+        open={debugDialogOpen}
+        onOpenChange={setDebugDialogOpen}
+        errorDetails={errorDetails}
       />
     </>
   );

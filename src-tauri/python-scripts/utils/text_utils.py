@@ -7,6 +7,50 @@ from datetime import datetime
 from typing import Optional
 
 
+def sanitize_for_filename(text: str, replace_spaces: bool = True) -> str:
+    """
+    Sanitize text for use in filenames by removing accents and special characters.
+
+    This function removes accents (é → e, à → a) and optionally replaces spaces
+    with underscores. It preserves the original case.
+
+    Args:
+        text: Text to sanitize
+        replace_spaces: If True, replace spaces with underscores (default: True)
+
+    Returns:
+        str: Sanitized text safe for filenames
+
+    Examples:
+        >>> sanitize_for_filename("DÉCHETS TOTAL")
+        "DECHETS_TOTAL"
+        >>> sanitize_for_filename("École primaire")
+        "Ecole_primaire"
+        >>> sanitize_for_filename("Test  123", replace_spaces=False)
+        "Test 123"
+    """
+    if not text:
+        return text
+
+    if not isinstance(text, str):
+        text = str(text)
+
+    # Remove accents: DÉCHETS → DECHETS
+    # NFKD = decompose characters (é → e + accent)
+    normalized = unicodedata.normalize('NFKD', text)
+    # Encode to ASCII, ignoring non-ASCII (accents)
+    ascii_text = normalized.encode('ascii', 'ignore').decode('ascii')
+
+    # Replace multiple spaces with single space
+    cleaned = re.sub(r'\s+', ' ', ascii_text).strip()
+
+    # Replace spaces with underscores if requested
+    if replace_spaces:
+        cleaned = cleaned.replace(' ', '_')
+
+    return cleaned
+
+
 MOIS_MAP = {
     'janv': '01', 'janvier': '01', 'jan': '01',
     'févr': '02', 'fevr': '02', 'fevrier': '02', 'feb': '02',
