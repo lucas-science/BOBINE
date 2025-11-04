@@ -9,7 +9,7 @@ import pandas as pd
 from openpyxl import Workbook, load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
 from openpyxl.utils import get_column_letter
-from utils.text_utils import normalize_text, parse_date_value
+from utils.text_utils import normalize_text, parse_date_value, sanitize_for_filename
 
 
 class ExcelContextData:
@@ -34,8 +34,10 @@ class ExcelContextData:
             raise FileNotFoundError(f"Le répertoire {dir_root} n'existe pas")
 
         # ouverture du premier fichier Excel
+        # data_only=True : lit les valeurs calculées des formules (ex: =G29/3 → 0.333)
+        # au lieu de la formule elle-même
         self.file_path = self.first_file
-        self.workbook = load_workbook(self.file_path, data_only=False)
+        self.workbook = load_workbook(self.file_path, data_only=True)
         # première feuille
         self.sheet_name = self.workbook.sheetnames[0]
         self.sheet: Worksheet = self.workbook[self.sheet_name]
@@ -47,24 +49,43 @@ class ExcelContextData:
             "masse cendrier (kg)": None,
             "masse injectée (kg)": None,
         }
+
+        # Create normalized search patterns for more robust matching
+        search_patterns = {
+            "masse recette 1": "masse recette 1 (kg)",
+            "masse recette 2": "masse recette 2 (kg)",
+            "masse cendrier": "masse cendrier (kg)",
+            "masse injectee": "masse injectée (kg)",
+        }
+
         data = list(self.sheet.values)
         df = pd.DataFrame(data)
 
         for i in range(df.shape[0]):
             for j in range(df.shape[1]):
                 val = df.iat[i, j]
-                if isinstance(val, str) and val.lower() in target_labels.keys():
-                    cell_value = df.iat[i, j+1]
-                    try:
-                        # Convert to float, handling comma as decimal separator
-                        if cell_value is not None:
-                            target_labels[val.lower()] = float(str(cell_value).replace(',', '.'))
-                        else:
-                            target_labels[val.lower()] = None
-                    except (ValueError, TypeError):
-                        # If conversion fails, set to None
-                        target_labels[val.lower()] = None 
-        
+                if isinstance(val, str):
+                    normalized_val = normalize_text(val)
+
+                    # Try to match against search patterns
+                    for pattern, label_key in search_patterns.items():
+                        if pattern in normalized_val and target_labels[label_key] is None:
+                            cell_value = df.iat[i, j+1]
+                            try:
+                                # Convert to float, handling comma as decimal separator
+                                if cell_value is not None and str(cell_value).strip():
+                                    target_labels[label_key] = float(str(cell_value).replace(',', '.'))
+                                else:
+                                    target_labels[label_key] = None
+                            except (ValueError, TypeError):
+                                # If conversion fails, set to None
+                                target_labels[label_key] = None
+                            break
+
+        # Fallback: masse_cendrier can be 0.0 if not yet measured (residue weighed after experiment)
+        if target_labels["masse cendrier (kg)"] is None or target_labels["masse cendrier (kg)"] == 0.0:
+            target_labels["masse cendrier (kg)"] = 0.0
+
         return target_labels
 
     def validate(self) -> dict:
@@ -81,13 +102,24 @@ class ExcelContextData:
         try:
             # Test 1: Vérifier les masses
             masses = self.get_masses()
-            missing_masses = [k for k, v in masses.items() if v is None]
+
+            # masse_cendrier can be 0.0 (residue weighed after experiment)
+            # Other masses (recette 1, recette 2, injectée) must be > 0
+            missing_masses = []
+            for k, v in masses.items():
+                if k == "masse cendrier (kg)":
+                    # masse_cendrier: OK if 0.0, None, or > 0
+                    continue
+                else:
+                    # Other masses: must be > 0
+                    if v is None or v <= 0:
+                        missing_masses.append(k)
 
             if missing_masses:
                 return {
                     "valid": False,
                     "error_type": "missing_masses",
-                    "error_message": f"Les masses requises sont incomplètes dans le fichier context. Champs manquants: {', '.join(missing_masses)}. Vérifiez que tous les champs de masse sont renseignés."
+                    "error_message": f"Les masses requises sont incomplètes dans le fichier context. Champs manquants ou invalides: {', '.join(missing_masses)}. Vérifiez que tous les champs de masse sont renseignés avec des valeurs > 0."
                 }
 
             # Test 2: Vérifier les informations pour le nom de fichier
@@ -211,7 +243,10 @@ class ExcelContextData:
                     if c + 1 < ncols:
                         candidate = df.iat[r, c + 1]
                         if candidate is not None and str(candidate).strip():
-                            target_info["feedstock"] = str(candidate).strip().upper()
+                            # Sanitize for filename: remove accents, replace spaces with underscores
+                            # "DÉCHETS TOTAL" → "DECHETS_TOTAL"
+                            feedstock_str = str(candidate).strip()
+                            target_info["feedstock"] = sanitize_for_filename(feedstock_str).upper()
 
                 # --- DEBIT PLASTIQUE (kg/h) ---
                 if target_info["debit"] is None and ('debit' in norm and 'plast' in norm):
