@@ -4,7 +4,7 @@ import os
 import re
 from datetime import datetime
 from typing import Union, Optional
-from copy import copy  # <<< pour cloner les styles sans DeprecationWarning
+from copy import copy
 import pandas as pd
 from openpyxl import Workbook, load_workbook
 from openpyxl.worksheet.worksheet import Worksheet
@@ -33,12 +33,8 @@ class ExcelContextData:
         else:
             raise FileNotFoundError(f"Le répertoire {dir_root} n'existe pas")
 
-        # ouverture du premier fichier Excel
-        # data_only=True : lit les valeurs calculées des formules (ex: =G29/3 → 0.333)
-        # au lieu de la formule elle-même
         self.file_path = self.first_file
-        self.workbook = load_workbook(self.file_path, data_only=True)
-        # première feuille
+        self.workbook = load_workbook(self.file_path, data_only=True)  # Read calculated values, not formulas
         self.sheet_name = self.workbook.sheetnames[0]
         self.sheet: Worksheet = self.workbook[self.sheet_name]
     
@@ -50,7 +46,6 @@ class ExcelContextData:
             "masse injectée (kg)": None,
         }
 
-        # Create normalized search patterns for more robust matching
         search_patterns = {
             "masse recette 1": "masse recette 1 (kg)",
             "masse recette 2": "masse recette 2 (kg)",
@@ -67,22 +62,18 @@ class ExcelContextData:
                 if isinstance(val, str):
                     normalized_val = normalize_text(val)
 
-                    # Try to match against search patterns
                     for pattern, label_key in search_patterns.items():
                         if pattern in normalized_val and target_labels[label_key] is None:
                             cell_value = df.iat[i, j+1]
                             try:
-                                # Convert to float, handling comma as decimal separator
                                 if cell_value is not None and str(cell_value).strip():
                                     target_labels[label_key] = float(str(cell_value).replace(',', '.'))
                                 else:
                                     target_labels[label_key] = None
                             except (ValueError, TypeError):
-                                # If conversion fails, set to None
                                 target_labels[label_key] = None
                             break
 
-        # Fallback: masse_cendrier can be 0.0 if not yet measured (residue weighed after experiment)
         if target_labels["masse cendrier (kg)"] is None or target_labels["masse cendrier (kg)"] == 0.0:
             target_labels["masse cendrier (kg)"] = 0.0
 
@@ -100,18 +91,13 @@ class ExcelContextData:
             }
         """
         try:
-            # Test 1: Vérifier les masses
             masses = self.get_masses()
 
-            # masse_cendrier can be 0.0 (residue weighed after experiment)
-            # Other masses (recette 1, recette 2, injectée) must be > 0
             missing_masses = []
             for k, v in masses.items():
                 if k == "masse cendrier (kg)":
-                    # masse_cendrier: OK if 0.0, None, or > 0
                     continue
                 else:
-                    # Other masses: must be > 0
                     if v is None or v <= 0:
                         missing_masses.append(k)
 
@@ -122,11 +108,9 @@ class ExcelContextData:
                     "error_message": f"Les masses requises sont incomplètes dans le fichier context. Champs manquants ou invalides: {', '.join(missing_masses)}. Vérifiez que tous les champs de masse sont renseignés avec des valeurs > 0."
                 }
 
-            # Test 2: Vérifier les informations pour le nom de fichier
             filename_info = self.get_filename_info()
             missing_filename_fields = []
 
-            # Vérifier que les champs critiques ne sont pas aux valeurs par défaut
             if filename_info.get("date") == datetime.now().strftime('%d%m%Y'):
                 missing_filename_fields.append("date")
             if filename_info.get("feedstock") == "Unknown":
@@ -143,7 +127,6 @@ class ExcelContextData:
                     "error_message": f"Les informations pour le nom de fichier sont incomplètes dans le fichier context. Champs manquants ou invalides: {', '.join(missing_filename_fields)}. Vérifiez que les champs date, feedstock, débit plastique et températures des inducteurs sont bien renseignés."
                 }
 
-            # Test 3: Vérifier les informations d'expérience
             target_labels = {
                 "date": None,
                 "heure début": None,
@@ -153,17 +136,14 @@ class ExcelContextData:
             data = list(self.sheet.values)
             df = pd.DataFrame(data)
 
-            # Parcourir toutes les cellules pour trouver les labels
             for i in range(df.shape[0]):
                 for j in range(df.shape[1]):
                     val = df.iat[i, j]
                     if isinstance(val, str):
                         val_clean = val.lower().strip()
 
-                        # Rechercher chaque label cible
                         for key in target_labels.keys():
                             if key in val_clean and target_labels[key] is None:
-                                # Récupérer la valeur dans la cellule suivante
                                 if j + 1 < df.shape[1]:
                                     next_val = df.iat[i, j + 1]
                                     if next_val is not None and str(next_val).strip():
@@ -179,7 +159,6 @@ class ExcelContextData:
                     "error_message": f"Les informations d'expérience sont manquantes dans le fichier context. Champs manquants: {', '.join(missing_experience_data)}. Vérifiez que les champs date, heure début et heure fin sont bien renseignés."
                 }
 
-            # Si tout est valide
             return {
                 "valid": True,
                 "error_type": None,
@@ -187,7 +166,6 @@ class ExcelContextData:
             }
 
         except Exception as e:
-            # Test 4: Format invalide (erreur de lecture Excel, etc.)
             return {
                 "valid": False,
                 "error_type": "invalid_format",
@@ -201,12 +179,11 @@ class ExcelContextData:
           {
             "date": "DDMMYYYY",
             "feedstock": "LDPE" | "Unknown",
-            "debit": "0.73kgh",  # conserve les décimales
+            "debit": "0.73kgh",
             "nb_inducteurs": "3",
             "temperatures": "450450450"
           }
         """
-        # Utiliser directement self.sheet qui pointe vers la bonne feuille
         sheet_to_use = self.sheet
 
         data = list(sheet_to_use.values)
@@ -221,7 +198,6 @@ class ExcelContextData:
             "temperatures": []
         }
 
-        # Scanner les cellules pour trouver les labels et lire la cellule à droite
         for r in range(nrows):
             for c in range(ncols):
                 val = df.iat[r, c]
@@ -230,7 +206,6 @@ class ExcelContextData:
 
                 norm = normalize_text(val)
 
-                # --- DATE ---
                 if target_info["date"] is None and 'date' in norm:
                     if c + 1 < ncols:
                         candidate = df.iat[r, c + 1]
@@ -238,17 +213,13 @@ class ExcelContextData:
                         if parsed:
                             target_info["date"] = parsed
 
-                # --- FEEDSTOCK ---
                 if target_info["feedstock"] is None and ('feedstock' in norm or 'matiere' in norm):
                     if c + 1 < ncols:
                         candidate = df.iat[r, c + 1]
                         if candidate is not None and str(candidate).strip():
-                            # Sanitize for filename: remove accents, replace spaces with underscores
-                            # "DÉCHETS TOTAL" → "DECHETS_TOTAL"
                             feedstock_str = str(candidate).strip()
                             target_info["feedstock"] = sanitize_for_filename(feedstock_str).upper()
 
-                # --- DEBIT PLASTIQUE (kg/h) ---
                 if target_info["debit"] is None and ('debit' in norm and 'plast' in norm):
                     if c + 1 < ncols:
                         candidate = df.iat[r, c + 1]
@@ -259,7 +230,6 @@ class ExcelContextData:
                                 num = m.group(1).replace(',', '.')
                                 target_info["debit"] = f"{num}kgh"
 
-                # --- NOMBRE D'INDUCTEURS ---
                 if target_info["nb_inducteurs"] is None and ('nombre' in norm and 'inducteur' in norm):
                     if c + 1 < ncols:
                         candidate = df.iat[r, c + 1]
@@ -270,10 +240,8 @@ class ExcelContextData:
                             except:
                                 pass
 
-        # TEMPERATURES : lire directement B28, C28, D28 (ligne 28, colonnes 2, 3, 4)
-        # Ligne 28 = index 27 (0-based), colonnes B=1, C=2, D=3
         if nrows > 27:
-            for col_idx in [1, 2, 3]:  # B, C, D
+            for col_idx in [1, 2, 3]:
                 if col_idx < ncols:
                     cell = df.iat[27, col_idx]
                     if cell is not None:
@@ -284,15 +252,12 @@ class ExcelContextData:
                         except:
                             pass
 
-        # si nb_inducteurs pas trouvé explicitement, on prend la longueur des températures trouvées
         if target_info["nb_inducteurs"] is None:
             target_info["nb_inducteurs"] = str(len(target_info["temperatures"]))
 
-        # si date manquante -> fallback sur date du jour
         if target_info["date"] is None:
             target_info["date"] = datetime.now().strftime('%d%m%Y')
 
-        # fallback feedstock / debit
         if target_info["feedstock"] is None:
             target_info["feedstock"] = "Unknown"
 
@@ -323,8 +288,7 @@ class ExcelContextData:
         try:
             info = self.get_filename_info()
             return f"V2_{info['date']}_{info['feedstock']}_{info['debit']}_{info['nb_inducteurs']}IH_{info['temperatures']}"
-        except Exception as e:
-            # Fallback en cas d'erreur
+        except Exception:
             today = datetime.now().strftime("%d%m%Y")
             return f"V2_{today}_rapport"
 
@@ -345,54 +309,42 @@ class ExcelContextData:
 
         data = list(self.sheet.values)
         df = pd.DataFrame(data)
-        
-        # Parcourir toutes les cellules pour trouver les labels
+
         for i in range(df.shape[0]):
             for j in range(df.shape[1]):
                 val = df.iat[i, j]
                 if isinstance(val, str):
                     val_clean = val.lower().strip()
-                    
-                    # Rechercher chaque label cible
+
                     for key in target_labels.keys():
                         if key in val_clean and target_labels[key] is None:
-                            # Récupérer la valeur dans la cellule suivante
                             if j + 1 < df.shape[1]:
                                 next_val = df.iat[i, j + 1]
                                 if next_val is not None and str(next_val).strip():
                                     target_labels[key] = str(next_val).strip()
                                     break
-        
-        # Construire le nom si toutes les informations sont disponibles
+
         if all(v is not None for v in target_labels.values()):
             try:
                 date_str = str(target_labels["date"]).strip()
                 debut_str = str(target_labels["heure début"]).strip()
                 fin_str = str(target_labels["heure fin"]).strip()
-                
-                # Formatter la date proprement
+
                 def format_date(date_str):
-                    # Si c'est un timestamp datetime, extraire seulement la partie date
                     if re.match(r'\d{4}-\d{2}-\d{2}', date_str):
-                        # Format ISO datetime, prendre seulement YYYY-MM-DD
-                        date_part = date_str.split()[0]  # Séparer date et heure
-                        date_part = date_part.split('T')[0]  # Au cas où format ISO avec T
-                        # Convertir en format plus lisible (optionnel)
+                        date_part = date_str.split()[0].split('T')[0]
                         try:
                             from datetime import datetime
                             dt = datetime.strptime(date_part, '%Y-%m-%d')
-                            return dt.strftime('%d-%m-%Y')  # Format DD-MM-YYYY
+                            return dt.strftime('%d-%m-%Y')
                         except:
                             return date_part.replace('-', '-')
                     else:
-                        # Format texte, nettoyer les caractères spéciaux
                         return re.sub(r'[^\w\-]', '-', date_str)
-                
+
                 date_clean = format_date(date_str)
-                
-                # Formatter les heures : extraire HH:MM et convertir en HHhMM
+
                 def format_time(time_str):
-                    # Extraire les heures et minutes (format HH:MM)
                     time_match = re.search(r'(\d{1,2}):(\d{2})', time_str)
                     if time_match:
                         hours = time_match.group(1).zfill(2)
@@ -404,11 +356,10 @@ class ExcelContextData:
                 fin_clean = format_time(fin_str)
                 
                 return f"Rapport_experience_{date_clean}_{debut_clean}-{fin_clean}"
-                
+
             except Exception:
-                pass  # En cas d'erreur, utiliser le fallback
-        
-        # Fallback : utiliser la date du jour
+                pass
+
         today = datetime.now().strftime("%Y-%m-%d")
         return f"Rapport_experience_{today}"
     
@@ -417,14 +368,12 @@ class ExcelContextData:
         self._copy_sheet(self.sheet, dst_ws)
         return target_wb
 
-    # ---------- export ----------
     def get_as_dataframe(self) -> pd.DataFrame:
         return pd.DataFrame(self.sheet.values)
 
     def get_as_base64(self) -> str:
         """Encode uniquement la première feuille (copiée dans un mini-workbook) en base64."""
         out_wb = Workbook()
-        # nettoyer la sheet par défaut
         if "Sheet" in out_wb.sheetnames and len(out_wb.sheetnames) == 1:
             out_wb.remove(out_wb["Sheet"])
         dst = out_wb.create_sheet(title=self.sheet_name[:31])
@@ -435,7 +384,6 @@ class ExcelContextData:
         bio.seek(0)
         return base64.b64encode(bio.getvalue()).decode("utf-8")
 
-    # ---------- import / injection ----------
     @staticmethod
     def inject_base64_sheet(
         b64: str,
@@ -450,12 +398,10 @@ class ExcelContextData:
         - `save_to`: si `target` est un chemin et que tu veux sauvegarder ailleurs, passe un chemin ici.
         Retourne le Workbook modifié.
         """
-        # 1) reconstruire un workbook source depuis le base64
         raw = base64.b64decode(b64)
         src_wb = load_workbook(io.BytesIO(raw), data_only=False)
-        src_ws = src_wb.active  # unique feuille dans notre mini-WB
+        src_ws = src_wb.active
 
-        # 2) ouvrir ou utiliser la cible
         close_after = False
         if isinstance(target, str):
             tgt_wb = load_workbook(target, data_only=False)
@@ -465,7 +411,6 @@ class ExcelContextData:
             tgt_wb = target
             target_path = None
 
-        # 3) créer une feuille sans collision de nom
         name = new_sheet_name[:31]
         i = 1
         while name in tgt_wb.sheetnames:
@@ -476,28 +421,19 @@ class ExcelContextData:
         dst_ws = tgt_wb.create_sheet(title=name)
         ExcelContextData._copy_sheet(src_ws, dst_ws)
 
-        # 4) sauvegarde si on a reçu un chemin
         if close_after:
             out_path = save_to or target_path
             tgt_wb.save(out_path)
 
         return tgt_wb
 
-    # ---------- utilitaire : copie complète d'une feuille ----------
     @staticmethod
     def _copy_sheet(source_ws: Worksheet, target_ws: Worksheet) -> None:
-        """
-        Copie valeurs, styles, merges, dimensions, freeze panes d'une feuille à l'autre.
-        Fix: on utilise enumerate pour obtenir (row_idx, col_idx) et on évite cell.col_idx
-        qui n’existe pas sur MergedCell.
-        """
-        # cellules (valeurs + styles)
+        """Copie valeurs, styles, merges, dimensions, freeze panes d'une feuille à l'autre."""
         for r_idx, row in enumerate(source_ws.iter_rows(values_only=False), start=1):
             for c_idx, cell in enumerate(row, start=1):
                 t = target_ws.cell(row=r_idx, column=c_idx, value=cell.value)
-                # Appliquer styles si présents
                 try:
-                    # has_style évite d'accéder à des attributs inexistants sur MergedCell
                     if getattr(cell, "has_style", False):
                         if cell.number_format is not None:
                             t.number_format = cell.number_format
@@ -512,35 +448,28 @@ class ExcelContextData:
                         if cell.protection is not None:
                             t.protection = copy(cell.protection)
                 except Exception:
-                    # En cas de cellule fusionnée (MergedCell), certains attributs peuvent être absents.
-                    # On écrit au minimum la valeur, et on continue.
                     pass
 
-        # merges
         for mrange in getattr(source_ws.merged_cells, "ranges", []):
             target_ws.merge_cells(str(mrange))
 
-        # largeurs colonnes
         for key, dim in source_ws.column_dimensions.items():
             td = target_ws.column_dimensions[key]
             td.width = dim.width
             td.hidden = dim.hidden
             td.outlineLevel = dim.outlineLevel
 
-        # hauteurs lignes
         for idx, dim in source_ws.row_dimensions.items():
             td = target_ws.row_dimensions[idx]
             td.height = dim.height
             td.hidden = dim.hidden
             td.outlineLevel = dim.outlineLevel
 
-        # freeze panes & vue
         target_ws.freeze_panes = source_ws.freeze_panes
         target_ws.sheet_view.zoomScale = source_ws.sheet_view.zoomScale
         target_ws.sheet_format.defaultColWidth = source_ws.sheet_format.defaultColWidth
         target_ws.sheet_format.defaultRowHeight = source_ws.sheet_format.defaultRowHeight
 
-        # largeur minimale si non définie
         if not source_ws.column_dimensions:
             for c in range(1, source_ws.max_column + 1):
                 target_ws.column_dimensions[get_column_letter(c)].width = 10
@@ -555,19 +484,13 @@ if __name__ == "__main__":
         print(f"✅ Fichier trouvé : {ctx.file_path}")
         print(f"➡️  Feuille active : {ctx.sheet_name}")
 
-        # masses
         masses = ctx.get_masses()
         print("\n📊 Masses extraites :")
         for k, v in masses.items():
             print(f"  - {k} : {v}")
 
-        # validité
         print("\n✔️ Données valides :", ctx.is_valid())
-
-        # nom d'expérience
         print("\n📄 Nom d'expérience généré :", ctx.get_experience_name())
-
-        # dataframe
         print("\n🔎 Aperçu du DataFrame :")
         print(ctx.get_as_dataframe().head())
 
