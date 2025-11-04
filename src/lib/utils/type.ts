@@ -1,6 +1,7 @@
 export type PyResp = {
   result?: string;
   error?: string;
+  traceback?: string;
 };
 
 type Metric = {

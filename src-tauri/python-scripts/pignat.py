@@ -147,7 +147,7 @@ class PignatData:
     def get_time_range(self) -> dict:
         if TIME not in self.columns:
             raise ValueError(f"Column {TIME} not found in data")
-        
+
         time_column = self.data_frame[TIME]
         all_times = sorted(time_column.dropna().unique().tolist())
 
@@ -161,6 +161,16 @@ class PignatData:
         min_time = all_times[0]
         max_time = all_times[-1]
 
+        # Fonction helper pour extraire uniquement l'heure
+        def extract_time_only(timestamp_str):
+            """Extrait uniquement l'heure au format HH:MM:SS depuis un timestamp"""
+            timestamp_str = str(timestamp_str)
+            # Si le format contient déjà un espace (YYYY-MM-DD HH:MM:SS), extraire la partie heure
+            if ' ' in timestamp_str:
+                return timestamp_str.split(' ')[1]
+            # Sinon, c'est déjà au format HH:MM:SS
+            return timestamp_str
+
         try:
             min_dt = pd.to_datetime(min_time)
             max_dt = pd.to_datetime(max_time)
@@ -173,22 +183,25 @@ class PignatData:
             step_times = []
             current_time = min_dt
             while current_time <= max_dt:
-                step_times.append(current_time.strftime('%Y-%m-%d %H:%M:%S'))
+                # Retourner uniquement l'heure (HH:MM:SS)
+                step_times.append(current_time.strftime('%H:%M:%S'))
                 current_time += delta
 
             return {
-                "min_time": min_time,
-                "max_time": max_time,
+                "min_time": extract_time_only(min_time),
+                "max_time": extract_time_only(max_time),
                 "unique_times": step_times
             }
 
         except Exception:
             step = max(1, len(all_times) // 100)
             sampled_times = all_times[::step]
+            # Extraire uniquement l'heure pour chaque timestamp
+            sampled_times_only = [extract_time_only(t) for t in sampled_times]
             return {
-                "min_time": min_time,
-                "max_time": max_time,
-                "unique_times": sampled_times
+                "min_time": extract_time_only(min_time),
+                "max_time": extract_time_only(max_time),
+                "unique_times": sampled_times_only
             }
 
 
@@ -353,7 +366,8 @@ class PignatData:
                         sample_time = str(df_copy[TIME].iloc[0])
 
                         if ':' in sample_time and len(sample_time.split()) == 1:
-                            df_copy['_datetime'] = pd.to_datetime('2000-01-01 ' + df_copy[TIME].astype(str))
+                            # Convert TIME column to string and prepend date
+                            df_copy['_datetime'] = pd.to_datetime(df_copy[TIME].astype(str).apply(lambda x: f'2000-01-01 {x}'))
                         else:
                             df_copy['_datetime'] = pd.to_datetime(df_copy[TIME])
 

@@ -418,11 +418,11 @@ async fn generate_and_save_excel(
 ) -> Result<serde_json::Value, String> {
     // Debug: Afficher les métriques reçues
     println!("Received metrics: {:?}", metric_wanted);
-    
+
     // Sérialiser l'objet reçu en JSON pour Python
     let metrics_json = serde_json::to_string(&metric_wanted)
         .map_err(|e| format!("Failed to serialize metrics: {e}"))?;
-    
+
     println!("Serialized JSON: {}", metrics_json);
 
     let dest = std::path::PathBuf::from(&destination_path);
@@ -438,7 +438,16 @@ async fn generate_and_save_excel(
         &destination_path,
     ])?;
 
-    parse_python_json(&out.stdout)
+    // Parse JSON but return full object (including error + traceback if present)
+    if out.stdout.trim().is_empty() {
+        return Err("Empty stdout from Python".into());
+    }
+
+    let v: JsonValue = serde_json::from_str(&out.stdout)
+        .map_err(|e| format!("Failed to parse JSON from Python stdout: {e}\nRaw: {}", out.stdout))?;
+
+    // Return the full JSON object (includes error, traceback, result)
+    Ok(v)
 }
 
 /// ---------- Utilitaires fichier / système ----------

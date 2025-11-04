@@ -50,11 +50,20 @@ class ExcelContextData:
         data = list(self.sheet.values)
         df = pd.DataFrame(data)
 
-        for i in range(df.shape[0]):        
-            for j in range(df.shape[1]):    
+        for i in range(df.shape[0]):
+            for j in range(df.shape[1]):
                 val = df.iat[i, j]
                 if isinstance(val, str) and val.lower() in target_labels.keys():
-                    target_labels[val.lower()] = df.iat[i, j+1] 
+                    cell_value = df.iat[i, j+1]
+                    try:
+                        # Convert to float, handling comma as decimal separator
+                        if cell_value is not None:
+                            target_labels[val.lower()] = float(str(cell_value).replace(',', '.'))
+                        else:
+                            target_labels[val.lower()] = None
+                    except (ValueError, TypeError):
+                        # If conversion fails, set to None
+                        target_labels[val.lower()] = None 
         
         return target_labels
 
