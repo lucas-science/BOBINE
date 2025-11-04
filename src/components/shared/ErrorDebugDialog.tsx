@@ -10,7 +10,6 @@ import {
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/ui/button";
 import { Badge } from "@/src/components/ui/badge";
-import { Card } from "@/src/components/ui/card";
 import { copyErrorToClipboard, ErrorDetails } from "@/src/lib/utils/errorFormatter";
 import { toast } from "sonner";
 
@@ -77,13 +76,11 @@ export function ErrorDebugDialog({
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
-          {/* Timestamp */}
           <div className="text-xs text-muted-foreground">
             <span className="font-semibold">Timestamp:</span> {errorDetails.timestamp}
           </div>
 
-          {/* Frontend Error Section */}
-          <Card className="p-4 border-red-200 bg-red-50">
+          <div className="p-4 border border-red-200 bg-red-50 rounded-lg shadow-sm">
             <h3 className="text-sm font-semibold text-red-800 mb-2 flex items-center gap-2">
               <span className="text-lg">⚠️</span>
               Frontend Error
@@ -105,11 +102,10 @@ export function ErrorDebugDialog({
                 </div>
               )}
             </div>
-          </Card>
+          </div>
 
-          {/* Backend Error Section */}
           {errorDetails.backendError && (
-            <Card className="p-4 border-orange-200 bg-orange-50">
+            <div className="p-4 border border-orange-200 bg-orange-50 rounded-lg shadow-sm">
               <h3 className="text-sm font-semibold text-orange-800 mb-2 flex items-center gap-2">
                 <span className="text-lg">🔧</span>
                 Backend Error (Python/Rust)
@@ -117,10 +113,9 @@ export function ErrorDebugDialog({
               <pre className="text-xs bg-white p-3 rounded border border-orange-200 overflow-x-auto max-h-60 overflow-y-auto">
                 {errorDetails.backendError}
               </pre>
-            </Card>
+            </div>
           )}
 
-          {/* Raw Error Object (if different from message) */}
           {errorDetails.rawError && (
             <details className="text-xs">
               <summary className="cursor-pointer text-muted-foreground hover:text-foreground font-semibold">
@@ -133,7 +128,6 @@ export function ErrorDebugDialog({
           )}
         </div>
 
-        {/* Action Buttons */}
         <div className="flex gap-2 mt-6">
           <Button
             onClick={handleCopyToClipboard}
