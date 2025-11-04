@@ -7,7 +7,7 @@ export interface ErrorDetails {
   message: string;
   stack?: string;
   backendError?: string;
-  rawError?: unknown;
+  rawError?: Error | Record<string, unknown> | string | null;
 }
 
 /**
@@ -26,11 +26,18 @@ export function parseError(error: unknown, backendError?: string): ErrorDetails 
     };
   }
 
+  const rawError: ErrorDetails['rawError'] =
+    typeof error === 'string' || error === null
+      ? error
+      : typeof error === 'object'
+      ? error as Record<string, unknown>
+      : null;
+
   return {
     timestamp,
     message: typeof error === 'string' ? error : 'Unknown error',
     backendError,
-    rawError: error,
+    rawError,
   };
 }
 
