@@ -254,7 +254,7 @@ def apply_chart_axis_styles(chart, chart_type: str = "line"):
         pass
 
 
-def apply_chart_legend_style(chart, position: str = "b"):
+def apply_chart_legend_style(chart, position: str = "b", preserve_custom_layout: bool = False):
     """
     Applique le style à la légende du graphique
     Futura PT Light (11), position configurable
@@ -262,41 +262,52 @@ def apply_chart_legend_style(chart, position: str = "b"):
     Args:
         chart: Objet graphique openpyxl
         position: Position de la légende ('t'=top, 'b'=bottom, 'r'=right, 'l'=left)
+        preserve_custom_layout: Si True, ne pas écraser un layout personnalisé existant
     """
     try:
         if hasattr(chart, 'legend') and chart.legend:
             chart.legend.position = position
             chart.legend.overlay = False
 
-            # Ajouter un layout manuel pour éviter le chevauchement avec le titre
-            try:
-                from openpyxl.chart.layout import Layout, ManualLayout
+            # NE PAS écraser un layout personnalisé si preserve_custom_layout=True
+            has_custom_layout = (hasattr(chart.legend, 'layout') and
+                                chart.legend.layout is not None and
+                                hasattr(chart.legend.layout, 'manualLayout') and
+                                chart.legend.layout.manualLayout is not None)
 
-                if position == 't':
-                    # Légende en haut : positionner sous le titre
-                    chart.legend.layout = Layout(
-                        manualLayout=ManualLayout(
-                            xMode="edge", yMode="edge",
-                            x=0.1,   # Centré avec marges
-                            y=0.10,  # Juste sous le titre (titre prend ~8-10% en haut)
-                            w=0.8,   # Largeur pour s'étaler
-                            h=0.08   # Hauteur compacte pour la légende
-                        )
-                    )
-                elif position == 'b':
-                    # Légende en bas
-                    chart.legend.layout = Layout(
-                        manualLayout=ManualLayout(
-                            xMode="edge", yMode="edge",
-                            x=0.1,   # Centré avec marges
-                            y=0.85,  # En bas du graphique
-                            w=0.8,   # Largeur pour s'étaler
-                            h=0.1    # Hauteur compacte
-                        )
-                    )
-                # Pour 'r' et 'l', pas de layout manuel nécessaire
-            except:
+            if preserve_custom_layout and has_custom_layout:
+                # Layout personnalisé déjà défini - ne pas le toucher
                 pass
+            else:
+                # Ajouter un layout manuel pour éviter le chevauchement avec le titre
+                try:
+                    from openpyxl.chart.layout import Layout, ManualLayout
+
+                    if position == 't':
+                        # Légende en haut : positionner sous le titre avec espace minimal
+                        chart.legend.layout = Layout(
+                            manualLayout=ManualLayout(
+                                xMode="edge", yMode="edge",
+                                x=0.1,   # Centré avec marges
+                                y=0.08,  # Espace minimal sous le titre
+                                w=0.8,   # Largeur pour s'étaler
+                                h=0.08   # Hauteur compacte pour la légende
+                            )
+                        )
+                    elif position == 'b':
+                        # Légende en bas avec espace minimal
+                        chart.legend.layout = Layout(
+                            manualLayout=ManualLayout(
+                                xMode="edge", yMode="edge",
+                                x=0.1,   # Centré avec marges
+                                y=0.90,  # Rapprochée du graphique (gap minimal)
+                                w=0.8,   # Largeur pour s'étaler
+                                h=0.08   # Hauteur compacte
+                            )
+                        )
+                    # Pour 'r' et 'l', pas de layout manuel nécessaire
+                except:
+                    pass
 
             # Style de la légende : Futura PT Light (11)
             # Note: Les propriétés de texte de légende sont limitées dans openpyxl
@@ -461,7 +472,7 @@ def apply_bar_chart_styles(chart, title_text: str = None, legend_position: str =
     apply_bar_chart_colors(chart)
 
 
-def apply_line_chart_styles(chart, title_text: str = None, legend_position: str = "b"):
+def apply_line_chart_styles(chart, title_text: str = None, legend_position: str = "b", preserve_legend_layout: bool = False):
     """
     Applique les styles spécifiques aux graphiques linéaires
     - Titre : Futura PT Medium (18)
@@ -472,10 +483,11 @@ def apply_line_chart_styles(chart, title_text: str = None, legend_position: str 
         chart: Objet LineChart openpyxl
         title_text: Texte du titre (optionnel)
         legend_position: Position de la légende (défaut 'b' = bottom)
+        preserve_legend_layout: Si True, préserve un layout de légende personnalisé existant
     """
     apply_chart_title_style(chart, title_text)
     apply_chart_axis_styles(chart, "line")
-    apply_chart_legend_style(chart, legend_position)
+    apply_chart_legend_style(chart, legend_position, preserve_custom_layout=preserve_legend_layout)
 
 
 # ============================================================================

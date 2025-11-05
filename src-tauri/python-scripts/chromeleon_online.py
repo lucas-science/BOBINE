@@ -203,6 +203,83 @@ class ChromeleonOnline:
 
         return table1, table2
 
+    def _calculate_legend_dimensions(self, num_elements: int, legend_position: str = 'b') -> dict:
+        """
+        Calcule les dimensions optimales pour la légende en fonction du nombre d'éléments.
+
+        Args:
+            num_elements: Nombre d'éléments dans la légende
+            legend_position: Position de la légende ('b' pour bottom, 'r' pour right, 't' pour top)
+
+        Returns:
+            dict avec chart_h, legend_h, legend_y, legend_w, legend_x, chart_height_total
+        """
+        import math
+
+        if legend_position == 'b':
+            # Légende en bas : calculer le nombre de lignes nécessaires
+            # Excel affiche environ 3-4 éléments par ligne en légende bottom
+            elements_per_row = 4
+            num_rows = math.ceil(num_elements / elements_per_row)
+
+            # Chaque ligne nécessite environ 0.035 de hauteur relative
+            height_per_row = 0.035
+            legend_h = max(0.1, min(0.60, num_rows * height_per_row))  # Entre 10% et 60% pour supporter 50+ éléments
+
+            # CALCUL INVERSÉ : partir du bas pour minimiser le gap
+            # Marge en bas pour la légende (2% de padding en bas du graphique Excel)
+            bottom_margin = 0.02
+
+            # Position de la légende : la coller en bas avec marge minimale
+            legend_y = 1.0 - bottom_margin - legend_h
+
+            # Espace minimal entre plot area et légende (optimisé pour maximiser la zone de tracé)
+            axis_and_gap = 0.06  # 6% pour axe X + gap minimal (compact mais sans chevauchement)
+
+            # La plot area se termine juste avant l'axe X
+            plot_bottom = legend_y - axis_and_gap
+
+            # La plot area commence après le titre (optimisé pour maximiser la zone de tracé)
+            plot_top = 0.06  # 6% en haut (titre compact mais visible)
+
+            # Hauteur de la zone de tracé (MAXIMISÉE pour un graphique bien visible)
+            chart_h = max(0.40, plot_bottom - plot_top)  # Minimum 40% pour une zone généreuse
+
+            # Hauteur totale du graphique OPTIMISÉE pour zone de tracé maximale
+            if num_elements > 45:
+                chart_height_total = 30  # Graphique large pour 45-50 éléments → plot area ~12cm
+            elif num_elements > 40:
+                chart_height_total = 28  # Graphique large pour 40-45 éléments → plot area ~11cm
+            elif num_elements > 35:
+                chart_height_total = 25  # Graphique large pour 35-40 éléments → plot area ~10cm
+            elif num_elements > 30:
+                chart_height_total = 22  # Graphique standard pour 30-35 éléments → plot area ~9cm
+            elif num_elements > 20:
+                chart_height_total = 20  # Graphique standard pour 20-30 éléments → plot area ~8cm
+            else:
+                chart_height_total = 15  # Hauteur standard pour <20 éléments → plot area ~6cm
+
+            return {
+                'chart_h': chart_h,
+                'plot_top': plot_top,  # Position de départ de la plot area (après le titre)
+                'legend_h': legend_h,
+                'legend_y': legend_y,
+                'legend_x': 0.1,
+                'legend_w': 0.8,
+                'chart_height_total': chart_height_total
+            }
+        else:
+            # Pour les autres positions (right, top), retourner des valeurs par défaut
+            return {
+                'chart_h': 0.65,
+                'plot_top': 0.10,  # Position standard pour autres positions
+                'legend_h': 0.1,
+                'legend_y': 0.85,
+                'legend_x': 0.1,
+                'legend_w': 0.8,
+                'chart_height_total': 15
+            }
+
     def _calculate_optimal_chart_layout(self, num_elements: int, chart_type: str = "line") -> dict:
         layouts = {
             'line': {
@@ -421,26 +498,24 @@ class ChromeleonOnline:
         
         chart_col = "P"
         first_chart_row = table1_row
-        
+
         graphs_to_create = []
         if chart_config['want_line']:
             graphs_to_create.append("line")
         if chart_config['want_bar']:
             graphs_to_create.append("bar")
-        
+
         chart_positions = calculate_chart_positions(graphs_to_create, first_chart_row)
 
-        if len(graphs_to_create) == 2:
-            separation_offset = 12  # Espace réduit entre les graphiques
-        else:
-            separation_offset = 8
-
         if chart_config['want_line']:
-            line_position = f"{chart_col}{chart_positions.get('line', first_chart_row)}"
-            selected_elements = chart_config['selected_elements']
+            line_position = f"{chart_col}{first_chart_row}"
 
-            # Si aucun élément sélectionné, utiliser tous les éléments disponibles
-            if not selected_elements:
+            # Déterminer les éléments à tracer selon la sélection utilisateur
+            if chart_config.get('selected_elements') and len(chart_config['selected_elements']) > 0:
+                # L'utilisateur a sélectionné des éléments spécifiques → tracer SEULEMENT ceux-ci
+                selected_elements = chart_config['selected_elements']
+            else:
+                # Pas de sélection → tracer TOUS les éléments disponibles (comportement par défaut)
                 all_rel_area_cols = [col for col in headers if col.startswith('Rel. Area (%) :')]
                 selected_elements = [col.replace('Rel. Area (%) : ', '') for col in all_rel_area_cols]
 
@@ -449,24 +524,27 @@ class ChromeleonOnline:
 
                 layout_config = self._calculate_optimal_chart_layout(num_elements, "line")
 
+                # Calculer les dimensions optimales de la légende en fonction du nombre d'éléments
+                legend_dims = self._calculate_legend_dimensions(num_elements, 'b')
+
                 line_chart = LineChart()
                 line_chart.title = "Hydrocarbons mass fractions in Gas"
 
                 self._apply_ultra_safe_chart_styling(line_chart, "line")
 
                 line_chart.width = layout_config['width']
-                line_chart.height = layout_config['height']
+                line_chart.height = legend_dims['chart_height_total']  # Hauteur ajustée dynamiquement
 
                 try:
                     from openpyxl.chart.layout import Layout, ManualLayout
-                    # Ajuster la zone du graphique pour laisser de l'espace aux titres
+                    # Ajuster la zone du graphique avec les dimensions calculées dynamiquement
                     line_chart.layout = Layout(
                         manualLayout=ManualLayout(
                             xMode="edge", yMode="edge",
                             x=0.1,   # Marge gauche pour titre Y
-                            y=0.1,   # Marge haute pour titre principal
+                            y=legend_dims['plot_top'],  # Position calculée dynamiquement (après le titre)
                             w=0.75,  # Largeur réduite pour espace légende
-                            h=0.65   # Hauteur réduite pour espace légende en bas
+                            h=legend_dims['chart_h']  # Hauteur calculée dynamiquement pour maximiser la zone de tracé
                         )
                     )
                 except:
@@ -478,16 +556,16 @@ class ChromeleonOnline:
                     line_chart.legend.position = 'b'  # Bottom position
                     line_chart.legend.overlay = False
 
-                    # Layout manuel SAFE pour la légende en bas
+                    # Layout manuel avec dimensions calculées dynamiquement pour accommoder tous les éléments
                     try:
                         from openpyxl.chart.layout import Layout, ManualLayout
                         line_chart.legend.layout = Layout(
                             manualLayout=ManualLayout(
                                 xMode="edge", yMode="edge",
-                                x=0.1,   # Centré horizontalement
-                                y=0.85,  # En bas du graphique
-                                w=0.8,   # Largeur pour s'étaler
-                                h=0.1    # Hauteur compacte
+                                x=legend_dims['legend_x'],
+                                y=legend_dims['legend_y'],
+                                w=legend_dims['legend_w'],
+                                h=legend_dims['legend_h']  # Hauteur calculée pour afficher tous les éléments
                             )
                         )
                     except:
@@ -531,17 +609,32 @@ class ChromeleonOnline:
                                    max_row=start_row + data_rows_count)
                     line_chart.set_categories(cats)
 
-
                 self._apply_safe_mono_series_styling(line_chart, num_elements)
 
                 # Appliquer la charte graphique (Futura PT Medium 18 pour titre, légende en bas)
-                apply_line_chart_styles(line_chart, "Hydrocarbons mass fractions in Gas", legend_position='b')
+                # preserve_legend_layout=True pour garder le layout dynamique calculé ci-dessus
+                apply_line_chart_styles(line_chart, "Hydrocarbons mass fractions in Gas", legend_position='b', preserve_legend_layout=True)
 
                 ws.add_chart(line_chart, line_position)
-        
+
         if chart_config['want_bar']:
-            bar_row = chart_positions.get('bar', first_chart_row) + separation_offset
-            bar_position = f"{chart_col}{bar_row}"
+            # Placer le bar chart à DROITE du line chart si les deux existent, sinon à la position initiale
+            from openpyxl.utils import get_column_letter, column_index_from_string
+
+            chart_col_index = column_index_from_string(chart_col)  # P = 16
+
+            if chart_config['want_line']:
+                # Line chart existe → placer le bar chart à DROITE (même ligne, colonne décalée)
+                bar_col_offset = 19  # Décalage augmenté pour plus d'espace entre les graphiques
+                bar_col_index = chart_col_index + bar_col_offset  # 16 + 19 = 35 (colonne AI)
+                bar_col_letter = get_column_letter(bar_col_index)
+                bar_row = first_chart_row  # MÊME ligne que le line chart
+            else:
+                # Pas de line chart → placer le bar chart à la position initiale
+                bar_col_letter = chart_col
+                bar_row = first_chart_row
+
+            bar_position = f"{bar_col_letter}{bar_row}"
 
             num_families = len([f for f in FAMILIES if f in table2.columns]) if not table2.empty else 0
             bar_layout_config = self._calculate_optimal_chart_layout(num_families, "bar")
