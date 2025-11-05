@@ -143,6 +143,83 @@ class ChromeleonOnlinePermanent:
 
         return graphs
 
+    def _calculate_legend_dimensions(self, num_elements: int, legend_position: str = 'b') -> dict:
+        """
+        Calcule les dimensions optimales pour la légende en fonction du nombre d'éléments.
+
+        Args:
+            num_elements: Nombre d'éléments dans la légende
+            legend_position: Position de la légende ('b' pour bottom, 'r' pour right, 't' pour top)
+
+        Returns:
+            dict avec chart_h, legend_h, legend_y, legend_w, legend_x, chart_height_total
+        """
+        import math
+
+        if legend_position == 'b':
+            # Légende en bas : calculer le nombre de lignes nécessaires
+            # Excel affiche environ 3-4 éléments par ligne en légende bottom
+            elements_per_row = 4
+            num_rows = math.ceil(num_elements / elements_per_row)
+
+            # Chaque ligne nécessite environ 0.035 de hauteur relative
+            height_per_row = 0.035
+            legend_h = max(0.1, min(0.60, num_rows * height_per_row))  # Entre 10% et 60% pour supporter 50+ éléments
+
+            # CALCUL INVERSÉ : partir du bas pour minimiser le gap
+            # Marge en bas pour la légende (2% de padding en bas du graphique Excel)
+            bottom_margin = 0.02
+
+            # Position de la légende : la coller en bas avec marge minimale
+            legend_y = 1.0 - bottom_margin - legend_h
+
+            # Espace minimal entre plot area et légende (optimisé pour maximiser la zone de tracé)
+            axis_and_gap = 0.06  # 6% pour axe X + gap minimal (compact mais sans chevauchement)
+
+            # La plot area se termine juste avant l'axe X
+            plot_bottom = legend_y - axis_and_gap
+
+            # La plot area commence après le titre (optimisé pour maximiser la zone de tracé)
+            plot_top = 0.06  # 6% en haut (titre compact mais visible)
+
+            # Hauteur de la zone de tracé (MAXIMISÉE pour un graphique bien visible)
+            chart_h = max(0.40, plot_bottom - plot_top)  # Minimum 40% pour une zone généreuse
+
+            # Hauteur totale du graphique OPTIMISÉE pour zone de tracé maximale
+            if num_elements > 45:
+                chart_height_total = 30  # Graphique large pour 45-50 éléments → plot area ~12cm
+            elif num_elements > 40:
+                chart_height_total = 28  # Graphique large pour 40-45 éléments → plot area ~11cm
+            elif num_elements > 35:
+                chart_height_total = 25  # Graphique large pour 35-40 éléments → plot area ~10cm
+            elif num_elements > 30:
+                chart_height_total = 22  # Graphique standard pour 30-35 éléments → plot area ~9cm
+            elif num_elements > 20:
+                chart_height_total = 20  # Graphique standard pour 20-30 éléments → plot area ~8cm
+            else:
+                chart_height_total = 15  # Hauteur standard pour <20 éléments → plot area ~6cm
+
+            return {
+                'chart_h': chart_h,
+                'plot_top': plot_top,  # Position de départ de la plot area (après le titre)
+                'legend_h': legend_h,
+                'legend_y': legend_y,
+                'legend_x': 0.1,
+                'legend_w': 0.8,
+                'chart_height_total': chart_height_total
+            }
+        else:
+            # Pour les autres positions (right, top), retourner des valeurs par défaut
+            return {
+                'chart_h': 0.65,
+                'plot_top': 0.10,  # Position standard pour autres positions
+                'legend_h': 0.1,
+                'legend_y': 0.85,
+                'legend_x': 0.1,
+                'legend_w': 0.8,
+                'chart_height_total': 15
+            }
+
     def _calculate_optimal_chart_layout(self, num_elements: int, chart_type: str = "line") -> dict:
         layouts = {
             'line': {
@@ -323,20 +400,27 @@ class ChromeleonOnlinePermanent:
 
                 layout_config = self._calculate_optimal_chart_layout(num_elements, "line")
 
+                # Calculer les dimensions optimales de la légende en fonction du nombre d'éléments
+                legend_dims = self._calculate_legend_dimensions(num_elements, 'b')
+
                 line_chart = LineChart()
                 line_chart.title = "Permanent Gas mass fractions"
 
                 self._apply_ultra_safe_chart_styling(line_chart, "line")
 
                 line_chart.width = layout_config['width']
-                line_chart.height = layout_config['height']
+                line_chart.height = legend_dims['chart_height_total']  # Hauteur ajustée dynamiquement
 
                 try:
                     from openpyxl.chart.layout import Layout, ManualLayout
+                    # Ajuster la zone du graphique avec les dimensions calculées dynamiquement
                     line_chart.layout = Layout(
                         manualLayout=ManualLayout(
                             xMode="edge", yMode="edge",
-                            x=0.1, y=0.1, w=0.75, h=0.65
+                            x=0.1,   # Marge gauche pour titre Y
+                            y=legend_dims['plot_top'],  # Position calculée dynamiquement (après le titre)
+                            w=0.75,  # Largeur réduite pour espace légende
+                            h=legend_dims['chart_h']  # Hauteur calculée dynamiquement pour maximiser la zone de tracé
                         )
                     )
                 except:
@@ -345,15 +429,19 @@ class ChromeleonOnlinePermanent:
                 if num_elements == 1:
                     line_chart.legend = None
                 else:
-                    line_chart.legend.position = 'b'
+                    line_chart.legend.position = 'b'  # Bottom position
                     line_chart.legend.overlay = False
 
+                    # Layout manuel avec dimensions calculées dynamiquement pour accommoder tous les éléments
                     try:
                         from openpyxl.chart.layout import Layout, ManualLayout
                         line_chart.legend.layout = Layout(
                             manualLayout=ManualLayout(
                                 xMode="edge", yMode="edge",
-                                x=0.1, y=0.85, w=0.8, h=0.1
+                                x=legend_dims['legend_x'],
+                                y=legend_dims['legend_y'],
+                                w=legend_dims['legend_w'],
+                                h=legend_dims['legend_h']  # Hauteur calculée pour afficher tous les éléments
                             )
                         )
                     except:
@@ -400,7 +488,8 @@ class ChromeleonOnlinePermanent:
                 self._apply_safe_mono_series_styling(line_chart, num_elements)
 
                 # Appliquer la charte graphique (Futura PT Medium 18 pour titre, légende en bas)
-                apply_line_chart_styles(line_chart, "Permanent Gas mass fractions", legend_position='b')
+                # preserve_legend_layout=True pour garder le layout dynamique calculé ci-dessus
+                apply_line_chart_styles(line_chart, "Permanent Gas mass fractions", legend_position='b', preserve_legend_layout=True)
 
                 ws.add_chart(line_chart, line_position)
 
